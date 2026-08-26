@@ -1,0 +1,11 @@
+{
+  "name": "kopan",
+  "private": true,
+  "workspaces": [
+    "frontend",
+    "backend"
+  ],
+  "engines": {
+    "node": ">=22.22.3"
+  }
+}
