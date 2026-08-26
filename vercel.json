@@ -5,7 +5,8 @@
       "framework": "angular"
     },
     "backend": {
-      "root": "backend"
+      "root": "backend",
+      "entrypoint": "src/main.ts"
     }
   },
   "rewrites": [
