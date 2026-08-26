@@ -2,7 +2,14 @@
   "services": {
     "frontend": {
       "root": "frontend",
-      "framework": "angular"
+      "framework": "angular",
+      "outputDirectory": "dist/frontend/browser",
+      "rewrites": [
+        {
+          "source": "/(.*)",
+          "destination": "/index.html"
+        }
+      ]
     },
     "backend": {
       "root": "backend",
@@ -14,7 +21,8 @@
       "source": "/api(/.*)?",
       "destination": {
         "type": "service",
-        "service": "backend"
+        "service": "backend",
+        "path": "/index"
       }
     },
     {
