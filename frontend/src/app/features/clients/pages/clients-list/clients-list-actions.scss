@@ -1,0 +1,31 @@
+.header-actions {
+  display: flex;
+  gap: 0.6rem;
+}
+.secondary {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  padding: 0.7rem 1rem;
+  border: 1px solid #d7c8bb;
+  border-radius: 10px;
+  background: #fff;
+  color: #5b4635;
+  font: inherit;
+  font-weight: 750;
+  cursor: pointer;
+}
+.secondary:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+@media (max-width: 600px) {
+  .header-actions {
+    width: 100%;
+    flex-direction: column;
+  }
+  .header-actions button {
+    justify-content: center;
+    width: 100%;
+  }
+}

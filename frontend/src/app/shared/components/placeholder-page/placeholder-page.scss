@@ -1,0 +1,31 @@
+:host {
+  display: block;
+}
+
+.content-header {
+  margin-bottom: 2rem;
+
+  h1 {
+    margin: 0 0 0.35rem;
+    color: #1a1a1a;
+    font-size: 1.75rem;
+  }
+
+  p {
+    margin: 0;
+    color: #3d3d3d;
+    font-size: 0.95rem;
+  }
+}
+
+.placeholder-card {
+  background: #fff;
+  border-radius: 18px;
+  padding: 3rem;
+  box-shadow: 0 15px 35px rgba(0, 0, 0, 0.06);
+  display: grid;
+  place-items: center;
+  min-height: 300px;
+  color: #1a1a1a;
+  font-size: 0.95rem;
+}

@@ -1,0 +1,182 @@
+<section class="page">
+  <header>
+    <span>ANÁLISIS ECONÓMICO</span>
+    <h1>Informes financieros</h1>
+    <p>Resultados calculados sobre ventas confirmadas y expresados en pesos argentinos.</p>
+  </header>
+  <section class="filters">
+    <div class="quick">
+      <button type="button" (click)="preset('TODAY')">Hoy</button
+      ><button type="button" (click)="preset('WEEK')">Semanal</button
+      ><button type="button" (click)="preset('MONTH')">Mensual</button
+      ><button type="button" (click)="preset('YEAR')">Anual</button>
+    </div>
+    <label><span>Desde</span><input type="date" [(ngModel)]="from" /></label
+    ><label><span>Hasta</span><input type="date" [(ngModel)]="to" /></label>
+    <label
+      ><span>Medio de pago</span
+      ><select [(ngModel)]="payment">
+        <option value="">Todos</option>
+        <option value="EFECTIVO">Efectivo</option>
+        <option value="TRANSFERENCIA">Transferencia / Mercado Pago</option>
+        <option value="CREDITO">Crédito / cuenta corriente</option>
+      </select></label
+    >
+    <button class="apply" type="button" (click)="load()">Generar informe</button>
+  </section>
+  @if (error()) {
+    <p class="error">{{ error() }}</p>
+  }
+  @if (loading()) {
+    <div class="loading">Generando informe...</div>
+  } @else {
+    <section class="kpis">
+      <article class="primary">
+        <span>Ventas finales con IVA</span><strong>{{ money(revenue()) }}</strong
+        ><small>{{ sales().length }} ventas · Promedio {{ money(average()) }}</small>
+      </article>
+      <article>
+        <span>Importe neto</span><strong>{{ money(net()) }}</strong
+        ><small>Antes del IVA</small>
+      </article>
+      <article>
+        <span>IVA incluido</span><strong>{{ money(vat()) }}</strong
+        ><small>Según alícuota de cada producto</small>
+      </article>
+      <article>
+        <span>Costo registrado</span><strong>{{ money(cost()) }}</strong
+        ><small>Costo histórico de mercadería</small>
+      </article>
+      <article [class.negative]="margin() < 0">
+        <span>Margen bruto estimado</span><strong>{{ money(margin()) }}</strong
+        ><small>
+          @if (detailedSales().length) {
+            {{ percent(margin(), detailedRevenue()) }} sobre {{ detailedSales().length }} ventas con
+            desglose
+          } @else {
+            Sin ventas nuevas con desglose
+          }
+        </small>
+      </article>
+    </section>
+    <section class="report-grid">
+      <article class="panel evolution">
+        <header>
+          <div>
+            <span>EVOLUCIÓN</span>
+            <h2>Ventas por día</h2>
+          </div>
+          <strong>{{ money(revenue()) }}</strong>
+        </header>
+        <div class="bars">
+          @for (day of daily(); track day.date) {
+            <div class="bar-row">
+              <span>{{ dateLabel(day.date) }}</span>
+              <div><i [style.width]="barWidth(day.amount)"></i></div>
+              <strong>{{ money(day.amount) }}</strong
+              ><small>{{ day.count }} venta{{ day.count === 1 ? '' : 's' }}</small>
+            </div>
+          } @empty {
+            <p class="empty">No hay ventas en este período.</p>
+          }
+        </div>
+      </article>
+      <article class="panel">
+        <header>
+          <div>
+            <span>VENTAS POR MEDIO</span>
+            <h2>Cobros y cuenta corriente</h2>
+          </div>
+        </header>
+        <div class="split">
+          <div>
+            <span>Efectivo</span><strong>{{ money(cash()) }}</strong
+            ><small>{{ percent(cash(), revenue()) }}</small>
+          </div>
+          <div>
+            <span>Transferencia / MP</span><strong>{{ money(transfers()) }}</strong
+            ><small>{{ percent(transfers(), revenue()) }}</small>
+          </div>
+          <div>
+            <span>Crédito / cuenta corriente</span><strong>{{ money(credit()) }}</strong
+            ><small>{{ percent(credit(), revenue()) }}</small>
+          </div>
+        </div>
+      </article>
+      <article class="panel">
+        <header>
+          <div>
+            <span>IMPUESTOS</span>
+            <h2>Desglose de IVA</h2>
+          </div>
+        </header>
+        <div class="data-list vat">
+          @for (row of vatBreakdown(); track row.rate) {
+            <div>
+              <strong>{{ row.rate }}%</strong><span>Neto {{ money(row.net) }}</span
+              ><span>IVA {{ money(row.vat) }}</span
+              ><b>{{ money(row.total) }}</b>
+            </div>
+          } @empty {
+            <p class="empty">Las ventas históricas todavía no tienen desglose de IVA.</p>
+          }
+        </div>
+      </article>
+      <article class="panel">
+        <header>
+          <div>
+            <span>PRODUCTOS</span>
+            <h2>Mayor facturación</h2>
+          </div>
+        </header>
+        <div class="data-list">
+          @for (row of topProducts(); track row.name) {
+            <div>
+              <strong>{{ row.name }}</strong
+              ><span>{{ row.quantity }} unidades</span><b>{{ money(row.amount) }}</b>
+            </div>
+          } @empty {
+            <p class="empty">Sin productos para mostrar.</p>
+          }
+        </div>
+      </article>
+      <article class="panel">
+        <header>
+          <div>
+            <span>CLIENTES</span>
+            <h2>Principales clientes</h2>
+          </div>
+        </header>
+        <div class="data-list">
+          @for (row of topClients(); track row.name) {
+            <div>
+              <strong>{{ row.name }}</strong
+              ><span>{{ row.sales }} compras</span><b>{{ money(row.amount) }}</b>
+            </div>
+          } @empty {
+            <p class="empty">Sin clientes para mostrar.</p>
+          }
+        </div>
+      </article>
+    </section>
+    @if (legacyCount() > 0) {
+      <p class="scope-note warning">
+        <i class="ti ti-alert-triangle"></i
+        ><span
+          >{{ legacyCount() }} venta{{ legacyCount() === 1 ? '' : 's' }} anterior{{
+            legacyCount() === 1 ? '' : 'es'
+          }}
+          a esta actualización no incluye{{ legacyCount() === 1 ? '' : 'n' }} costo ni IVA
+          discriminado. Se suma al total vendido, pero no al margen ni al desglose fiscal.</span
+        >
+      </p>
+    }
+    <p class="scope-note">
+      <i class="ti ti-info-circle"></i
+      ><span
+        >Este informe contempla ventas confirmadas. Compras a proveedores, gastos y cierres por
+        usuario se incorporarán cuando esos circuitos estén definidos.</span
+      >
+    </p>
+  }
+</section>

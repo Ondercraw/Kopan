@@ -1,0 +1,48 @@
+:host {
+  display: block;
+  min-width: 0;
+}
+.currency-field {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  min-width: 0;
+  height: 44px;
+  border: 1px solid #dcccbc;
+  border-radius: 10px;
+  overflow: hidden;
+  background: #fffdfb;
+  transition:
+    border-color 0.2s,
+    box-shadow 0.2s;
+}
+.currency-field:focus-within {
+  border-color: #9a4d08;
+  box-shadow: 0 0 0 3px rgba(154, 77, 8, 0.12);
+}
+.currency-prefix {
+  display: grid;
+  place-items: center;
+  padding: 0 12px;
+  border-right: 1px solid #e7d8ca;
+  background: #f7eee6;
+  color: #783b08;
+  font-size: 0.78rem;
+  font-weight: 800;
+  letter-spacing: 0.03em;
+}
+input {
+  width: 100%;
+  min-width: 0;
+  height: 100%;
+  border: 0;
+  outline: 0;
+  padding: 0 12px;
+  background: transparent;
+  color: #25150c;
+  font: inherit;
+  font-variant-numeric: tabular-nums;
+}
+.disabled {
+  opacity: 0.6;
+  background: #f1ece7;
+}

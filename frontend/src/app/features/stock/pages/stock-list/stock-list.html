@@ -1,0 +1,373 @@
+<header class="content-header">
+  <div>
+    <span class="eyebrow">Inventario</span>
+    <h1>Gestión de stock</h1>
+    <p>Consultá productos y actualizá sus unidades disponibles.</p>
+  </div>
+
+  @if (canManageStock()) {
+    <div class="header-actions">
+      <button
+        type="button"
+        class="btn-secondary replenishment-action"
+        (click)="replenishmentModalOpen.set(true)"
+      >
+        <i class="ti ti-clipboard-list"></i>
+        Reposición ({{ replenishmentProducts().length }})
+      </button>
+      <button
+        type="button"
+        class="btn-secondary"
+        [disabled]="filteredProducts().length === 0"
+        (click)="exportCurrentStock()"
+      >
+        <i class="ti ti-download"></i>
+        Exportar vista
+      </button>
+      <button
+        type="button"
+        class="btn-secondary success-outline"
+        [disabled]="inactiveProducts().length === 0"
+        (click)="reactivateModalOpen.set(true)"
+      >
+        <i class="ti ti-restore"></i>
+        Reactivar ({{ inactiveProducts().length }})
+      </button>
+      <button
+        type="button"
+        class="btn-secondary danger-outline"
+        [disabled]="products().length === 0"
+        (click)="deactivateModalOpen.set(true)"
+      >
+        <i class="ti ti-package-off"></i>
+        Dar de baja
+      </button>
+      <button type="button" class="btn-primary" (click)="addModalOpen.set(true)">
+        <i class="ti ti-plus"></i>
+        Agregar producto
+      </button>
+    </div>
+  }
+</header>
+
+<section class="stock-summary" aria-label="Resumen de stock">
+  <div>
+    <strong>{{ products().length }}</strong
+    ><span>productos activos</span>
+  </div>
+  <div [class.warning]="outOfStockCount() > 0">
+    <strong>{{ outOfStockCount() }}</strong
+    ><span>sin stock</span>
+  </div>
+  <div [class.low-warning]="lowStockCount() > 0">
+    <strong>{{ lowStockCount() }}</strong
+    ><span>con stock bajo</span>
+  </div>
+</section>
+
+<section class="filters" aria-label="Filtros de productos">
+  <label class="search-field">
+    <span class="sr-only">Buscar por nombre</span>
+    <i class="ti ti-search" aria-hidden="true"></i>
+    <input
+      type="search"
+      placeholder="Buscar por nombre..."
+      [value]="searchTerm()"
+      (input)="onSearch($event)"
+    />
+  </label>
+
+  <label class="select-field">
+    <span>Proveedor</span>
+    <select [value]="supplierFilter()" (change)="onSupplierFilter($event)">
+      <option value="">Todos</option>
+      @for (supplier of supplierOptions(); track supplier._id) {
+        <option [value]="supplier._id">{{ supplier.nombre }}</option>
+      }
+    </select>
+  </label>
+
+  <label class="select-field">
+    <span>Tipo</span>
+    <select [value]="typeFilter()" (change)="onTypeFilter($event)">
+      <option value="">Todos</option>
+      @for (type of typeOptions(); track type) {
+        <option [value]="type">{{ type }}</option>
+      }
+    </select>
+  </label>
+
+  <label class="select-field">
+    <span>Peso</span>
+    <select [value]="weightFilter()" (change)="onWeightFilter($event)">
+      <option value="">Todos</option>
+      @for (weight of weightOptions(); track weight.value) {
+        <option [value]="weight.value">{{ formatWeight(weight.peso, weight.unidad) }}</option>
+      }
+    </select>
+  </label>
+
+  <label class="select-field">
+    <span>Ordenar por</span>
+    <select aria-label="Ordenar productos" [value]="sortOrder()" (change)="onSortChange($event)">
+      <option value="ID_ASC">ID: menor a mayor</option>
+      <option value="ID_DESC">ID: mayor a menor</option>
+      <option value="NAME_ASC">Producto: A a Z</option>
+      <option value="NAME_DESC">Producto: Z a A</option>
+      <option value="TYPE_ASC">Tipo: A a Z</option>
+      <option value="TYPE_DESC">Tipo: Z a A</option>
+      <option value="SUPPLIER_ASC">Proveedor: A a Z</option>
+      <option value="SUPPLIER_DESC">Proveedor: Z a A</option>
+      <option value="DESCRIPTION_ASC">Descripción: A a Z</option>
+      <option value="DESCRIPTION_DESC">Descripción: Z a A</option>
+      <option value="WEIGHT_ASC">Peso: menor a mayor</option>
+      <option value="WEIGHT_DESC">Peso: mayor a menor</option>
+      <option value="STOCK_ASC">Cantidad: menor a mayor</option>
+      <option value="STOCK_DESC">Cantidad: mayor a menor</option>
+      <option value="MINIMUM_ASC">Stock mínimo: menor a mayor</option>
+      <option value="MINIMUM_DESC">Stock mínimo: mayor a menor</option>
+      <option value="STATUS_ASC">Estado: alertas primero</option>
+      <option value="STATUS_DESC">Estado: disponibles primero</option>
+      <option value="CREATED_DESC">Creación: más recientes</option>
+      <option value="CREATED_ASC">Creación: más antiguos</option>
+      <option value="UPDATED_DESC">Actualización: más recientes</option>
+      <option value="UPDATED_ASC">Actualización: más antiguas</option>
+    </select>
+  </label>
+
+  @if (searchTerm() || supplierFilter() || typeFilter() || weightFilter()) {
+    <button type="button" class="clear-filters" (click)="clearFilters()">
+      <i class="ti ti-filter-off"></i>
+      Limpiar
+    </button>
+  }
+</section>
+
+@if (error()) {
+  <div class="error-banner" role="alert">
+    <i class="ti ti-alert-circle"></i>
+    <span>{{ error() }}</span>
+    <button type="button" aria-label="Cerrar aviso" (click)="error.set(null)">
+      <i class="ti ti-x"></i>
+    </button>
+  </div>
+}
+
+<section class="product-list" aria-label="Lista de productos">
+  <div class="list-header" aria-hidden="true">
+    <span>ID</span>
+    <span>Producto</span>
+    <span>Tipo</span>
+    <span>Proveedor</span>
+    <span>Descripción</span>
+    <span>Peso</span>
+    <span>Stock</span>
+    <span>Acciones</span>
+  </div>
+
+  @if (loading()) {
+    <div class="list-state"><span class="spinner"></span>Cargando productos…</div>
+  } @else {
+    @for (product of filteredProducts(); track product._id) {
+      <article
+        class="product-row"
+        [class.expanded]="expandedProductId() === product._id"
+        [class.no-stock]="product.cantidadStock === 0"
+        [class.low-stock]="isLowStock(product)"
+      >
+        <div class="row-summary">
+          <button
+            type="button"
+            class="product-toggle"
+            [attr.aria-expanded]="expandedProductId() === product._id"
+            [attr.aria-controls]="'details-' + product._id"
+            (click)="toggleExpanded(product._id)"
+          >
+            <span class="cell code" data-label="ID">#{{ product.codigo }}</span>
+            <span class="cell name" data-label="Producto">
+              <strong>{{ product.nombre }}</strong>
+              @if (product.cantidadStock === 0) {
+                <small>Sin stock</small>
+              } @else if (isLowStock(product)) {
+                <small class="low-label">Stock bajo</small>
+              }
+            </span>
+            <span class="cell" data-label="Tipo">{{ product.tipo }}</span>
+            <span class="cell provider" data-label="Proveedor">
+              {{ product.proveedorId?.nombre || 'Sin proveedor' }}
+            </span>
+            <span class="cell description" data-label="Descripción">
+              {{ product.descripcionAdicional || 'Sin descripción adicional' }}
+            </span>
+            <span class="cell weight" data-label="Peso">
+              {{ formatWeight(product.peso, product.unidadPeso) }}
+            </span>
+            <span class="cell stock" data-label="Stock">
+              <strong>{{ product.cantidadStock }}</strong> unidades
+            </span>
+          </button>
+
+          <div class="quantity-actions" aria-label="Modificar cantidad">
+            @if (canManageStock()) {
+              <div class="triangle-actions">
+                <button
+                  type="button"
+                  class="quantity-btn minus"
+                  aria-label="Restar una unidad"
+                  [disabled]="product.cantidadStock === 0 || pendingProductIds().has(product._id)"
+                  (click)="adjustQuantity(product, -1)"
+                >
+                  −
+                </button>
+                <button
+                  type="button"
+                  class="quantity-btn plus"
+                  aria-label="Sumar una unidad"
+                  [disabled]="pendingProductIds().has(product._id)"
+                  (click)="adjustQuantity(product, 1)"
+                >
+                  +
+                </button>
+                <button
+                  type="button"
+                  class="edit-btn"
+                  [attr.aria-label]="'Editar ' + product.nombre"
+                  (click)="openEdit(product)"
+                >
+                  <i class="ti ti-pencil"></i>
+                </button>
+              </div>
+            }
+            <button
+              type="button"
+              class="expand-indicator"
+              [attr.aria-label]="
+                expandedProductId() === product._id ? 'Contraer producto' : 'Expandir producto'
+              "
+              (click)="toggleExpanded(product._id)"
+            >
+              <i
+                class="ti"
+                [class.ti-chevron-up]="expandedProductId() === product._id"
+                [class.ti-chevron-down]="expandedProductId() !== product._id"
+              ></i>
+            </button>
+          </div>
+        </div>
+
+        @if (expandedProductId() === product._id) {
+          <div class="expanded-details" [id]="'details-' + product._id">
+            <div class="expanded-heading">
+              <div>
+                <span>Producto #{{ product.codigo }}</span>
+                <h2>{{ product.nombre }}</h2>
+              </div>
+              <span
+                class="stock-status"
+                [class.empty]="product.cantidadStock === 0"
+                [class.low]="isLowStock(product)"
+              >
+                {{
+                  product.cantidadStock === 0
+                    ? 'Sin stock'
+                    : isLowStock(product)
+                      ? 'Stock bajo'
+                      : 'Disponible'
+                }}
+              </span>
+            </div>
+            <dl>
+              <div>
+                <dt>Tipo</dt>
+                <dd>{{ product.tipo }}</dd>
+              </div>
+              <div>
+                <dt>Peso por unidad</dt>
+                <dd>{{ formatWeight(product.peso, product.unidadPeso) }}</dd>
+              </div>
+              <div>
+                <dt>Cantidad actual</dt>
+                <dd>{{ product.cantidadStock }} unidades</dd>
+              </div>
+              <div>
+                <dt>Stock mínimo</dt>
+                <dd>{{ product.stockMinimo }} unidades</dd>
+              </div>
+              <div>
+                <dt>Proveedor</dt>
+                <dd>{{ product.proveedorId?.nombre || 'Sin proveedor asignado' }}</dd>
+              </div>
+              <div>
+                <dt>Precio de costo con IVA (precio final)</dt>
+                <dd>{{ formatMoney(product.costoCentavos ?? 0) }}</dd>
+              </div>
+              <div>
+                <dt>Alícuota de IVA</dt>
+                <dd>{{ product.alicuotaIva ?? 21 }}%</dd>
+              </div>
+              <div>
+                <dt>Estado</dt>
+                <dd>{{ product.activo ? 'Activo' : 'Dado de baja' }}</dd>
+              </div>
+              <div class="detail-wide">
+                <dt>Descripción adicional</dt>
+                <dd>{{ product.descripcionAdicional || 'Sin descripción adicional' }}</dd>
+              </div>
+            </dl>
+
+            <app-stock-movement-history
+              [movements]="movementsByProduct()[product._id] ?? []"
+              [loading]="loadingMovementIds().has(product._id)"
+            />
+          </div>
+        }
+      </article>
+    } @empty {
+      <div class="list-state empty">
+        <i class="ti ti-package-off"></i>
+        <strong>No se encontraron productos</strong>
+        <span>Probá cambiando la búsqueda o los filtros.</span>
+      </div>
+    }
+  }
+</section>
+
+@if (addModalOpen()) {
+  <app-product-form-modal
+    [typeOptions]="typeOptions()"
+    (cerrado)="addModalOpen.set(false)"
+    (guardado)="onProductSaved()"
+  />
+}
+
+@if (editingProduct()) {
+  <app-product-form-modal
+    [product]="editingProduct()"
+    [typeOptions]="typeOptions()"
+    (cerrado)="editingProduct.set(null)"
+    (guardado)="onProductSaved()"
+  />
+}
+
+@if (deactivateModalOpen()) {
+  <app-product-deactivate-modal
+    [products]="products()"
+    (cerrado)="deactivateModalOpen.set(false)"
+    (confirmado)="onProductsDeactivated()"
+  />
+}
+
+@if (reactivateModalOpen()) {
+  <app-product-reactivate-modal
+    [products]="inactiveProducts()"
+    (cerrado)="reactivateModalOpen.set(false)"
+    (confirmado)="onProductsReactivated()"
+  />
+}
+
+@if (replenishmentModalOpen()) {
+  <app-replenishment-modal
+    [products]="replenishmentProducts()"
+    (closed)="replenishmentModalOpen.set(false)"
+  />
+}

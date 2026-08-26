@@ -1,0 +1,46 @@
+select {
+  appearance: none;
+  padding-right: 2.5rem;
+  border-color: #d8cabc;
+  background-color: #f8f3ed;
+  background-image:
+    linear-gradient(45deg, transparent 50%, #6d513a 50%),
+    linear-gradient(135deg, #6d513a 50%, transparent 50%);
+  background-position:
+    calc(100% - 16px) 19px,
+    calc(100% - 11px) 19px;
+  background-repeat: no-repeat;
+  background-size: 5px 5px;
+  font-weight: 650;
+  cursor: pointer;
+  transition:
+    border-color 0.2s,
+    box-shadow 0.2s,
+    background-color 0.2s;
+}
+select:hover {
+  border-color: #bd956f;
+  background-color: #f4e9dd;
+}
+select:focus,
+input[list]:focus {
+  outline: none;
+  border-color: #b97832;
+  box-shadow: 0 0 0 4px rgba(185, 120, 50, 0.14);
+}
+input[list] {
+  border-color: #d8cabc;
+  background-color: #fdfaf7;
+  transition:
+    border-color 0.2s,
+    box-shadow 0.2s,
+    background-color 0.2s;
+}
+input[list]:hover {
+  border-color: #bd956f;
+  background-color: #fff;
+}
+.grid label:has(select) > span,
+.grid label:has(input[list]) > span {
+  color: #5e4027;
+}

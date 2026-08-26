@@ -1,0 +1,34 @@
+<div class="overlay">
+  <section class="modal" role="dialog" aria-modal="true" aria-labelledby="replenishment-title" (click)="$event.stopPropagation()">
+    <header>
+      <div><span>Abastecimiento</span><h2 id="replenishment-title">Lista de reposición</h2><p>Productos sin stock o por debajo de su mínimo, agrupados por proveedor.</p></div>
+      <button type="button" class="close" aria-label="Cerrar" (click)="close()"><i class="ti ti-x"></i></button>
+    </header>
+
+    <div class="summary"><strong>{{ products.length }}</strong><span>productos requieren atención</span></div>
+
+    <div class="groups">
+      @for (group of groups; track group.key) {
+        <section class="supplier-group">
+          <div class="supplier-heading"><i class="ti ti-truck"></i><h3>{{ group.supplier }}</h3><span>{{ group.products.length }}</span></div>
+          <div class="table-heading"><span>Producto</span><span>Actual</span><span>Mínimo</span><span>Faltan</span></div>
+          @for (product of group.products; track product._id) {
+            <div class="product-line" [class.empty]="product.cantidadStock === 0">
+              <span><strong>#{{ product.codigo }} · {{ product.nombre }}</strong><small>{{ product.tipo }}</small></span>
+              <strong>{{ product.cantidadStock }}</strong>
+              <span>{{ product.stockMinimo }}</span>
+              <span>{{ missingToMinimum(product) }}</span>
+            </div>
+          }
+        </section>
+      } @empty {
+        <div class="empty-state"><i class="ti ti-circle-check"></i><strong>El stock está cubierto</strong><span>No hay productos sin stock ni por debajo del mínimo.</span></div>
+      }
+    </div>
+
+    <footer>
+      <button type="button" class="secondary" (click)="close()">Cerrar</button>
+      <button type="button" class="primary" [disabled]="products.length === 0" (click)="exportCsv()"><i class="ti ti-download"></i>Exportar CSV</button>
+    </footer>
+  </section>
+</div>

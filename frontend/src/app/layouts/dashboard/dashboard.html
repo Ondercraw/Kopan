@@ -1,0 +1,82 @@
+<div class="dashboard">
+  <button
+    type="button"
+    class="mobile-menu-toggle"
+    [class.open]="mobileMenuOpen()"
+    [attr.aria-expanded]="mobileMenuOpen()"
+    aria-controls="dashboard-sidebar"
+    [attr.aria-label]="mobileMenuOpen() ? 'Cerrar menú' : 'Abrir menú'"
+    (click)="toggleMobileMenu()"
+  >
+    <i class="ti" [class.ti-menu-2]="!mobileMenuOpen()" [class.ti-x]="mobileMenuOpen()"></i>
+  </button>
+
+  @if (mobileMenuOpen()) {
+    <button
+      type="button"
+      class="sidebar-backdrop"
+      aria-label="Cerrar menú"
+      (click)="closeMobileMenu()"
+    ></button>
+  }
+
+  <aside id="dashboard-sidebar" class="sidebar" [class.mobile-open]="mobileMenuOpen()">
+    <div class="sidebar-brand">
+      <span class="brand-mark">KP</span>
+
+      <div class="brand-text">
+        <strong>Kopan</strong>
+        <small>Mayorista</small>
+      </div>
+    </div>
+
+    <nav class="sidebar-nav">
+      @for (group of navGroups; track group.label) {
+        <section class="nav-group">
+          <h2 class="nav-group-title">{{ group.label }} <span>—</span></h2>
+          @for (item of group.items; track item.path) {
+            <a
+              class="nav-item"
+              [routerLink]="item.path"
+              routerLinkActive="active"
+              [routerLinkActiveOptions]="{ exact: item.path === '/' }"
+              (click)="closeMobileMenu()"
+            >
+              <strong class="nav-content">
+                <i class="ti {{ item.icon }} nav-icon"></i>
+                <span class="nav-label">{{ item.label }}</span>
+              </strong>
+            </a>
+          }
+        </section>
+      }
+    </nav>
+
+    <div class="sidebar-footer">
+      <div class="user-info">
+        <span class="user-avatar">{{ iniciales }}</span>
+
+        <div class="user-text">
+          <strong>{{ currentUser()?.nombre }}</strong>
+          <small>{{ rolesLabel }}</small>
+        </div>
+      </div>
+
+      <button
+        class="logout-btn"
+        type="button"
+        title="Cerrar sesión"
+        aria-label="Cerrar sesión"
+        (click)="onLogout()"
+      >
+        <strong class="logout-content">
+          <i class="ti ti-logout"></i>
+        </strong>
+      </button>
+    </div>
+  </aside>
+
+  <main class="dashboard-content">
+    <router-outlet></router-outlet>
+  </main>
+</div>

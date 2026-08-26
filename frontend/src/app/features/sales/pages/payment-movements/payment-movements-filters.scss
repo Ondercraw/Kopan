@@ -1,0 +1,142 @@
+.filters {
+  display: grid;
+  grid-template-columns: 1fr 150px 150px minmax(190px, 0.7fr) auto;
+  gap: 10px;
+  align-items: end;
+  margin: 22px 0 14px;
+  padding: 14px;
+  border: 1px solid #e3d1c4;
+  border-radius: 14px;
+  background: #fff;
+}
+.filters label {
+  display: grid;
+  gap: 5px;
+  min-width: 0;
+}
+.filters label span {
+  color: #775b48;
+  font-size: 0.72rem;
+  font-weight: 750;
+}
+.filters input,
+.filters select {
+  width: 100%;
+  height: 42px;
+  border: 1px solid #dac7b8;
+  border-radius: 9px;
+  padding: 0 10px;
+  background: #fffdfa;
+  font: inherit;
+}
+.quick {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+.quick button {
+  padding: 8px 10px;
+  border: 1px solid #d8c2b2;
+  border-radius: 999px;
+  background: #fffaf5;
+  color: #713b14;
+  font-weight: 700;
+  cursor: pointer;
+}
+.quick button:hover {
+  border-color: #9b5518;
+  background: #fff1df;
+}
+.apply {
+  height: 42px;
+  padding: 0 15px;
+  border: 0;
+  border-radius: 9px;
+  background: #7d3900;
+  color: #fff;
+  font-weight: 750;
+  cursor: pointer;
+}
+.totals {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  margin-top: 14px;
+}
+.totals small {
+  color: #846d5d;
+}
+.search {
+  position: relative;
+  display: block;
+  margin: 0 0 14px;
+}
+.search > i {
+  position: absolute;
+  top: 13px;
+  left: 13px;
+  color: #8b6f5c;
+}
+.search input {
+  width: 100%;
+  height: 44px;
+  padding: 0 44px 0 38px;
+  border: 1px solid #dccabd;
+  border-radius: 10px;
+  background: #fff;
+  font: inherit;
+}
+.search button {
+  position: absolute;
+  top: 6px;
+  right: 7px;
+  width: 32px;
+  height: 32px;
+  border: 0;
+  border-radius: 8px;
+  background: #f4eae1;
+  color: #704019;
+}
+.head,
+.list article {
+  grid-template-columns: 60px 125px minmax(130px, 1fr) 135px minmax(100px, 0.8fr) 120px;
+  gap: 9px;
+}
+@media (max-width: 1400px) {
+  .filters {
+    grid-template-columns: 1fr 1fr minmax(180px, 1fr) auto;
+  }
+  .quick {
+    grid-column: 1 / -1;
+  }
+  .totals {
+    grid-template-columns: 1fr 1fr;
+  }
+}
+@media (max-width: 900px) {
+  .head {
+    display: none;
+  }
+  .list article {
+    grid-template-columns: 1fr 1fr;
+  }
+  .list article > *::before {
+    content: attr(data-label);
+    display: block;
+    margin-bottom: 3px;
+    color: #8a7768;
+    font-size: 0.65rem;
+    font-weight: 800;
+    text-transform: uppercase;
+  }
+}
+@media (max-width: 600px) {
+  .filters {
+    grid-template-columns: 1fr;
+  }
+  .quick {
+    grid-column: auto;
+  }
+  .totals {
+    grid-template-columns: 1fr;
+  }
+}

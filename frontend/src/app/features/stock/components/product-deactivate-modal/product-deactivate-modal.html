@@ -1,0 +1,115 @@
+<div class="modal-overlay">
+  <section
+    class="modal-card"
+    role="dialog"
+    aria-modal="true"
+    aria-labelledby="deactivate-products-title"
+    (click)="$event.stopPropagation()"
+  >
+    <header class="modal-header">
+      <div>
+        <span class="eyebrow">Baja lógica</span>
+        <h2 id="deactivate-products-title">
+          @if (step() === 'selection') {
+            Seleccionar productos
+          } @else {
+            Confirmar baja
+          }
+        </h2>
+      </div>
+      <button type="button" class="icon-btn" aria-label="Cerrar" (click)="close()">
+        <i class="ti ti-x"></i>
+      </button>
+    </header>
+
+    @if (step() === 'selection') {
+      <p class="intro">Elegí uno o varios productos. No se borrarán sus datos históricos.</p>
+
+      <button type="button" class="select-all" (click)="toggleAll()">
+        @if (selectedIds().size === products.length && products.length > 0) {
+          Quitar selección
+        } @else {
+          Seleccionar todos
+        }
+      </button>
+
+      <div class="product-selection" role="group" aria-label="Productos activos">
+        @for (product of products; track product._id) {
+          <label class="product-option" [class.selected]="selectedIds().has(product._id)">
+            <input
+              type="checkbox"
+              [checked]="selectedIds().has(product._id)"
+              (change)="toggle(product._id)"
+            />
+            <span class="product-code">#{{ product.codigo }}</span>
+            <span class="product-name">{{ product.nombre }}</span>
+            <small
+              >{{ product.tipo }} · {{ product.peso }} {{ product.unidadPeso }} · Stock
+              {{ product.cantidadStock }}</small
+            >
+          </label>
+        } @empty {
+          <p class="empty-state">No hay productos activos para dar de baja.</p>
+        }
+      </div>
+
+      <footer class="modal-actions">
+        <button type="button" class="btn-secondary" (click)="close()">Cancelar</button>
+        <button
+          type="button"
+          class="btn-primary"
+          [disabled]="selectedIds().size === 0"
+          (click)="continueToConfirmation()"
+        >
+          Continuar ({{ selectedIds().size }})
+        </button>
+      </footer>
+    } @else {
+      <div class="warning-box">
+        <i class="ti ti-alert-triangle" aria-hidden="true"></i>
+        <div>
+          <strong>Estos productos dejarán de aparecer en el stock activo</strong>
+          <p>
+            La operación conserva sus datos y movimientos. Después se puede reactivar desde
+            “Reactivar”.
+          </p>
+        </div>
+      </div>
+
+      <ul class="confirmation-list">
+        @for (product of selectedProducts; track product._id) {
+          <li>
+            <strong>#{{ product.codigo }}</strong> {{ product.nombre }}
+          </li>
+        }
+      </ul>
+
+      @if (errorMessage()) {
+        <p class="form-error">{{ errorMessage() }}</p>
+      }
+
+      <footer class="modal-actions">
+        <button
+          type="button"
+          class="btn-secondary"
+          [disabled]="processing()"
+          (click)="backToSelection()"
+        >
+          Volver
+        </button>
+        <button
+          type="button"
+          class="btn-danger"
+          [disabled]="processing()"
+          (click)="confirmDeactivation()"
+        >
+          @if (processing()) {
+            Procesando…
+          } @else {
+            Confirmar baja
+          }
+        </button>
+      </footer>
+    }
+  </section>
+</div>

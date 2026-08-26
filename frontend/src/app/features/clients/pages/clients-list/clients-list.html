@@ -1,0 +1,248 @@
+<header class="content-header">
+  <div>
+    <span class="eyebrow">Maestro comercial</span>
+    <h1>Clientes</h1>
+    <p>Consultá los clientes por nombre, código, grupo, localidad o vendedor.</p>
+  </div>
+  <div class="header-actions">
+    <button
+      class="secondary"
+      type="button"
+      [disabled]="filtered().length === 0"
+      (click)="exportCsv()"
+    >
+      <i class="ti ti-download"></i>Exportar vista
+    </button>
+    @if (canManage()) {
+      <button class="primary" type="button" (click)="modalOpen.set(true)">
+        <i class="ti ti-user-plus"></i>Agregar cliente
+      </button>
+    }
+  </div>
+</header>
+<section class="summary">
+  <div>
+    <strong>{{ clients().length }}</strong
+    ><span>registrados</span>
+  </div>
+  <div>
+    <strong>{{ filtered().length }}</strong
+    ><span>en esta vista</span>
+  </div>
+  <div class="inactive-count">
+    <strong>{{ inactiveCount() }}</strong
+    ><span>dados de baja</span>
+  </div>
+</section>
+<section class="toolbar">
+  <label class="search-field"
+    ><i class="ti ti-search"></i
+    ><input
+      type="search"
+      placeholder="Buscar nombre, CUIT o dirección…"
+      [value]="search()"
+      (input)="search.set($any($event.target).value)" /></label
+  ><label
+    ><span>Grupo</span
+    ><select [value]="group()" (change)="group.set($any($event.target).value)">
+      <option value="">Todos</option>
+      @for (value of options().groups; track value) {
+        <option [value]="value">{{ value }}</option>
+      }
+    </select></label
+  ><label
+    ><span>Localidad</span
+    ><select [value]="location()" (change)="location.set($any($event.target).value)">
+      <option value="">Todas</option>
+      @for (value of options().locations; track value) {
+        <option [value]="value">{{ value }}</option>
+      }
+    </select></label
+  ><label
+    ><span>Vendedor</span
+    ><select [value]="seller()" (change)="seller.set($any($event.target).value)">
+      <option value="">Todos</option>
+      @for (value of options().sellers; track value._id) {
+        <option [value]="value._id">{{ value.nombre }}</option>
+      }
+    </select></label
+  ><label
+    ><span>Estado</span
+    ><select [value]="status()" (change)="status.set($any($event.target).value)">
+      <option value="active">Activos</option>
+      <option value="inactive">Dados de baja</option>
+      <option value="all">Todos</option>
+    </select></label
+  ><label
+    ><span>Ordenar</span
+    ><select [value]="sort()" (change)="sort.set($any($event.target).value)">
+      <option value="NAME_ASC">Nombre: A a Z</option>
+      <option value="NAME_DESC">Nombre: Z a A</option>
+      <option value="CODE_ASC">Código: menor a mayor</option>
+      <option value="CODE_DESC">Código: mayor a menor</option>
+    </select></label
+  >
+  @if (search() || group() || location() || seller()) {
+    <button class="clear" type="button" (click)="clear()">
+      <i class="ti ti-filter-off"></i>Limpiar
+    </button>
+  }
+</section>
+@if (error()) {
+  <div class="error">{{ error() }}</div>
+}
+<section class="list">
+  <div class="list-header">
+    <span>Código</span><span>Cliente</span><span>Grupo</span><span>Localidad</span
+    ><span>Vendedor</span><span>Estado</span><span>Acciones</span>
+  </div>
+  @if (loading()) {
+    <p class="state">Cargando clientes…</p>
+  } @else {
+    @for (client of filtered(); track client._id) {
+      <article [class.inactive]="!client.activo">
+        <div class="row" (click)="expanded.set(expanded() === client._id ? null : client._id)">
+          <span data-label="Código">#{{ client.codigo }}</span
+          ><strong data-label="Cliente"
+            >{{ client.nombre }}<small>{{ client.nombreFantasia }}</small></strong
+          ><span data-label="Grupo">{{ client.grupo || 'Sin grupo' }}</span
+          ><span data-label="Localidad">{{ client.localidad || 'Sin localidad' }}</span
+          ><span data-label="Vendedor">{{ client.vendedorId?.nombre || 'Sin asignar' }}</span
+          ><span data-label="Estado"
+            ><em [class.active]="client.activo">{{ client.activo ? 'Activo' : 'Baja' }}</em></span
+          >
+          <div class="actions">
+            @if (canManage()) {
+              <button type="button" title="Editar" (click)="$event.stopPropagation(); edit(client)">
+                <i class="ti ti-pencil"></i></button
+              ><button
+                type="button"
+                [title]="client.activo ? 'Dar de baja' : 'Reactivar'"
+                (click)="$event.stopPropagation(); toggleActive(client)"
+              >
+                <i
+                  class="ti"
+                  [class.ti-user-off]="client.activo"
+                  [class.ti-refresh]="!client.activo"
+                ></i>
+              </button>
+            }
+            <button type="button" title="Ver detalles"><i class="ti ti-chevron-down"></i></button>
+          </div>
+        </div>
+        @if (expanded() === client._id) {
+          <div class="details">
+            <div>
+              <small>Razón social</small><span>{{ client.nombre }}</span>
+            </div>
+            <div>
+              <small>Nombre comercial</small
+              ><span>{{ client.nombreFantasia || 'Sin informar' }}</span>
+            </div>
+            <div>
+              <small>CUIT / documento</small><span>{{ client.cuit || 'Sin informar' }}</span>
+            </div>
+            <div>
+              <small>Condición IVA</small><span>{{ taxLabels[client.condicionIva] }}</span>
+            </div>
+            <div>
+              <small>Grupo</small><span>{{ client.grupo || 'Sin grupo' }}</span>
+            </div>
+            <div>
+              <small>Localidad</small><span>{{ client.localidad || 'Sin informar' }}</span>
+            </div>
+            <div>
+              <small>Vendedor asignado</small
+              ><span>{{ client.vendedorId?.nombre || 'Sin asignar' }}</span>
+            </div>
+            <div>
+              <small>Lista de precios</small
+              ><span>{{ client.listaPreciosId?.nombre || 'Sin lista asignada' }}</span>
+            </div>
+            <div>
+              <small>Cuenta corriente</small
+              ><span>{{ client.permiteCuentaCorriente ? 'Habilitada' : 'No habilitada' }}</span>
+            </div>
+            @if (client.permiteCuentaCorriente) {
+              <div>
+                <small>Límite de crédito</small
+                ><span>{{ money(client.limiteCreditoCentavos ?? 0) }}</span>
+              </div>
+              <div>
+                <small>Saldo utilizado</small
+                ><span>{{ money(client.saldoCuentaCorrienteCentavos ?? 0) }}</span>
+              </div>
+              <div>
+                <small>Crédito disponible</small><span>{{ money(availableCredit(client)) }}</span>
+              </div>
+            }
+            <div>
+              <small>Teléfono</small><span>{{ client.telefono || 'Sin informar' }}</span>
+            </div>
+            <div>
+              <small>Email</small><span>{{ client.email || 'Sin informar' }}</span>
+            </div>
+            <div class="wide">
+              <small>Dirección</small><span>{{ client.direccion || 'Sin informar' }}</span>
+            </div>
+            <div class="wide">
+              <small>Observaciones</small
+              ><span>{{ client.observaciones || 'Sin observaciones' }}</span>
+            </div>
+            <section class="history wide">
+              <h3>Historial de cambios ({{ client.historialCambios.length }})</h3>
+              @for (change of visibleHistory(client); track change.date) {
+                <p>
+                  <i class="ti ti-history"></i
+                  ><span
+                    ><strong>{{ change.detail }}</strong
+                    ><small
+                      >{{ change.actorName }} · {{ change.date | date: 'dd/MM/yyyy HH:mm' }}</small
+                    ></span
+                  >
+                </p>
+              }
+              @if (client.historialCambios.length > historyPageSize) {
+                <app-pagination-controls
+                  [page]="historyPage(client)"
+                  [totalPages]="historyTotalPages(client)"
+                  (pageChange)="changeHistoryPage(client, $event)"
+                />
+              }
+            </section>
+          </div>
+        }
+      </article>
+    } @empty {
+      <p class="state">No se encontraron clientes con esos filtros.</p>
+    }
+  }
+</section>
+@if (modalOpen()) {
+  <app-client-form-modal
+    [client]="editing()"
+    [options]="options()"
+    (closed)="close()"
+    (saved)="saved()"
+  />
+}
+@if (pendingStatus(); as client) {
+  <app-confirmation-modal
+    [title]="client.activo ? 'Dar de baja cliente' : 'Reactivar cliente'"
+    [message]="
+      client.activo
+        ? '¿Querés dar de baja a ' + client.nombre + '?'
+        : '¿Querés reactivar a ' + client.nombre + '?'
+    "
+    [detail]="
+      client.activo
+        ? 'El cliente dejará de aparecer entre los activos, pero se conservarán sus datos e historial.'
+        : 'El cliente volverá a estar disponible para operar.'
+    "
+    [confirmLabel]="client.activo ? 'Dar de baja' : 'Reactivar'"
+    [tone]="client.activo ? 'danger' : 'success'"
+    [loading]="actionBusy()"
+    (cancelled)="pendingStatus.set(null)"
+    (confirmed)="confirmToggleActive()"
+  />
+}

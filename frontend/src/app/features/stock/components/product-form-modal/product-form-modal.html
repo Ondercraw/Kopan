@@ -1,0 +1,236 @@
+<div class="modal-overlay">
+  <section
+    class="modal-card"
+    role="dialog"
+    aria-modal="true"
+    aria-labelledby="product-form-title"
+    (click)="$event.stopPropagation()"
+  >
+    <header class="modal-header">
+      <div>
+        <span class="eyebrow">Gestión de stock</span>
+        <h2 id="product-form-title">{{ product ? 'Editar producto' : 'Agregar producto' }}</h2>
+      </div>
+      <button type="button" class="icon-btn" aria-label="Cerrar" (click)="onCancelar()">
+        <i class="ti ti-x"></i>
+      </button>
+    </header>
+
+    <form [formGroup]="form" (ngSubmit)="onSubmit()" class="product-form">
+      <div class="field id-field">
+        <label>ID</label>
+        <div class="automatic-id">
+          <i class="ti ti-hash"></i>
+          {{ product ? '#' + product.codigo : 'Se asigna automáticamente al guardar' }}
+        </div>
+      </div>
+
+      <div class="form-grid">
+        <div class="field field-span-2">
+          <label for="nombre">Nombre</label>
+          <input
+            id="nombre"
+            type="text"
+            formControlName="nombre"
+            autofocus
+          />
+          @if (form.controls.nombre.invalid && form.controls.nombre.touched) {
+            <span class="field-error">Ingresá un nombre de al menos 2 caracteres</span>
+          }
+        </div>
+
+        <div class="field">
+          <label for="tipo">Tipo</label>
+          <app-searchable-select
+            id="tipo"
+            formControlName="tipo"
+            [options]="typeSelectOptions"
+            [allowCustom]="true"
+            placeholder="Buscar o escribir un tipo..."
+            emptyText="No hay tipos que coincidan. Podés escribir uno nuevo."
+          />
+          @if (form.controls.tipo.invalid && form.controls.tipo.touched) {
+            <span class="field-error">Ingresá un tipo de producto</span>
+          }
+        </div>
+
+        @if (!product) {
+          <div class="field">
+            <label for="cantidadStock">Cantidad inicial</label>
+            <input
+              id="cantidadStock"
+              type="number"
+              min="0"
+              step="1"
+              formControlName="cantidadStock"
+            />
+            @if (form.controls.cantidadStock.invalid && form.controls.cantidadStock.touched) {
+              <span class="field-error">Debe ser un entero igual o mayor a 0</span>
+            }
+          </div>
+        } @else {
+          <div class="field field-wide stock-adjustment-field">
+            <label for="cantidadAjuste">
+              Cantidad actual: <strong>{{ product.cantidadStock }} unidades</strong>
+            </label>
+            <div class="stock-adjustment-input">
+              <input
+                id="cantidadAjuste"
+                type="number"
+                min="0"
+                step="1"
+                formControlName="cantidadAjuste"
+                aria-label="Cantidad de unidades a ajustar"
+              />
+              <app-searchable-select
+                formControlName="operacionStock"
+                [options]="stockOperationOptions"
+                [clearable]="false"
+                placeholder="Buscar operación…"
+              />
+            </div>
+            @if (form.controls.cantidadAjuste.invalid && form.controls.cantidadAjuste.touched) {
+              <span class="field-error">Ingresá una cantidad entera igual o mayor a 0</span>
+            }
+            @if (projectedStock() !== null) {
+              <span
+                class="stock-projection"
+                [class.invalid]="projectedStockStatus() === 'invalid'"
+                [class.no-stock]="projectedStockStatus() === 'no-stock'"
+                [class.low-stock]="projectedStockStatus() === 'low-stock'"
+              >
+                @if (projectedStock()! < 0) {
+                  No hay suficientes unidades disponibles
+                } @else {
+                  El stock quedará en {{ projectedStock() }} unidades
+                }
+              </span>
+            }
+          </div>
+
+          @if (hasStockAdjustment()) {
+            <div class="field field-wide adjustment-reason">
+              <label for="motivoAjuste">Motivo del ajuste <strong>*</strong></label>
+              <app-searchable-select
+                id="motivoAjuste"
+                formControlName="motivoAjuste"
+                [options]="adjustmentReasonOptions"
+                [clearable]="false"
+                placeholder="Seleccionar motivo..."
+                emptyText="No hay motivos que coincidan."
+              />
+              @if (!form.controls.motivoAjuste.value && errorMensaje()) {
+                <span class="field-error">El motivo es obligatorio cuando cambia la cantidad</span>
+              }
+            </div>
+
+            <div class="field field-wide">
+              <label for="observacionAjuste"
+                >Observación del ajuste <small>(opcional)</small></label
+              >
+              <textarea
+                id="observacionAjuste"
+                rows="2"
+                maxlength="200"
+                formControlName="observacionAjuste"
+                placeholder="Ej.: remito 145, recuento del depósito..."
+              ></textarea>
+              <span class="textarea-counter">
+                {{ form.controls.observacionAjuste.value.length }} / 200 caracteres
+              </span>
+            </div>
+          }
+        }
+
+        <div class="field">
+          <label for="stockMinimo">Stock mínimo</label>
+          <input id="stockMinimo" type="number" min="0" step="1" formControlName="stockMinimo" />
+          @if (form.controls.stockMinimo.invalid && form.controls.stockMinimo.touched) {
+            <span class="field-error">Debe ser un entero igual o mayor a 0</span>
+          }
+        </div>
+
+        <div class="field">
+          <label for="peso">Peso por unidad <small>(kg o g)</small></label>
+          <div class="weight-input">
+            <input id="peso" type="number" min="0.001" step="0.001" formControlName="peso" />
+            <app-searchable-select
+              formControlName="unidadPeso"
+              [options]="weightUnitOptions"
+              [clearable]="false"
+              placeholder="Buscar unidad…"
+            />
+          </div>
+          @if (form.controls.peso.invalid && form.controls.peso.touched) {
+            <span class="field-error">Ingresá un peso mayor a 0</span>
+          }
+        </div>
+
+        <div class="field">
+          <label for="proveedor">Proveedor <small>(opcional)</small></label>
+          <app-searchable-select
+            id="proveedor"
+            formControlName="proveedorId"
+            [options]="supplierSelectOptions()"
+            placeholder="Buscar proveedor…"
+            emptyText="No hay proveedores que coincidan."
+          />
+        </div>
+
+        <div class="field">
+          <label for="costo">Precio de costo con IVA <small>(precio final)</small></label>
+          <app-currency-input
+            inputId="costo"
+            formControlName="costo"
+            ariaLabel="Precio de costo en pesos argentinos"
+          />
+          @if (form.controls.costo.invalid && form.controls.costo.touched) {
+            <span class="field-error">Ingresá un costo igual o mayor a cero</span>
+          }
+        </div>
+
+        <div class="field">
+          <label for="alicuotaIva">Alícuota de IVA</label>
+          <app-searchable-select
+            id="alicuotaIva"
+            formControlName="alicuotaIva"
+            [options]="vatOptions"
+            [clearable]="false"
+            placeholder="Seleccionar IVA."
+          />
+        </div>
+
+        <div class="field field-wide">
+          <label for="descripcionAdicional">Descripción adicional <small>(opcional)</small></label>
+          <textarea
+            id="descripcionAdicional"
+            rows="3"
+            maxlength="500"
+            formControlName="descripcionAdicional"
+
+          ></textarea>
+          <span class="textarea-counter" aria-live="polite">
+            {{ form.controls.descripcionAdicional.value.length }} / 500 caracteres
+          </span>
+        </div>
+      </div>
+
+      @if (errorMensaje()) {
+        <p class="form-error">{{ errorMensaje() }}</p>
+      }
+
+      <footer class="modal-actions">
+        <button type="button" class="btn-secondary" [disabled]="guardando()" (click)="onCancelar()">
+          Cancelar
+        </button>
+        <button type="submit" class="btn-primary" [disabled]="guardando()">
+          @if (guardando()) {
+            Guardando…
+          } @else {
+            {{ product ? 'Guardar cambios' : 'Guardar producto' }}
+          }
+        </button>
+      </footer>
+    </form>
+  </section>
+</div>

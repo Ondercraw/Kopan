@@ -1,0 +1,119 @@
+<header class="content-header">
+  <h1>Empleados</h1>
+
+  <p>Empleados registrados en el sistema, agrupados por rol</p>
+</header>
+
+<div class="section-card">
+  @if (cargando()) {
+    <p class="estado-info">Cargando empleados…</p>
+  } @else if (error()) {
+    <p class="estado-error">
+      {{ error() }}
+    </p>
+  } @else {
+    <div class="roles-stack">
+      @for (grupo of grupos(); track grupo.rol) {
+        <section class="role-section">
+          <h2>
+            {{ grupo.etiqueta }}
+          </h2>
+
+          <div class="employee-row">
+            @for (empleado of grupo.empleados; track empleado._id) {
+              <div class="employee-card" [class.inactivo]="!empleado.activo">
+                <!-- Avatar -->
+                <span class="employee-avatar">
+                  {{ empleado.nombre.charAt(0).toUpperCase() }}
+                </span>
+
+                <!-- Información -->
+                <div class="employee-info">
+                  <strong>
+                    {{ empleado.nombre }}
+                  </strong>
+
+                  <small>
+                    {{ empleado.email }}
+                  </small>
+                </div>
+
+                <!-- EMPLEADO INACTIVO -->
+                @if (!empleado.activo) {
+                  <span class="badge-inactivo"> Inactivo </span>
+
+                  <div class="employee-actions">
+                    <button
+                      type="button"
+                      class="action-btn activate"
+                      title="Reactivar empleado"
+                      [attr.aria-label]="'Reactivar ' + empleado.nombre"
+                      (click)="onReactivar(empleado)"
+                    >
+                      <i class="ti ti-user-plus"></i>
+                    </button>
+                  </div>
+                } @else {
+                  <!-- EMPLEADO ACTIVO -->
+                  <div class="employee-actions">
+                    <!-- MODIFICAR -->
+                    <button
+                      type="button"
+                      class="action-btn"
+                      title="Modificar empleado"
+                      [attr.aria-label]="'Modificar ' + empleado.nombre"
+                      (click)="onModificarEmpleado(empleado)"
+                    >
+                      <i class="ti ti-pencil"></i>
+                    </button>
+
+                    <!-- DAR DE BAJA -->
+                    @if (!esUsuarioActual(empleado) && !esJefe(empleado)) {
+                      <button
+                        type="button"
+                        class="action-btn danger"
+                        title="Dar de baja"
+                        [attr.aria-label]="'Dar de baja a ' + empleado.nombre"
+                        (click)="onDarDeBaja(empleado)"
+                      >
+                        <i class="ti ti-user-minus"></i>
+                      </button>
+                    }
+                  </div>
+                }
+              </div>
+            }
+          </div>
+        </section>
+      }
+    </div>
+  }
+</div>
+
+<!-- AGREGAR EMPLEADO -->
+<button type="button" class="btn-agregar" (click)="onAgregarEmpleado()">
+  <i class="ti ti-plus"></i>
+  Agregar empleado
+</button>
+
+<!-- MODAL -->
+@if (modalAbierto()) {
+  <app-employee-form-modal
+    [empleadoAEditar]="empleadoAEditar()"
+    (cerrado)="onCerrarModal()"
+    (guardado)="onEmpleadoGuardado()"
+  />
+}
+
+@if (empleadoAConfirmar(); as empleado) {
+  <app-confirmation-modal
+    [title]="accionConfirmar() === 'deactivate' ? 'Dar de baja empleado' : 'Reactivar empleado'"
+    [message]="(accionConfirmar() === 'deactivate' ? '¿Querés dar de baja a ' : '¿Querés reactivar a ') + empleado.nombre + '?'"
+    [detail]="accionConfirmar() === 'deactivate' ? 'No podrá iniciar sesión hasta que un superior reactive su cuenta.' : 'Recuperará el acceso al sistema con sus roles actuales.'"
+    [confirmLabel]="accionConfirmar() === 'deactivate' ? 'Dar de baja' : 'Reactivar'"
+    [tone]="accionConfirmar() === 'deactivate' ? 'danger' : 'success'"
+    [loading]="accionEnCurso()"
+    (cancelled)="empleadoAConfirmar.set(null)"
+    (confirmed)="confirmarCambioEstado()"
+  />
+}

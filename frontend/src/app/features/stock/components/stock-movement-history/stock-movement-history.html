@@ -1,0 +1,41 @@
+<section class="movement-history" aria-label="Historial de movimientos">
+  <header class="history-heading"><h3>Historial de movimientos</h3><strong>{{ movements.length }} movimiento{{ movements.length === 1 ? '' : 's' }}</strong>@if(movements.length){<button type="button" (click)="exportCsv()"><i class="ti ti-download"></i>CSV</button>}</header>
+  @if (loading) {
+    <div class="history-state"><span class="spinner"></span>Cargando historial…</div>
+  } @else {
+    <ol>
+      @for (movement of visibleMovements; track movement._id) {
+        <li>
+          <span class="movement-icon" [attr.data-type]="movement.type">
+            <i
+              class="ti"
+              [class.ti-arrow-up]="movement.type === 'INCREMENT'"
+              [class.ti-arrow-down]="movement.type === 'DECREMENT'"
+              [class.ti-alert-triangle]="movement.type === 'MINIMUM_CHANGE'"
+              [class.ti-package]="movement.type === 'INITIAL'"
+              [class.ti-package-off]="movement.type === 'DEACTIVATION'"
+              [class.ti-restore]="movement.type === 'REACTIVATION'"
+            ></i>
+          </span>
+          <div>
+            <strong>{{ movementLabel(movement.type) }}</strong>
+            <span>{{ movement.reason }}</span>
+            <small>{{ movement.actorName }} · {{ formatDate(movement.createdAt) }}</small>
+          </div>
+          <span class="stock-change">
+            @if (movement.type === 'MINIMUM_CHANGE') {
+              Mín. {{ movement.previousMinimumStock }} → {{ movement.currentMinimumStock }}
+            } @else {
+              {{ movement.previousStock }} → {{ movement.currentStock }}
+            }
+          </span>
+        </li>
+      } @empty {
+        <li class="history-empty">Todavía no hay movimientos registrados.</li>
+      }
+    </ol>
+    @if (movements.length > pageSize) {
+      <app-pagination-controls [page]="page()" [totalPages]="totalPages" (pageChange)="changePage($event)" />
+    }
+  }
+</section>

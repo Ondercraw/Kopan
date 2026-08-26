@@ -1,0 +1,20 @@
+<div class="overlay" role="presentation">
+  <section class="dialog" role="alertdialog" aria-modal="true" [attr.aria-labelledby]="'confirmation-title'" [attr.aria-describedby]="'confirmation-message'">
+    <div class="icon" [class.danger]="tone() === 'danger'" [class.success]="tone() === 'success'">
+      <i class="ti" [class.ti-alert-triangle]="tone() !== 'success'" [class.ti-circle-check]="tone() === 'success'"></i>
+    </div>
+    <div class="copy">
+      <span>Confirmación requerida</span>
+      <h2 id="confirmation-title">{{ title() }}</h2>
+      <p id="confirmation-message">{{ message() }}</p>
+      @if (detail()) { <small>{{ detail() }}</small> }
+    </div>
+    <footer>
+      <button type="button" class="cancel" [disabled]="loading()" (click)="close()">Cancelar</button>
+      <button type="button" class="confirm" [class.danger]="tone() === 'danger'" [class.success]="tone() === 'success'" [disabled]="loading()" (click)="confirm()">
+        @if (loading()) { <i class="ti ti-loader-2 spin"></i> }
+        {{ loading() ? 'Procesando…' : confirmLabel() }}
+      </button>
+    </footer>
+  </section>
+</div>

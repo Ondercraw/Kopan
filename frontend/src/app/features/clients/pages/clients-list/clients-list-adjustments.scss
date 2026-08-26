@@ -1,0 +1,53 @@
+.toolbar label:not(.search-field) {
+  flex: 1;
+  min-width: 105px;
+}
+.search-field {
+  align-self: flex-end;
+  flex: 2;
+  height: 42px;
+}
+.search-field i {
+  top: 50%;
+  bottom: auto;
+  transform: translateY(-50%);
+  pointer-events: none;
+}
+.search-field input {
+  width: 100%;
+}
+.details {
+  border-top: 2px solid #d4b28f;
+  background: #f1e3d6;
+}
+.details > div,
+.details > .history {
+  min-width: 0;
+  padding: 0.72rem 0.82rem;
+  border: 1px solid #dfc9b5;
+  border-radius: 9px;
+  background: #fffdfb;
+}
+.details span {
+  overflow-wrap: anywhere;
+  line-height: 1.4;
+}
+.history {
+  border-top: 1px solid #dfc9b5;
+}
+.history p {
+  padding: 0.45rem 0.5rem;
+  border-radius: 7px;
+  background: #f8f0e8;
+}
+@media (max-width: 600px) {
+  .toolbar label:not(.search-field) {
+    width: 100%;
+    min-width: 0;
+  }
+  .search-field {
+    align-self: stretch;
+    width: 100%;
+    height: 42px;
+  }
+}

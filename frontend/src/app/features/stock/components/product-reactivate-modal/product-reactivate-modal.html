@@ -1,0 +1,63 @@
+<div class="modal-overlay">
+  <section
+    class="modal-card"
+    role="dialog"
+    aria-modal="true"
+    aria-labelledby="reactivate-products-title"
+    (click)="$event.stopPropagation()"
+  >
+    <header class="modal-header">
+      <div>
+        <span class="eyebrow">Productos dados de baja</span>
+        <h2 id="reactivate-products-title">Reactivar productos</h2>
+      </div>
+      <button type="button" class="icon-btn" aria-label="Cerrar" (click)="close()">
+        <i class="ti ti-x"></i>
+      </button>
+    </header>
+
+    <p class="intro">Seleccioná los productos que querés devolver al stock activo.</p>
+    <button type="button" class="select-all" (click)="toggleAll()">
+      {{
+        selectedIds().size === products.length && products.length
+          ? 'Quitar selección'
+          : 'Seleccionar todos'
+      }}
+    </button>
+
+    <div class="product-selection" role="group" aria-label="Productos dados de baja">
+      @for (product of products; track product._id) {
+        <label class="product-option" [class.selected]="selectedIds().has(product._id)">
+          <input
+            type="checkbox"
+            [checked]="selectedIds().has(product._id)"
+            (change)="toggle(product._id)"
+          />
+          <span class="product-code">#{{ product.codigo }}</span>
+          <span class="product-name">{{ product.nombre }}</span>
+          <small>{{ product.tipo }} · Stock conservado: {{ product.cantidadStock }}</small>
+        </label>
+      } @empty {
+        <p class="empty-state">No hay productos dados de baja.</p>
+      }
+    </div>
+
+    @if (errorMessage()) {
+      <p class="form-error">{{ errorMessage() }}</p>
+    }
+
+    <footer class="modal-actions">
+      <button type="button" class="btn-secondary" [disabled]="processing()" (click)="close()">
+        Cancelar
+      </button>
+      <button
+        type="button"
+        class="btn-success"
+        [disabled]="processing() || selectedIds().size === 0"
+        (click)="confirm()"
+      >
+        {{ processing() ? 'Reactivando…' : 'Reactivar (' + selectedIds().size + ')' }}
+      </button>
+    </footer>
+  </section>
+</div>

@@ -1,0 +1,60 @@
+<div class="modal-overlay">
+  <section
+    class="modal-card"
+    role="dialog"
+    aria-modal="true"
+    aria-labelledby="supplier-title"
+    (click)="$event.stopPropagation()"
+  >
+    <header>
+      <div>
+        <span>Proveedores</span>
+        <h2 id="supplier-title">{{ supplier ? 'Editar proveedor' : 'Agregar proveedor' }}</h2>
+      </div>
+      <button type="button" aria-label="Cerrar" (click)="close()"><i class="ti ti-x"></i></button>
+    </header>
+    <form [formGroup]="form" (ngSubmit)="submit()">
+      <div class="automatic-id">
+        <i class="ti ti-hash"></i
+        >{{ supplier ? '#' + supplier.codigo : 'El ID se asigna automáticamente' }}
+      </div>
+      <div class="grid">
+        <label class="wide"
+          ><span>Nombre o razón social *</span
+          ><input autofocus formControlName="nombre"
+        /></label>
+        <label
+          ><span>CUIT</span
+          ><input formControlName="cuit" inputmode="numeric"
+        /></label>
+        <label><span>Persona de contacto</span><input formControlName="contacto" /></label>
+        <label><span>Teléfono</span><input formControlName="telefono" type="tel" /></label>
+        <label><span>Email</span><input formControlName="email" type="email" /></label>
+        <label><span>Dirección</span><input formControlName="direccion" /></label>
+        <label><span>Localidad</span><input formControlName="localidad" /></label>
+        <label class="wide"
+          ><span>Observaciones</span
+          ><textarea rows="3" maxlength="500" formControlName="observaciones"></textarea
+          ><small>{{ form.controls.observaciones.value.length }} / 500 caracteres</small></label
+        >
+      </div>
+      @if (form.controls.nombre.invalid && form.controls.nombre.touched) {
+        <p class="error">Ingresá un nombre de al menos 2 caracteres.</p>
+      }
+      @if (form.controls.email.hasError('maxlength') && form.controls.email.touched) {
+        <p class="error">El email no puede superar los 254 caracteres.</p>
+      } @else if (form.controls.email.hasError('email') && form.controls.email.touched) {
+        <p class="error">Ingresá un email válido.</p>
+      }
+      @if (error()) {
+        <p class="error">{{ error() }}</p>
+      }
+      <footer>
+        <button type="button" class="secondary" (click)="close()">Cancelar</button
+        ><button type="submit" class="primary" [disabled]="saving()">
+          {{ saving() ? 'Guardando…' : 'Guardar proveedor' }}
+        </button>
+      </footer>
+    </form>
+  </section>
+</div>

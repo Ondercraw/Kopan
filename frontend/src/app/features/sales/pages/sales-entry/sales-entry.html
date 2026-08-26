@@ -1,0 +1,180 @@
+<section class="page">
+  <header>
+    <div>
+      <span>VENTA INTERNA</span>
+      <h1>Nueva venta</h1>
+      <p>La confirmación descuenta stock y registra el ingreso.</p>
+    </div>
+    <strong class="total">{{ money(total()) }}</strong>
+  </header>
+  @if (error()) {
+    <p class="message error">{{ error() }}</p>
+  }
+  @if (success()) {
+    <p class="message success">{{ success() }}</p>
+  }
+  <div class="sale-card">
+    <div class="sale-data">
+      <label
+        ><span>Cliente *</span
+        ><app-searchable-select
+          [(ngModel)]="clientId"
+          (ngModelChange)="onClient($event)"
+          [options]="clientOptions()"
+          [clearable]="false"
+          placeholder="Buscar cliente..."
+      /></label>
+      <div class="summary">
+        <span>Lista de precios</span
+        ><strong>{{ priceList()?.nombre || 'Sin lista seleccionada' }}</strong
+        ><small>{{ selectedClient()?.condicionIva?.replaceAll('_', ' ') || '' }}</small>
+        @if (selectedClient(); as client) {
+          <em [class.enabled]="client.permiteCuentaCorriente">
+            Cuenta corriente {{ client.permiteCuentaCorriente ? 'habilitada' : 'no habilitada' }}
+          </em>
+          @if (client.permiteCuentaCorriente) {
+            <small>Disponible: {{ money(creditAvailable(client)) }}</small>
+          }
+        }
+      </div>
+      <label
+        ><span>Medio de pago *</span
+        ><select [(ngModel)]="paymentMethod">
+          <option value="EFECTIVO">Efectivo</option>
+          <option value="TRANSFERENCIA">Transferencia / Mercado Pago</option>
+          <option value="CREDITO" [disabled]="!selectedClient()?.permiteCuentaCorriente">
+            Crédito / cuenta corriente
+          </option>
+        </select></label
+      >
+      @if (paymentMethod === 'TRANSFERENCIA') {
+        <label
+          ><span>Referencia *</span
+          ><input [(ngModel)]="transferReference" placeholder="Nº de operación o referencia"
+        /></label>
+      }
+    </div>
+    <div class="add-line">
+      <app-searchable-select
+        [(ngModel)]="productId"
+        [options]="productOptions()"
+        placeholder="Buscar producto con stock..."
+      /><button type="button" (click)="addProduct()">
+        <i class="ti ti-plus"></i> Agregar producto
+      </button>
+    </div>
+    <div class="lines-head">
+      <span>Producto</span><span>Cantidad</span><span>Precio (S/IVA)</span><span>Descuento</span
+      ><span>Total (IVA INCL.)</span><span></span>
+    </div>
+    @for (line of lines(); track line.product._id) {
+      <article class="line">
+        <div>
+          <strong>#{{ line.product.codigo }} · {{ line.product.nombre }}</strong
+          ><small
+            >Disponible: {{ line.product.cantidadStock }} · IVA
+            {{ line.product.alicuotaIva ?? 21 }}%</small
+          >
+        </div>
+        <input
+          type="number"
+          min="1"
+          [max]="line.product.cantidadStock"
+          [value]="line.quantity"
+          (input)="updateQuantity(line.product._id, $event)"
+        /><app-currency-input
+          [disabled]="!canChangePrice()"
+          [ngModel]="line.unitPriceCents / 100"
+          (ngModelChange)="updatePrice(line.product._id, $event)"
+          [ngModelOptions]="{ standalone: true }"
+          [ariaLabel]="'Precio de ' + line.product.nombre"
+        /><label class="discount"
+          ><input
+            type="number"
+            min="0"
+            max="100"
+            step="0.01"
+            [value]="line.discountPercent"
+            (input)="updateDiscount(line.product._id, $event)"
+          /><span>%</span></label
+        ><strong>{{ money(lineTotal(line)) }}</strong
+        ><button
+          class="remove"
+          type="button"
+          (click)="remove(line.product._id)"
+          aria-label="Quitar"
+        >
+          <i class="ti ti-trash"></i>
+        </button>
+      </article>
+    } @empty {
+      <p class="empty">Agregá los productos que lleva el cliente.</p>
+    }
+    <label class="notes"
+      ><span>Observaciones</span
+      ><textarea
+        [(ngModel)]="observations"
+        maxlength="500"
+
+      ></textarea>
+    </label>
+    <footer>
+      <div>
+        <small>{{ lines().length }} productos</small><strong>Total {{ money(total()) }}</strong>
+      </div>
+      <button class="confirm" type="button" (click)="review()" [disabled]="!lines().length">
+        Revisar y confirmar
+      </button>
+    </footer>
+  </div>
+</section>
+@if (reviewing()) {
+  <div class="overlay">
+    <section class="modal" role="dialog" aria-modal="true">
+      <span>CONFIRMACIÓN</span>
+      <h2>Confirmar venta por {{ money(total()) }}</h2>
+      <p>
+        Se descontará el stock de {{ lines().length }} productos y se registrará el pago por
+        {{ paymentLabel() }}.
+      </p>
+      @if (paymentMethod === 'CREDITO') {
+        <p class="credit-notice">
+          Se descontarán {{ money(total()) }} del crédito disponible. Restarán
+          {{ money(creditAvailable() - total()) }}.
+        </p>
+      }
+      <section class="sale-review" aria-label="Productos incluidos en la venta">
+        <div class="review-head">
+          <span>Producto</span><span>Cant.</span><span>Precio final</span><span>Descuento</span
+          ><span>Subtotal</span>
+        </div>
+        <div class="review-products">
+          @for (line of lines(); track line.product._id) {
+            <article class="review-line">
+              <div>
+                <strong>#{{ line.product.codigo }} · {{ line.product.nombre }}</strong>
+                <small>IVA {{ line.product.alicuotaIva ?? 21 }}%</small>
+              </div>
+              <span data-label="Cantidad">{{ line.quantity }}</span>
+              <span data-label="Precio final">{{ money(finalUnitPrice(line)) }}</span>
+              <span data-label="Descuento">{{ line.discountPercent }}%</span>
+              <strong data-label="Subtotal">{{ money(lineTotal(line)) }}</strong>
+            </article>
+          }
+        </div>
+        <div class="review-total">
+          <span>Total de la venta</span><strong>{{ money(total()) }}</strong>
+        </div>
+      </section>
+      <p class="notice">
+        <i class="ti ti-file-alert"></i> Los importes finales incluyen el IVA de cada producto.
+      </p>
+      <footer>
+        <button type="button" (click)="reviewing.set(false)" [disabled]="saving()">Volver</button
+        ><button class="confirm" type="button" (click)="confirm()" [disabled]="saving()">
+          {{ saving() ? 'Confirmando...' : 'Confirmar venta' }}
+        </button>
+      </footer>
+    </section>
+  </div>
+}

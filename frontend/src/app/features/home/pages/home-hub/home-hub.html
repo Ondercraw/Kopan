@@ -1,0 +1,312 @@
+<section class="home-hero">
+  <div class="hero-copy">
+    <span class="eyebrow">Centro operativo</span>
+    <p class="session-line">
+      Sesión de <strong>{{ user()?.nombre }}</strong
+      ><span>{{ roleLabels() }}</span>
+    </p>
+    <h1>Distribuidora<br /><em>KOPAN</em></h1>
+    <p class="intro"></p>
+  </div>
+  <div class="brand-stage" aria-hidden="true">
+    <span class="orbit orbit-one"></span><span class="orbit orbit-two"></span> <strong>KP</strong
+    ><small>mayorista</small>
+  </div>
+</section>
+
+<section class="workflow-section" aria-labelledby="workflow-title">
+  <header>
+    <span>01</span>
+    <div>
+      <h2 id="workflow-title">Recorridos de trabajo</h2>
+      <p>
+        @if (isOwner()) {
+          Dos guías completas para supervisar los circuitos principales.
+        } @else {
+          Una guía ordenada según las tareas habilitadas para tu rol.
+        }
+      </p>
+    </div>
+  </header>
+  <div class="workflow-grid" [class.single]="!isOwner()">
+    @if (isOwner()) {
+      <article class="workflow-map">
+        <header>
+          <i class="ti ti-package-import"></i>
+          <div>
+            <small>ABASTECIMIENTO</small>
+            <h3>Agregar un producto</h3>
+          </div>
+        </header>
+        <div class="workflow-steps">
+          <a routerLink="/proveedores"
+            ><span>01</span>
+            <div>
+              <strong>Crear proveedor</strong><small>Cargar sus datos para poder vincularlo.</small>
+            </div>
+            <i class="ti ti-arrow-up-right"></i
+          ></a>
+          <a routerLink="/stock"
+            ><span>02</span>
+            <div>
+              <strong>Registrar producto</strong
+              ><small>Definir tipo, peso, stock inicial y mínimo.</small>
+            </div>
+            <i class="ti ti-arrow-up-right"></i
+          ></a>
+          <a routerLink="/stock"
+            ><span>03</span>
+            <div>
+              <strong>Cargar costo e IVA</strong
+              ><small>Guardar el costo final y la alícuota correspondiente.</small>
+            </div>
+            <i class="ti ti-arrow-up-right"></i
+          ></a>
+          <a routerLink="/precios"
+            ><span>04</span>
+            <div>
+              <strong>Asignar precio de venta</strong
+              ><small>Agregarlo a la lista que utilizarán los clientes.</small>
+            </div>
+            <i class="ti ti-arrow-up-right"></i
+          ></a>
+        </div>
+      </article>
+
+      <article class="workflow-map sale-flow">
+        <header>
+          <i class="ti ti-shopping-cart-check"></i>
+          <div>
+            <small>CIRCUITO COMERCIAL</small>
+            <h3>Realizar una venta</h3>
+          </div>
+        </header>
+        <div class="workflow-steps">
+          <a routerLink="/vendedores"
+            ><span>01</span>
+            <div>
+              <strong>Crear vendedor</strong><small>Registrar a quien atenderá la cartera.</small>
+            </div>
+            <i class="ti ti-arrow-up-right"></i
+          ></a>
+          <a routerLink="/clientes"
+            ><span>02</span>
+            <div>
+              <strong>Crear cliente</strong
+              ><small>Asignar vendedor, lista y, si corresponde, cuenta corriente.</small>
+            </div>
+            <i class="ti ti-arrow-up-right"></i
+          ></a>
+          <a routerLink="/stock"
+            ><span>03</span>
+            <div>
+              <strong>Verificar stock y precio</strong
+              ><small>El producto debe tener disponibilidad y precio vigente.</small>
+            </div>
+            <i class="ti ti-arrow-up-right"></i
+          ></a>
+          <a routerLink="/ventas"
+            ><span>04</span>
+            <div>
+              <strong>Confirmar venta</strong
+              ><small>Elegir efectivo, transferencia o crédito y descontar el stock.</small>
+            </div>
+            <i class="ti ti-arrow-up-right"></i
+          ></a>
+          <a routerLink="/caja"
+            ><span>05</span>
+            <div>
+              <strong>Controlar el ingreso</strong
+              ><small>Revisar el movimiento en Caja e informes.</small>
+            </div>
+            <i class="ti ti-arrow-up-right"></i
+          ></a>
+        </div>
+      </article>
+    }
+    @if (isStockEmployee()) {
+      <article class="workflow-map">
+        <header>
+          <i class="ti ti-package-import"></i>
+          <div>
+            <small>RECORRIDO DE STOCK</small>
+            <h3>Abastecer y controlar mercadería</h3>
+          </div>
+        </header>
+        <div class="workflow-steps">
+          <a routerLink="/proveedores"
+            ><span>01</span>
+            <div>
+              <strong>Registrar proveedor</strong
+              ><small>Cargar o actualizar los datos de abastecimiento.</small>
+            </div>
+            <i class="ti ti-arrow-up-right"></i
+          ></a>
+          <a routerLink="/stock"
+            ><span>02</span>
+            <div>
+              <strong>Agregar el producto</strong
+              ><small>Definir presentación, proveedor y stock inicial.</small>
+            </div>
+            <i class="ti ti-arrow-up-right"></i
+          ></a>
+          <a routerLink="/stock"
+            ><span>03</span>
+            <div>
+              <strong>Controlar existencias</strong
+              ><small>Registrar ingresos, egresos, mínimos y movimientos.</small>
+            </div>
+            <i class="ti ti-arrow-up-right"></i
+          ></a>
+        </div>
+      </article>
+    }
+    @if (isSeller()) {
+      <article class="workflow-map sale-flow">
+        <header>
+          <i class="ti ti-user-check"></i>
+          <div>
+            <small>RECORRIDO COMERCIAL</small>
+            <h3>Gestionar clientes</h3>
+          </div>
+        </header>
+        <div class="workflow-steps">
+          <a routerLink="/precios"
+            ><span>01</span>
+            <div>
+              <strong>Consultar precios</strong
+              ><small>Revisar las listas vigentes antes de atender al cliente.</small>
+            </div>
+            <i class="ti ti-arrow-up-right"></i
+          ></a>
+          <a routerLink="/clientes"
+            ><span>02</span>
+            <div>
+              <strong>Crear o actualizar cliente</strong
+              ><small>Cargar sus datos comerciales y fiscales.</small>
+            </div>
+            <i class="ti ti-arrow-up-right"></i
+          ></a>
+          <a routerLink="/clientes"
+            ><span>03</span>
+            <div>
+              <strong>Completar asignaciones</strong
+              ><small>Definir vendedor, lista de precios y cuenta corriente.</small>
+            </div>
+            <i class="ti ti-arrow-up-right"></i
+          ></a>
+          <a routerLink="/ventas"
+            ><span>04</span>
+            <div>
+              <strong>Realizar la venta</strong
+              ><small>Seleccionar productos, medio de pago y confirmar el comprobante.</small>
+            </div>
+            <i class="ti ti-arrow-up-right"></i
+          ></a>
+        </div>
+      </article>
+    }
+  </div>
+</section>
+
+<section class="access-board" aria-labelledby="access-title">
+  <header>
+    <span>02</span>
+    <div>
+      <h2 id="access-title">Funciones disponibles</h2>
+      <p>Accesos a los módulos incorporados al circuito actual.</p>
+    </div>
+  </header>
+  <div class="access-lines">
+    @if (isOwner()) {
+      <a routerLink="/stock"
+        ><i class="ti ti-package"></i
+        ><span><small>Gestión</small><strong>Stock y movimientos</strong></span
+        ><i class="ti ti-arrow-right"></i
+      ></a>
+      <a routerLink="/precios"
+        ><i class="ti ti-tag"></i
+        ><span><small>Comercial</small><strong>Precios y costos</strong></span
+        ><i class="ti ti-arrow-right"></i
+      ></a>
+      <a routerLink="/clientes"
+        ><i class="ti ti-users"></i><span><small>Comercial</small><strong>Clientes</strong></span
+        ><i class="ti ti-arrow-right"></i
+      ></a>
+      <a routerLink="/ventas"
+        ><i class="ti ti-invoice"></i
+        ><span><small>Operación</small><strong>Ventas</strong></span
+        ><i class="ti ti-arrow-right"></i
+      ></a>
+      <a routerLink="/caja"
+        ><i class="ti ti-cash"></i
+        ><span><small>Movimientos</small><strong>Caja por período</strong></span
+        ><i class="ti ti-arrow-right"></i
+      ></a>
+      <a routerLink="/cheques"
+        ><i class="ti ti-file-text"></i
+        ><span><small>Valores</small><strong>Gestión de cheques</strong></span
+        ><i class="ti ti-arrow-right"></i
+      ></a>
+      <a routerLink="/informes-operativos"
+        ><i class="ti ti-report-analytics"></i
+        ><span><small>Informes</small><strong>Informes operativos</strong></span
+        ><i class="ti ti-arrow-right"></i
+      ></a>
+      <a routerLink="/informes-financieros"
+        ><i class="ti ti-currency-dollar"></i
+        ><span><small>Informes</small><strong>Informes financieros</strong></span
+        ><i class="ti ti-arrow-right"></i
+      ></a>
+      <a routerLink="/empleados"
+        ><i class="ti ti-users-group"></i
+        ><span><small>Administración</small><strong>Empleados y roles</strong></span
+        ><i class="ti ti-arrow-right"></i
+      ></a>
+    }
+    @if (isStockEmployee()) {
+      <a routerLink="/proveedores"
+        ><i class="ti ti-truck"></i
+        ><span><small>Abastecimiento</small><strong>Proveedores</strong></span
+        ><i class="ti ti-arrow-right"></i
+      ></a>
+      <a routerLink="/stock"
+        ><i class="ti ti-package"></i
+        ><span><small>Inventario</small><strong>Gestión de stock</strong></span
+        ><i class="ti ti-arrow-right"></i
+      ></a>
+    }
+    @if (isSeller()) {
+      <a routerLink="/precios"
+        ><i class="ti ti-tag"></i
+        ><span><small>Consulta</small><strong>Precios y costos</strong></span
+        ><i class="ti ti-arrow-right"></i
+      ></a>
+      <a routerLink="/clientes"
+        ><i class="ti ti-users"></i><span><small>Cartera</small><strong>Clientes</strong></span
+        ><i class="ti ti-arrow-right"></i
+      ></a>
+      <a routerLink="/ventas"
+        ><i class="ti ti-invoice"></i
+        ><span><small>Operación</small><strong>Ventas</strong></span
+        ><i class="ti ti-arrow-right"></i
+      ></a>
+    }
+  </div>
+</section>
+
+@if (isOwner()) {
+  <aside class="pending-track">
+    <div>
+      <i class="ti ti-file-invoice"></i
+      ><span
+        ><strong>La facturación fiscal queda gestionada externamente</strong
+
+        ></span
+      >
+    </div>
+    <p>
+      Cheques y cierres formales de caja continúan pendientes hasta validar sus reglas.
+    </p>
+  </aside>
+}

@@ -1,0 +1,15 @@
+<div class="currency-field" [class.disabled]="disabled">
+  <span class="currency-prefix" aria-hidden="true">ARS$</span>
+  <input
+    [id]="inputId"
+    type="text"
+    inputmode="decimal"
+    autocomplete="off"
+    [attr.aria-label]="ariaLabel"
+    [placeholder]="placeholder"
+    [disabled]="disabled"
+    [value]="displayValue"
+    (input)="handleInput($event)"
+    (blur)="blur()"
+  />
+</div>

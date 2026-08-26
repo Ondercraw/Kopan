@@ -1,0 +1,90 @@
+<section class="page">
+  <header>
+    <span>CAJA EN ZONA HORARIA ARGENTINA</span>
+    <h1>Caja, transferencias y crédito</h1>
+    <p>
+      Por defecto muestra la caja del día de Buenos Aires. Podés consultar cualquier período
+      registrado.
+    </p>
+  </header>
+  <section class="filters" aria-label="Filtros de caja">
+    <div class="quick">
+      <button type="button" (click)="preset('TODAY')">Hoy</button
+      ><button type="button" (click)="preset('YESTERDAY')">Ayer</button
+      ><button type="button" (click)="preset('7D')">Últimos 7 días</button
+      ><button type="button" (click)="preset('MONTH')">Este mes</button>
+    </div>
+    <label><span>Desde</span><input type="date" [(ngModel)]="from" /></label>
+    <label><span>Hasta</span><input type="date" [(ngModel)]="to" /></label>
+    <label
+      ><span>Medio de pago</span
+      ><select [(ngModel)]="payment">
+        <option value="">Todos</option>
+        <option value="EFECTIVO">Efectivo</option>
+        <option value="TRANSFERENCIA">Transferencia / Mercado Pago</option>
+        <option value="CREDITO">Crédito / cuenta corriente</option>
+      </select></label
+    >
+    <button type="button" class="apply" (click)="load()">Aplicar filtros</button>
+  </section>
+  <div class="totals">
+    <article>
+      <span>Efectivo</span><strong>{{ money(cashTotal()) }}</strong>
+    </article>
+    <article>
+      <span>Transferencias / Mercado Pago</span><strong>{{ money(transferTotal()) }}</strong>
+    </article>
+    <article>
+      <span>Crédito / cuenta corriente</span><strong>{{ money(creditTotal()) }}</strong>
+    </article>
+    <article>
+      <span>Total cobrado</span><strong>{{ money(collectedTotal()) }}</strong>
+    </article>
+    <article>
+      <span>Total vendido</span><strong>{{ money(total()) }}</strong>
+    </article>
+    <article>
+      <span>Promedio por venta</span><strong>{{ money(average()) }}</strong
+      ><small>{{ filtered().length }} operaciones</small>
+    </article>
+  </div>
+  <label class="search"
+    ><i class="ti ti-search"></i
+    ><input
+      type="search"
+      [(ngModel)]="search"
+      placeholder="Buscar venta, cliente o referencia..."
+    />
+    @if (search) {
+      <button type="button" aria-label="Limpiar búsqueda" (click)="clearSearch()">
+        <i class="ti ti-x"></i>
+      </button>
+    }
+  </label>
+  @if (error()) {
+    <p class="error">{{ error() }}</p>
+  }
+  <div class="list">
+    <div class="head">
+      <span>Venta</span><span>Fecha argentina</span><span>Cliente</span><span>Medio</span
+      ><span>Referencia</span><span>Importe final</span>
+    </div>
+    @if (loading()) {
+      <p class="empty">Cargando caja...</p>
+    }
+    @for (sale of filtered(); track sale._id) {
+      <article>
+        <strong data-label="Venta">#{{ sale.codigo }}</strong
+        ><span data-label="Fecha">{{ date(sale.createdAt) }}</span
+        ><span data-label="Cliente">{{ sale.clienteNombre }}</span
+        ><span data-label="Medio" class="method">{{ paymentLabel(sale.medioPago) }}</span
+        ><span data-label="Referencia">{{ sale.referenciaTransferencia || '—' }}</span
+        ><strong data-label="Importe">{{ money(sale.totalCentavos) }}</strong>
+      </article>
+    } @empty {
+      @if (!loading()) {
+        <p class="empty">No hay movimientos para los filtros seleccionados.</p>
+      }
+    }
+  </div>
+</section>

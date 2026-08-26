@@ -1,0 +1,12 @@
+<div class="select-shell" [class.open]="open()" [class.disabled]="disabled()">
+  <div class="search-row">
+    <input type="search" autocomplete="off" [placeholder]="placeholder()" [value]="query()" [disabled]="disabled()" (focus)="open.set(true)" (input)="onInput($event)" (blur)="touch()" />
+    @if(query()&&clearable()){<button type="button" class="clear" aria-label="Limpiar selección" [disabled]="disabled()" (click)="clear()"><i class="ti ti-x"></i></button>}
+    <button type="button" class="toggle" aria-label="Mostrar opciones" [attr.aria-expanded]="open()" [disabled]="disabled()" (click)="toggle()"><i class="ti" [class.ti-chevron-up]="open()" [class.ti-chevron-down]="!open()"></i></button>
+  </div>
+  @if(open()){
+    <div class="options" role="listbox">
+      @for(option of filteredOptions();track option.value){<button type="button" role="option" [attr.aria-selected]="option.value===selectedValue()" (mousedown)="$event.preventDefault()" (click)="select(option)"><strong>{{option.label}}</strong>@if(option.meta){<small>{{option.meta}}</small>}</button>}@empty{<p>{{emptyText()}}</p>}
+    </div>
+  }
+</div>

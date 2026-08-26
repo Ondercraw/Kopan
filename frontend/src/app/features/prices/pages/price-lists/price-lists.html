@@ -1,0 +1,130 @@
+<section class="page">
+  <header class="page-header">
+    <div>
+      <span>COMERCIAL</span>
+      <h1>Precios y costos</h1>
+      <p>Administrá listas de venta sin modificar el costo ni el IVA de cada producto.</p>
+    </div>
+  </header>
+  @if (error()) {
+    <p class="message error">{{ error() }}</p>
+  }
+  @if (success()) {
+    <p class="message success">{{ success() }}</p>
+  }
+  <div class="workspace">
+    <aside class="lists">
+      <h2>Listas de precios</h2>
+      @for (list of lists(); track list._id) {
+        <button
+          type="button"
+          [class.active]="selected()?._id === list._id"
+          [class.inactive]="!list.activo"
+          (click)="open(list)"
+        >
+          <span>#{{ list.codigo }}</span
+          ><strong>{{ list.nombre }}</strong
+          ><small>{{ list.activo ? 'Activa' : 'Inactiva' }}</small>
+        </button>
+      }
+      @if (canEdit()) {
+        <form (ngSubmit)="create()">
+          <h3>Nueva lista</h3>
+          <input
+            [(ngModel)]="newName"
+            name="name"
+            placeholder="Ej.: Mayorista A"
+            required
+            minlength="2"
+          /><textarea
+            [(ngModel)]="newDescription"
+            name="description"
+            placeholder="Descripción opcional"
+          ></textarea
+          ><button class="primary">Crear lista</button>
+        </form>
+      }
+    </aside>
+    <main class="detail">
+      @if (selected(); as list) {
+        <div class="detail-head">
+          <div>
+            <span>LISTA #{{ list.codigo }}</span>
+            <h2>{{ list.nombre }}</h2>
+            <p>{{ list.descripcion || 'Sin descripción' }}</p>
+          </div>
+          <label
+            ><i class="ti ti-search"></i
+            ><input
+              type="search"
+              [ngModel]="search()"
+              (ngModelChange)="search.set($event)"
+              placeholder="Buscar por nombre o código..."
+          /></label>
+        </div>
+        <div class="table-head">
+          <span>Producto</span><span>Costo</span><span>IVA</span
+          ><span>Precio s/IVA Y Final</span>
+        </div>
+        @for (product of visibleProducts(); track product._id) {
+          <article class="product-row">
+            <div class="product-name">
+              <strong>#{{ product.codigo }} · {{ product.nombre }}</strong
+              ><small>{{ product.tipo }} · Stock {{ product.cantidadStock }}</small>
+            </div>
+            <span class="money-value">{{ money(product.costoCentavos ?? 0) }}</span
+            ><span>{{ product.alicuotaIva ?? 21 }}%</span>
+            <div class="price-cell">
+              @if (currentPrice(product._id) !== null) {
+                <small>Base {{ money(currentPrice(product._id)) }}</small>
+                <strong
+                  >Final (IVA) {{ money(finalPrice(product, currentPrice(product._id))) }}</strong
+                >
+              } @else {
+                <strong>Sin precio</strong>
+              }
+              @if (canEdit()) {
+                <div class="price-editor">
+                  <app-currency-input
+                    [ngModel]="draftPrice(product._id)"
+                    (ngModelChange)="updateDraftPrice(product._id, $event)"
+                    [ngModelOptions]="{ standalone: true }"
+                    [ariaLabel]="'Precio de venta sin IVA de ' + product.nombre"
+                  /><button type="button" class="save-price" (click)="requestPriceSave(product)">
+                    Guardar
+                  </button>
+                </div>
+              }
+            </div>
+          </article>
+        } @empty {
+          <p class="empty">No hay productos que coincidan.</p>
+        }
+      } @else {
+        <div class="empty">Creá o seleccioná una lista.</div>
+      }
+    </main>
+  </div>
+</section>
+@if (pendingPrice(); as pending) {
+  <app-confirmation-modal
+    title="Confirmar precio de venta"
+    [message]="
+      '¿Guardar ' + money(pending.amount * 100) + ' sin IVA para ' + pending.product.nombre + '?'
+    "
+    [detail]="
+      'Se actualizará únicamente en la lista ' +
+      (selected()?.nombre ?? 'seleccionada') +
+      '. Con IVA ' +
+      pending.product.alicuotaIva +
+      '%, el precio final será ' +
+      money(finalPrice(pending.product, pending.amount * 100)) +
+      '.'
+    "
+    confirmLabel="Guardar precio"
+    tone="warning"
+    [loading]="savingPrice()"
+    (cancelled)="pendingPrice.set(null)"
+    (confirmed)="confirmPriceSave()"
+  />
+}

@@ -1,0 +1,154 @@
+<header class="content-header">
+  <div>
+    <span class="eyebrow">Abastecimiento</span>
+    <h1>Proveedores</h1>
+    <p>Administrá los proveedores vinculados a los productos.</p>
+  </div>
+  <div class="header-actions">
+    <button
+      class="secondary"
+      type="button"
+      [disabled]="filtered().length === 0"
+      (click)="exportCsv()"
+    >
+      <i class="ti ti-download"></i>Exportar vista</button
+    ><button class="primary" type="button" (click)="modalOpen.set(true)">
+      <i class="ti ti-plus"></i>Agregar proveedor
+    </button>
+  </div>
+</header>
+<section class="toolbar">
+  <label class="search"
+    ><i class="ti ti-search"></i
+    ><input
+      type="search"
+      placeholder="Buscar por nombre, CUIT o localidad…"
+      [value]="search()"
+      (input)="search.set($any($event.target).value)" /></label
+  ><label
+    ><span>Estado</span
+    ><select [value]="status()" (change)="status.set($any($event.target).value)">
+      <option value="active">Activos</option>
+      <option value="inactive">Dados de baja</option>
+      <option value="all">Todos</option>
+    </select></label
+  >
+  <label>
+    <span>Ordenar por</span>
+    <select [value]="sort()" (change)="sort.set($any($event.target).value)">
+      <option value="NAME_ASC">Proveedor: A a Z</option>
+      <option value="NAME_DESC">Proveedor: Z a A</option>
+      <option value="CODE_ASC">ID: menor a mayor</option>
+      <option value="CODE_DESC">ID: mayor a menor</option>
+      <option value="CUIT_ASC">CUIT: menor a mayor</option>
+      <option value="CUIT_DESC">CUIT: mayor a menor</option>
+      <option value="LOCATION_ASC">Localidad: A a Z</option>
+      <option value="LOCATION_DESC">Localidad: Z a A</option>
+      <option value="CREATED_DESC">Creación: más recientes</option>
+      <option value="CREATED_ASC">Creación: más antiguos</option>
+      <option value="UPDATED_DESC">Actualización: más recientes</option>
+      <option value="UPDATED_ASC">Actualización: más antiguas</option>
+    </select>
+  </label>
+</section>
+@if (error()) {
+  <div class="error">{{ error() }}</div>
+}
+<section class="list">
+  <div class="list-header">
+    <span>ID</span><span>Proveedor</span><span>CUIT</span><span>Contacto</span><span>Localidad</span
+    ><span>Acciones</span>
+  </div>
+  @if (loading()) {
+    <p class="state">Cargando proveedores…</p>
+  } @else {
+    @for (supplier of filtered(); track supplier._id) {
+      <article [class.inactive]="!supplier.activo">
+        <div class="row" (click)="expanded.set(expanded() === supplier._id ? null : supplier._id)">
+          <span data-label="ID">#{{ supplier.codigo }}</span
+          ><strong data-label="Proveedor">{{ supplier.nombre }}</strong
+          ><span data-label="CUIT">{{ supplier.cuit || 'Sin CUIT' }}</span
+          ><span data-label="Contacto">{{
+            supplier.contacto || supplier.telefono || 'Sin contacto'
+          }}</span
+          ><span data-label="Localidad">{{ supplier.localidad || 'Sin localidad' }}</span>
+          <div class="actions">
+            <button type="button" title="Editar" (click)="$event.stopPropagation(); edit(supplier)">
+              <i class="ti ti-pencil"></i></button
+            ><button
+              type="button"
+              [title]="supplier.activo ? 'Dar de baja' : 'Reactivar'"
+              (click)="$event.stopPropagation(); toggleActive(supplier)"
+            >
+              <i
+                class="ti"
+                [class.ti-user-off]="supplier.activo"
+                [class.ti-refresh]="!supplier.activo"
+              ></i>
+            </button>
+          </div>
+        </div>
+        @if (expanded() === supplier._id) {
+          <div class="details">
+            <div>
+              <small>ID</small><span>#{{ supplier.codigo }}</span>
+            </div>
+            <div>
+              <small>Proveedor</small><span>{{ supplier.nombre }}</span>
+            </div>
+            <div>
+              <small>CUIT</small><span>{{ supplier.cuit || 'Sin CUIT' }}</span>
+            </div>
+            <div>
+              <small>Contacto</small><span>{{ supplier.contacto || 'Sin contacto' }}</span>
+            </div>
+            <div>
+              <small>Localidad</small><span>{{ supplier.localidad || 'Sin localidad' }}</span>
+            </div>
+            <div>
+              <small>Estado</small><span>{{ supplier.activo ? 'Activo' : 'Dado de baja' }}</span>
+            </div>
+            <div>
+              <small>Email</small><span>{{ supplier.email || 'Sin email' }}</span>
+            </div>
+            <div>
+              <small>Teléfono</small><span>{{ supplier.telefono || 'Sin teléfono' }}</span>
+            </div>
+            <div>
+              <small>Dirección</small><span>{{ supplier.direccion || 'Sin dirección' }}</span>
+            </div>
+            <div class="wide">
+              <small>Observaciones</small
+              ><span>{{ supplier.observaciones || 'Sin observaciones' }}</span>
+            </div>
+          </div>
+        }
+      </article>
+    } @empty {
+      <p class="state">No se encontraron proveedores.</p>
+    }
+  }
+</section>
+@if (modalOpen()) {
+  <app-supplier-form-modal [supplier]="editing()" (closed)="close()" (saved)="saved()" />
+}
+@if (pendingStatus(); as supplier) {
+  <app-confirmation-modal
+    [title]="supplier.activo ? 'Dar de baja proveedor' : 'Reactivar proveedor'"
+    [message]="
+      supplier.activo
+        ? '¿Querés dar de baja a ' + supplier.nombre + '?'
+        : '¿Querés reactivar a ' + supplier.nombre + '?'
+    "
+    [detail]="
+      supplier.activo
+        ? 'Ya no podrá seleccionarse en productos nuevos, pero se conservarán sus datos y vínculos históricos.'
+        : 'Volverá a estar disponible para asignarlo a productos.'
+    "
+    [confirmLabel]="supplier.activo ? 'Dar de baja' : 'Reactivar'"
+    [tone]="supplier.activo ? 'danger' : 'success'"
+    [loading]="actionBusy()"
+    (cancelled)="pendingStatus.set(null)"
+    (confirmed)="confirmToggleActive()"
+  />
+}

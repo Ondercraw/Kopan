@@ -1,0 +1,300 @@
+:host {
+  display: block;
+}
+
+.content-header {
+  margin-bottom: 2rem;
+
+  h1 {
+    margin: 0 0 0.35rem;
+    color: #1a1a1a;
+    font-size: 1.75rem;
+  }
+
+  p {
+    margin: 0;
+    color: #3d3d3d;
+    font-size: 0.95rem;
+  }
+}
+
+.estado-info,
+.estado-error {
+  color: #3d3d3d;
+  font-size: 0.9rem;
+}
+
+.estado-error {
+  color: #b3261e;
+}
+
+// ==================== CARD CONTENEDORA ====================
+
+.section-card {
+  background: #faf3ea;
+  border: 1px solid #f0e2d0;
+  border-radius: 18px;
+  padding: 2rem 2.25rem;
+}
+
+// ==================== SECCIONES POR ROL ====================
+
+.roles-stack {
+  display: flex;
+  flex-direction: column;
+  gap: 2rem;
+}
+
+.role-section {
+  h2 {
+    margin: 0 0 1rem;
+    color: #6d3603;
+    font-size: 1.05rem;
+    font-weight: 600;
+  }
+}
+
+.employee-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 1rem;
+}
+
+// ==================== CARD DE EMPLEADO ====================
+
+.employee-card {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+
+  background: #fff;
+  border-radius: 14px;
+
+  padding: 0.85rem 1.1rem;
+
+  box-shadow: 0 6px 14px rgba(0, 0, 0, 0.04);
+
+  min-width: 240px;
+
+  &.inactivo {
+    order: 1;
+
+    background: #f2f2f2;
+
+    box-shadow: none;
+
+    color: #9a9a9a;
+
+    .employee-avatar {
+      background: #e0e0e0;
+      color: #9a9a9a;
+    }
+
+    .employee-info {
+      strong {
+        color: #9a9a9a;
+      }
+
+      small {
+        color: #b0b0b0;
+      }
+    }
+  }
+}
+
+// ==================== AVATAR ====================
+
+.employee-avatar {
+  width: 38px;
+  height: 38px;
+
+  border-radius: 50%;
+
+  background: #f1e3d3;
+  color: #6d3603;
+
+  display: grid;
+  place-items: center;
+
+  font-size: 0.85rem;
+  font-weight: bold;
+
+  flex-shrink: 0;
+}
+
+// ==================== INFORMACIÓN ====================
+
+.employee-info {
+  display: flex;
+  flex-direction: column;
+
+  line-height: 1.25;
+
+  min-width: 0;
+
+  strong {
+    color: #1a1a1a;
+
+    font-size: 0.9rem;
+
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
+  small {
+    color: #6b6b6b;
+
+    font-size: 0.78rem;
+
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+}
+
+// ==================== BADGE INACTIVO ====================
+
+.badge-inactivo {
+  margin-left: auto;
+
+  font-size: 0.68rem;
+  font-weight: 600;
+
+  color: #9a9a9a;
+  background: #e6e6e6;
+
+  border-radius: 999px;
+
+  padding: 0.2rem 0.55rem;
+
+  flex-shrink: 0;
+}
+
+// ==================== BOTONES DE ACCIÓN ====================
+
+.employee-actions {
+  display: flex;
+
+  gap: 0.35rem;
+
+  margin-left: auto;
+
+  flex-shrink: 0;
+}
+
+.action-btn {
+  width: 28px;
+  height: 28px;
+
+  border: none;
+  border-radius: 8px;
+
+  background: #f1e3d3;
+  color: #6d3603;
+
+  cursor: pointer;
+
+  display: grid;
+  place-items: center;
+
+  font-size: 0.85rem;
+
+  transition: 0.2s;
+
+  &:hover {
+    background: #e3cdae;
+  }
+
+  // ==================== DAR DE BAJA ====================
+
+  &.danger {
+    background: #fbe4e2;
+    color: #b3261e;
+
+    &:hover {
+      background: #f6cbc7;
+    }
+  }
+
+  // ==================== REACTIVAR ====================
+
+  &.activate {
+    background: #e2f4e8;
+    color: #258a4a;
+
+    &:hover {
+      background: #ccebd7;
+    }
+  }
+}
+
+// ==================== BOTÓN AGREGAR ====================
+
+.btn-agregar {
+  display: flex;
+  align-items: center;
+
+  gap: 0.5rem;
+
+  margin-top: 2rem;
+
+  padding: 0.7rem 1.3rem;
+
+  border: none;
+  border-radius: 10px;
+
+  background: #6d3603;
+  color: #fff;
+
+  font-size: 0.9rem;
+  font-weight: 600;
+
+  cursor: pointer;
+
+  transition: 0.2s;
+
+  &:hover {
+    background: #52290a;
+  }
+
+  i {
+    font-size: 1rem;
+  }
+}
+
+@media (max-width: 600px) {
+  .content-header {
+    margin-bottom: 1.25rem;
+  }
+
+  .section-card {
+    width: 100%;
+    padding: 1.25rem 1rem;
+    border-radius: 14px;
+  }
+
+  .roles-stack {
+    gap: 1.5rem;
+  }
+
+  .employee-row {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .employee-card {
+    width: 100%;
+    min-width: 0;
+    padding: 0.8rem;
+  }
+
+  .employee-info {
+    flex: 1;
+  }
+
+  .btn-agregar {
+    width: 100%;
+    justify-content: center;
+  }
+}

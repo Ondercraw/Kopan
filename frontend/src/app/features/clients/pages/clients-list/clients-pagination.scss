@@ -1,0 +1,39 @@
+.history-pagination {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.7rem;
+  margin-top: 0.8rem;
+  padding-top: 0.75rem;
+  border-top: 1px solid #eadfd5;
+}
+.history-pagination button {
+  display: grid;
+  place-items: center;
+  width: 34px;
+  height: 34px;
+  border: 1px solid #d9ccbf;
+  border-radius: 8px;
+  background: #fff;
+  color: #6d3603;
+  cursor: pointer;
+}
+.history-pagination button:hover:not(:disabled) {
+  background: #f8efe5;
+}
+.history-pagination button:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+.history-pagination > span {
+  display: block;
+  color: #5f5146;
+  font-size: 0.75rem;
+  font-weight: 700;
+}
+.history-pagination > span small {
+  display: inline;
+  color: #8a7d72;
+  font-weight: 400;
+  text-transform: none;
+}

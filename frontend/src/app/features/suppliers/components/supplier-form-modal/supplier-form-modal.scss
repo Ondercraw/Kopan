@@ -1,0 +1,138 @@
+:host {
+  display: block;
+}
+.modal-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 200;
+  display: grid;
+  place-items: center;
+  padding: 1.25rem;
+  background: #1a110884;
+}
+.modal-card {
+  width: min(100%, 680px);
+  max-height: 92vh;
+  overflow: auto;
+  padding: 1.7rem 2rem;
+  border-radius: 18px;
+  background: #fff;
+  box-shadow: 0 28px 65px #0003;
+}
+header {
+  display: flex;
+  justify-content: space-between;
+  gap: 1rem;
+  margin-bottom: 1.2rem;
+}
+header span {
+  color: #8b5a2b;
+  font-size: 0.72rem;
+  font-weight: 800;
+  text-transform: uppercase;
+}
+h2 {
+  margin: 0.2rem 0;
+  color: #2d1b0c;
+}
+header button {
+  width: 36px;
+  height: 36px;
+  border: 0;
+  border-radius: 9px;
+  background: #f5eee7;
+  color: #5b3714;
+  cursor: pointer;
+}
+.automatic-id {
+  margin-bottom: 1rem;
+  padding: 0.7rem 0.85rem;
+  border-radius: 10px;
+  background: #f8f3ed;
+  color: #6f6257;
+}
+.grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 1rem;
+}
+.grid label {
+  display: flex;
+  flex-direction: column;
+  gap: 0.38rem;
+  color: #3d2d20;
+  font-size: 0.82rem;
+  font-weight: 700;
+}
+.wide {
+  grid-column: 1/-1;
+}
+input,
+textarea {
+  width: 100%;
+  border: 1px solid #ddd2c7;
+  border-radius: 10px;
+  padding: 0.7rem 0.8rem;
+  color: #24170d;
+  font: inherit;
+}
+input {
+  height: 44px;
+}
+textarea {
+  resize: vertical;
+}
+.grid small {
+  align-self: flex-end;
+  color: #81766d;
+  font-weight: 400;
+}
+.error {
+  margin: 0.7rem 0 0;
+  color: #b3261e;
+  font-size: 0.8rem;
+}
+footer {
+  display: flex;
+  justify-content: flex-end;
+  gap: 0.7rem;
+  margin-top: 1.2rem;
+}
+.primary,
+.secondary {
+  padding: 0.7rem 1rem;
+  border-radius: 10px;
+  font: inherit;
+  font-weight: 750;
+  cursor: pointer;
+}
+.primary {
+  border: 0;
+  background: #6d3603;
+  color: #fff;
+}
+.secondary {
+  border: 1px solid #ddd2c7;
+  background: #fff;
+  color: #4d4036;
+}
+@media (max-width: 600px) {
+  .modal-overlay {
+    padding: 0.7rem;
+  }
+  .modal-card {
+    padding: 1.25rem;
+  }
+  .grid {
+    grid-template-columns: 1fr;
+  }
+  .wide {
+    grid-column: auto;
+  }
+  footer {
+    flex-direction: column-reverse;
+  }
+  footer button {
+    width: 100%;
+  }
+}

@@ -1,0 +1,109 @@
+<div class="modal-overlay">
+  <section
+    class="modal-card"
+    role="dialog"
+    aria-modal="true"
+    aria-labelledby="client-title"
+    (click)="$event.stopPropagation()"
+  >
+    <header>
+      <div>
+        <span>Clientes</span>
+        <h2 id="client-title">{{ client ? 'Editar cliente' : 'Agregar cliente' }}</h2>
+      </div>
+      <button type="button" aria-label="Cerrar" (click)="close()"><i class="ti ti-x"></i></button>
+    </header>
+    <form [formGroup]="form" (ngSubmit)="submit()">
+      <div class="automatic-id">
+        <i class="ti ti-hash"></i
+        >{{ client ? '#' + client.codigo : 'El código se asigna automáticamente' }}
+      </div>
+      <div class="grid">
+        <label class="span-2"
+          ><span>Nombre o razón social *</span
+          ><input autofocus formControlName="nombre" /></label
+        ><label><span>Nombre comercial</span><input formControlName="nombreFantasia" /></label
+        ><label
+          ><span>CUIT o documento</span><input formControlName="cuit" inputmode="numeric" /></label
+        ><label><span>Teléfono</span><input formControlName="telefono" type="tel" /></label
+        ><label><span>Email</span><input formControlName="email" type="email" /></label
+        ><label class="span-2"><span>Dirección</span><input formControlName="direccion" /></label>
+        <label
+          ><span>Localidad</span
+          ><app-searchable-select
+            formControlName="localidad"
+            [options]="locationOptions"
+            [allowCustom]="true"
+            placeholder="Buscar o escribir localidad…" /></label
+        ><label
+          ><span>Grupo</span
+          ><app-searchable-select
+            formControlName="grupo"
+            [options]="groupOptions"
+            [allowCustom]="true"
+            placeholder="Buscar o escribir grupo…"
+        /></label>
+        <label
+          ><span>Vendedor asignado</span
+          ><app-searchable-select
+            formControlName="vendedorId"
+            [options]="sellerOptions"
+            placeholder="Buscar vendedor…" /></label
+        ><label
+          ><span>Condición frente al IVA</span
+          ><app-searchable-select
+            formControlName="condicionIva"
+            [options]="taxOptions"
+            [clearable]="false"
+            placeholder="Buscar condición…"
+        /></label>
+        <label
+          ><span>Lista de precios</span
+          ><app-searchable-select
+            formControlName="listaPreciosId"
+            [options]="priceListOptions"
+            placeholder="Buscar lista."
+        /></label>
+        <label class="credit-toggle">
+          <input type="checkbox" formControlName="permiteCuentaCorriente" />
+          <span class="toggle-track" aria-hidden="true"><span></span></span>
+          <span class="toggle-copy"
+            ><strong>Permitir cuenta corriente</strong
+            ><small>Habilita compras con saldo pendiente para este cliente.</small></span
+          >
+        </label>
+        @if (form.controls.permiteCuentaCorriente.value) {
+          <label
+            ><span>Límite de crédito</span
+            ><app-currency-input
+              inputId="limiteCredito"
+              formControlName="limiteCredito"
+              ariaLabel="Límite de crédito en pesos argentinos"
+          /></label>
+        }
+        <label class="wide"
+          ><span>Observaciones</span
+          ><textarea rows="3" maxlength="500" formControlName="observaciones"></textarea
+          ><small>{{ form.controls.observaciones.value.length }} / 500 caracteres</small></label
+        >
+      </div>
+      @if (form.controls.nombre.invalid && form.controls.nombre.touched) {
+        <p class="error">Ingresá un nombre de al menos 2 caracteres.</p>
+      }
+      @if (form.controls.email.hasError('maxlength') && form.controls.email.touched) {
+        <p class="error">El email no puede superar los 254 caracteres.</p>
+      } @else if (form.controls.email.hasError('email') && form.controls.email.touched) {
+        <p class="error">Ingresá un email válido.</p>
+      }
+      @if (error()) {
+        <p class="error">{{ error() }}</p>
+      }
+      <footer>
+        <button type="button" class="secondary" (click)="close()">Cancelar</button
+        ><button type="submit" class="primary" [disabled]="saving()">
+          {{ saving() ? 'Guardando…' : 'Guardar cliente' }}
+        </button>
+      </footer>
+    </form>
+  </section>
+</div>
