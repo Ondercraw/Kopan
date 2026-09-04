@@ -1,3 +1,4 @@
+import { Transform } from 'class-transformer';
 import { IsEmail, IsOptional, IsString, MaxLength, MinLength } from 'class-validator';
 
 export class SaveSupplierDto {
@@ -21,6 +22,9 @@ export class SaveSupplierDto {
   @MaxLength(40)
   telefono?: string;
 
+  @Transform(({ value }) =>
+    typeof value === 'string' && value.trim() === '' ? undefined : value,
+  )
   @IsOptional()
   @IsEmail({}, { message: 'El email no es válido' })
   @MaxLength(254, { message: 'El email no puede superar los 254 caracteres' })
