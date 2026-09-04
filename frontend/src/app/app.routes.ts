@@ -100,7 +100,8 @@ export const routes: Routes = [
       },
       {
         path: 'cheques',
-        component: PlaceholderPage,
+        loadComponent: () =>
+          import('./features/checks/pages/checks-list/checks-list').then((m) => m.ChecksListPage),
         data: { titulo: 'Cheques' },
         canActivate: [roleGuard([UserRole.JEFE])],
       },
@@ -111,6 +112,15 @@ export const routes: Routes = [
             (m) => m.PaymentMovementsPage,
           ),
         data: { titulo: 'Caja' },
+        canActivate: [roleGuard([UserRole.JEFE])],
+      },
+      {
+        path: 'ingresos-gastos',
+        loadComponent: () =>
+          import('./features/finance/pages/income-expenses/income-expenses').then(
+            (m) => m.IncomeExpensesPage,
+          ),
+        data: { titulo: 'Ingresos y gastos' },
         canActivate: [roleGuard([UserRole.JEFE])],
       },
       {

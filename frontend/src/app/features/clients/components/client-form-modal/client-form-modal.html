@@ -19,22 +19,37 @@
         >{{ client ? '#' + client.codigo : 'El código se asigna automáticamente' }}
       </div>
       <div class="grid">
-        <label class="span-2"
-          ><span>Nombre o razón social *</span
-          ><input autofocus formControlName="nombre" /></label
-        ><label><span>Nombre comercial</span><input formControlName="nombreFantasia" /></label
-        ><label
-          ><span>CUIT o documento</span><input formControlName="cuit" inputmode="numeric" /></label
-        ><label><span>Teléfono</span><input formControlName="telefono" type="tel" /></label
-        ><label><span>Email</span><input formControlName="email" type="email" /></label
-        ><label class="span-2"><span>Dirección</span><input formControlName="direccion" /></label>
+        <label class="span-2"><span>Nombre o razón social *</span>
+          <input autofocus formControlName="nombre" maxlength="120" [class.field-invalid]="form.controls.nombre.invalid && form.controls.nombre.touched" />
+          @if (form.controls.nombre.invalid && form.controls.nombre.touched) { <small class="field-error">Ingresá un nombre de entre 2 y 120 caracteres.</small> }
+        </label
+        ><label><span>Nombre comercial</span><input formControlName="nombreFantasia" maxlength="120" />
+          @if (form.controls.nombreFantasia.invalid && form.controls.nombreFantasia.touched) { <small class="field-error">El nombre comercial no puede superar los 120 caracteres.</small> }
+        </label
+        ><label><span>CUIT o documento</span><input formControlName="cuit" inputmode="numeric" maxlength="20" />
+          @if (form.controls.cuit.invalid && form.controls.cuit.touched) { <small class="field-error">El CUIT o documento no puede superar los 20 caracteres.</small> }
+        </label
+        ><label><span>Teléfono</span><input formControlName="telefono" type="tel" maxlength="40" />
+          @if (form.controls.telefono.invalid && form.controls.telefono.touched) { <small class="field-error">El teléfono no puede superar los 40 caracteres.</small> }
+        </label
+        ><label><span>Email</span><input formControlName="email" type="email" maxlength="254" [class.field-invalid]="form.controls.email.invalid && form.controls.email.touched" />
+          @if (form.controls.email.hasError('email') && form.controls.email.touched) { <small class="field-error">Ingresá un email válido, por ejemplo cliente@empresa.com.</small> }
+          @if (form.controls.email.hasError('maxlength') && form.controls.email.touched) { <small class="field-error">El email no puede superar los 254 caracteres.</small> }
+        </label
+        ><label class="span-2"><span>Dirección</span><input formControlName="direccion" maxlength="180" />
+          @if (form.controls.direccion.invalid && form.controls.direccion.touched) { <small class="field-error">La dirección no puede superar los 180 caracteres.</small> }
+        </label>
         <label
           ><span>Localidad</span
           ><app-searchable-select
             formControlName="localidad"
             [options]="locationOptions"
             [allowCustom]="true"
-            placeholder="Buscar o escribir localidad…" /></label
+            placeholder="Buscar o escribir localidad…" />
+          @if (form.controls.localidad.invalid && form.controls.localidad.touched) {
+            <small class="field-error">La localidad no puede superar los 80 caracteres.</small>
+          }
+        </label
         ><label
           ><span>Grupo</span
           ><app-searchable-select
@@ -42,7 +57,11 @@
             [options]="groupOptions"
             [allowCustom]="true"
             placeholder="Buscar o escribir grupo…"
-        /></label>
+        />
+          @if (form.controls.grupo.invalid && form.controls.grupo.touched) {
+            <small class="field-error">El grupo no puede superar los 80 caracteres.</small>
+          }
+        </label>
         <label
           ><span>Vendedor asignado</span
           ><app-searchable-select
@@ -79,22 +98,20 @@
               inputId="limiteCredito"
               formControlName="limiteCredito"
               ariaLabel="Límite de crédito en pesos argentinos"
-          /></label>
+          />
+            @if (form.controls.limiteCredito.invalid && form.controls.limiteCredito.touched) { <small class="field-error">El límite debe ser un importe igual o mayor a cero.</small> }
+          </label>
         }
         <label class="wide"
           ><span>Observaciones</span
           ><textarea rows="3" maxlength="500" formControlName="observaciones"></textarea
-          ><small>{{ form.controls.observaciones.value.length }} / 500 caracteres</small></label
+          ><small>{{ form.controls.observaciones.value.length }} / 500 caracteres</small>
+          @if (form.controls.observaciones.invalid && form.controls.observaciones.touched) {
+            <small class="field-error">Las observaciones no pueden superar los 500 caracteres.</small>
+          }
+        </label
         >
       </div>
-      @if (form.controls.nombre.invalid && form.controls.nombre.touched) {
-        <p class="error">Ingresá un nombre de al menos 2 caracteres.</p>
-      }
-      @if (form.controls.email.hasError('maxlength') && form.controls.email.touched) {
-        <p class="error">El email no puede superar los 254 caracteres.</p>
-      } @else if (form.controls.email.hasError('email') && form.controls.email.touched) {
-        <p class="error">Ingresá un email válido.</p>
-      }
       @if (error()) {
         <p class="error">{{ error() }}</p>
       }

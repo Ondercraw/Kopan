@@ -1,0 +1,278 @@
+<section class="page">
+  <header>
+    <div>
+      <span>CONTROL ECONÓMICO</span>
+      <h1>Ingresos y gastos</h1>
+      <p>Dinero total acumulado y movimientos del período seleccionado.</p>
+    </div>
+    <button class="primary" type="button" (click)="openExpense()">
+      <i class="ti ti-plus"></i> Agregar gasto
+    </button>
+  </header>
+  <section class="totals overall">
+    <header><span>TOTAL ACUMULADO</span><small>No cambia al modificar el filtro</small></header>
+    <div>
+      <article [class.negative]="overall().efectivoDisponibleCentavos < 0">
+        <span>Efectivo disponible</span
+        ><strong>{{ money(overall().efectivoDisponibleCentavos) }}</strong>
+        <small class="check-origin"><i class="ti ti-file-dollar"></i> {{ money(overall().chequesEfectivoCentavos) }} provenientes de cheques</small>
+      </article>
+      <article [class.negative]="overall().transferenciaDisponibleCentavos < 0">
+        <span>Transferencia disponible</span
+        ><strong>{{ money(overall().transferenciaDisponibleCentavos) }}</strong>
+        <small class="check-origin"><i class="ti ti-file-dollar"></i> {{ money(overall().chequesTransferenciaCentavos) }} provenientes de cheques</small>
+      </article>
+      <article class="pending">
+        <span>No disponible</span
+        ><strong>{{
+          money(overall().chequesPendientesCentavos + overall().cuentaCorrienteCentavos)
+        }}</strong
+        ><small>Cheques pendientes y cuenta corriente</small>
+      </article>
+    </div>
+  </section>
+  <section class="filters">
+    <div class="quick">
+      <button (click)="preset('TODAY')">Hoy</button
+      ><button (click)="preset('YESTERDAY')">Ayer</button
+      ><button (click)="preset('WEEK')">Semana</button><button (click)="preset('MONTH')">Mes</button
+      ><button (click)="preset('YEAR')">Año</button>
+    </div>
+    <label><span>Desde</span><input type="date" [(ngModel)]="from" /></label
+    ><label><span>Hasta</span><input type="date" [(ngModel)]="to" /></label
+    ><button class="apply" (click)="load()">Aplicar período</button>
+  </section>
+  <section class="period-block">
+    <header>
+      <div>
+        <span>PERÍODO SELECCIONADO</span><strong>{{ from }} — {{ to }}</strong>
+      </div>
+    </header>
+    <div class="period-totals">
+      <article class="income">
+        <span>Ingresos</span><strong>{{ money(period().ingresosCentavos) }}</strong>
+      </article>
+      <article class="automatic">
+        <span>Reposición de mercadería</span
+        ><strong>Pagado: - {{ money(period().gastosReposicionPagadosCentavos) }}</strong>
+        <small>A pagar: - {{ money(period().gastosReposicionPendientesCentavos) }}</small>
+      </article>
+      <article class="manual">
+        <span>Gastos extra</span><strong>Pagado: - {{ money(period().gastosManualesCentavos) }}</strong>
+        <small>A pagar: - {{ money(period().gastosManualesPendientesCentavos) }}</small>
+      </article>
+      <article [class.negative]="period().resultadoCentavos < 0">
+        <span>Resultado</span><strong>{{ money(period().resultadoCentavos) }}</strong>
+      </article>
+    </div>
+  </section>
+  <div class="list-tools">
+    <label
+      ><i class="ti ti-search"></i
+      ><input
+        [(ngModel)]="search"
+        placeholder="Buscar concepto, cliente, proveedor o cheque..."
+        (ngModelChange)="page = 1" /></label
+    ><select [(ngModel)]="kind" (ngModelChange)="page = 1">
+      <option value="">Todos</option>
+      <option value="INGRESO">Solo ingresos</option>
+      <option value="GASTO">Solo gastos</option>
+    </select>
+  </div>
+  @if (error()) {
+    <p class="message error">{{ error() }}</p>
+  }
+  @if (success()) {
+    <p class="message success">{{ success() }}</p>
+  }
+  <div class="movement-list">
+    <div class="head">
+      <span>Tipo</span><span>Detalle</span><span>Fecha</span><span>Medio / estado</span
+      ><span>Importe</span><span>Acción</span>
+    </div>
+    @if (loading()) {
+      <p class="empty">Cargando movimientos...</p>
+    }
+    @for (item of visible(); track item._id) {
+      <article
+        [class.income]="item.tipo === 'INGRESO'"
+        [class.automatic]="item.categoria === 'REPOSICION_AUTOMATICA'"
+        [class.manual]="item.categoria === 'GASTO_MANUAL'"
+        [class.cancelled]="item.cancelado"
+      >
+        <div class="movement-type" data-label="Tipo">
+          <strong>{{ category(item) }}</strong>
+          <small>Realizado por: {{ item.actorName || 'Sistema' }}</small>
+        </div>
+        <div data-label="Detalle">
+          <strong>{{ item.concepto }}</strong
+          ><small>{{ item.detalle }}</small>
+          @if (item.proveedorNombre) {
+            <small>Proveedor: {{ item.proveedorNombre }}</small>
+          }
+          @if (item.cancelado) {
+            <small class="cancellation-reason">Motivo de cancelación: {{ item.motivoCancelacion }}</small>
+            <small>Cancelado por: {{ item.canceladoPorNombre || 'Sistema' }}</small>
+          }
+        </div>
+        <span data-label="Fecha">{{ date(item.fechaMovimiento) }}</span
+        ><span data-label="Estado"
+          ><strong>{{ method(item.medioPago) }}</strong
+          ><small>
+            @if (item.tipo === 'INGRESO') {
+              {{ item.disponible ? (item.acreditadoEn ? 'Acreditado en ' + method(item.acreditadoEn) : 'Disponible') : 'No disponible' }}
+            } @else {
+              {{ item.cancelado ? 'Cancelado' : item.pagado ? 'Pagado' : 'A pagar' }}
+            }
+          </small></span
+        ><strong data-label="Importe"
+          >{{ item.tipo === 'GASTO' ? '− ' : '+ ' }}{{ money(item.montoCentavos) }}</strong
+        ><span class="action">
+          @if (item.cancelado) {
+            <i class="ti ti-lock" title="Movimiento cancelado"></i>
+          } @else if (item.categoria === 'CHEQUE' && !item.disponible && item.chequeId) {
+            <button type="button" (click)="openCheckCollection(item)">Cobrar cheque</button>
+          } @else if (item.tipo === 'GASTO' && !item.pagado) {
+            <button type="button" (click)="openPay(item)">Pagar gasto</button>
+          } @else if (item.pagado && isManualReplenishment(item)) {
+            <button class="cancel-payment" type="button" (click)="openCancellation(item)">Cancelar pago</button>
+          } @else {
+            <i class="ti ti-lock"></i>
+          }
+        </span>
+      </article>
+    } @empty {
+      @if (!loading()) {
+        <p class="empty">No hay movimientos en este período.</p>
+      }
+    }
+  </div>
+  @if (filtered().length > pageSize) {
+    <app-pagination-controls [page]="page" [totalPages]="pages()" (pageChange)="setPage($event)" />
+  }
+</section>
+@if (expenseOpen()) {
+  <div class="overlay">
+    <section class="modal" role="dialog" aria-modal="true">
+      <header>
+        <div>
+          <span>GASTO EXTRA</span>
+          <h2>Agregar gasto manual</h2>
+        </div>
+        <button class="icon" (click)="expenseOpen.set(false)"><i class="ti ti-x"></i></button>
+      </header>
+      <div class="form">
+        <label
+          ><span>Concepto *</span
+          ><input [(ngModel)]="concept" maxlength="160" placeholder="Ej. Pago a empleado" [class.field-invalid]="invalidExpenseConcept()" />
+          @if (invalidExpenseConcept()) { <small class="field-error">Describí brevemente el motivo del gasto.</small> }
+        </label
+        ><label><span>Monto *</span><app-currency-input [(ngModel)]="amount" [class.field-invalid]="invalidExpenseAmount()" />
+          @if (invalidExpenseAmount()) { <small class="field-error">Ingresá un importe mayor a ARS $0.</small> }
+        </label
+        ><label><span>Fecha *</span><input type="date" [(ngModel)]="expenseDate" [class.field-invalid]="invalidExpenseDate()" />
+          @if (invalidExpenseDate()) { <small class="field-error">Seleccioná la fecha del gasto.</small> }
+        </label
+        ><label
+          ><span>Proveedor (opcional)</span
+          ><app-searchable-select
+            [(ngModel)]="supplierId"
+            [options]="supplierOptions()"
+            placeholder="Buscar proveedor..." /></label
+        ><label class="wide"
+          ><span>Detalle</span><textarea [(ngModel)]="detail" maxlength="500"></textarea
+          ><small>{{ detail.length }}/500</small></label
+        >
+      </div>
+      <footer>
+        <button class="secondary" (click)="expenseOpen.set(false)">Cancelar</button
+        ><button class="primary" (click)="saveExpense()" [disabled]="saving()">
+          {{ saving() ? 'Guardando...' : 'Agregar gasto' }}
+        </button>
+      </footer>
+    </section>
+  </div>
+}
+@if (paying(); as item) {
+  <div class="overlay">
+    <section class="modal pay" role="alertdialog" aria-modal="true">
+      <span>CONFIRMACIÓN DE PAGO</span>
+      <h2>Pagar {{ money(item.montoCentavos) }}</h2>
+      <p>{{ item.concepto }}</p>
+      <label
+        ><span>Medio de pago</span
+        ><select [(ngModel)]="payMethod">
+          <option value="EFECTIVO">Efectivo</option>
+          <option value="TRANSFERENCIA">Transferencia / Mercado Pago</option>
+        </select></label
+      >
+      <div class="after" [class.negative]="balanceAfter() < 0">
+        <span>Saldo después del pago</span><strong>{{ money(balanceAfter()) }}</strong>
+      </div>
+      @if (balanceAfter() < 0) {
+        <p class="warning">
+          <i class="ti ti-alert-triangle"></i> El pago dejará este saldo en rojo. Podés continuar
+          igualmente.
+        </p>
+      }
+      <footer>
+        <button class="secondary" (click)="paying.set(null)">Cancelar</button
+        ><button class="primary" (click)="confirmPay()" [disabled]="saving()">
+          Confirmar pago
+        </button>
+      </footer>
+    </section>
+  </div>
+}
+@if (cancelling(); as item) {
+  <div class="overlay">
+    <section class="modal pay" role="alertdialog" aria-modal="true">
+      <span>CANCELAR REPOSICIÓN</span>
+      <h2>Cancelar pago de {{ money(item.montoCentavos) }}</h2>
+      <p>
+        Se restarán del stock las unidades de esta reposición. El movimiento quedará bloqueado
+        y visible como cancelado.
+      </p>
+      <label>
+        <span>Motivo de la cancelación *</span>
+        <textarea
+          [(ngModel)]="cancelReason"
+          maxlength="300"
+          placeholder="Ej. La mercadería fue devuelta al proveedor"
+          [class.field-invalid]="invalidCancelReason()"></textarea>
+        <small>{{ cancelReason.length }}/300</small>
+        @if (invalidCancelReason()) {
+          <small class="field-error">Ingresá un motivo de entre 3 y 300 caracteres.</small>
+        }
+      </label>
+      <footer>
+        <button class="secondary" (click)="cancelling.set(null)">Volver</button>
+        <button class="danger" (click)="confirmCancellation()" [disabled]="saving()">
+          {{ saving() ? 'Cancelando...' : 'Confirmar cancelación' }}
+        </button>
+      </footer>
+    </section>
+  </div>
+}
+@if (collecting(); as item) {
+  <div class="overlay">
+    <section class="modal pay" role="alertdialog" aria-modal="true">
+      <span>CONFIRMAR COBRO</span>
+      <h2>Cobrar cheque #{{ item.chequeNumero }}</h2>
+      <p>El importe de {{ money(item.montoCentavos) }} quedará disponible para pagar gastos.</p>
+      <label>
+        <span>Acreditar el dinero en</span>
+        <select [(ngModel)]="collectionDestination">
+          <option value="EFECTIVO">Efectivo</option>
+          <option value="TRANSFERENCIA">Transferencia / Mercado Pago</option>
+        </select>
+      </label>
+      <footer>
+        <button class="secondary" (click)="collecting.set(null)">Cancelar</button>
+        <button class="primary" (click)="confirmCheckCollection()" [disabled]="saving()">
+          {{ saving() ? 'Guardando...' : 'Cobrar y acreditar' }}
+        </button>
+      </footer>
+    </section>
+  </div>
+}

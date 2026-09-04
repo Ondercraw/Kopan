@@ -1,4 +1,4 @@
-import { MiddlewareConsumer, Module, NestModule } from '@nestjs/common';
+import { MiddlewareConsumer, Module, NestModule, RequestMethod } from '@nestjs/common';
 import { ConfigModule } from '@nestjs/config';
 import { APP_GUARD } from '@nestjs/core';
 import { ThrottlerGuard, ThrottlerModule } from '@nestjs/throttler';
@@ -14,6 +14,8 @@ import { ClientsModule } from './modules/clients/clients.module';
 import { SuppliersModule } from './modules/suppliers/suppliers.module';
 import { PricesModule } from './modules/prices/prices.module';
 import { SalesModule } from './modules/sales/sales.module';
+import { ChecksModule } from './modules/checks/checks.module';
+import { FinanceModule } from './modules/finance/finance.module';
 
 @Module({
   imports: [
@@ -38,6 +40,8 @@ import { SalesModule } from './modules/sales/sales.module';
     SuppliersModule,
     PricesModule,
     SalesModule,
+    ChecksModule,
+    FinanceModule,
   ],
   providers: [
     {
@@ -48,6 +52,8 @@ import { SalesModule } from './modules/sales/sales.module';
 })
 export class AppModule implements NestModule {
   configure(consumer: MiddlewareConsumer): void {
-    consumer.apply(RequestLoggingMiddleware).forRoutes('*');
+    consumer
+      .apply(RequestLoggingMiddleware)
+      .forRoutes({ path: '{*path}', method: RequestMethod.ALL });
   }
 }

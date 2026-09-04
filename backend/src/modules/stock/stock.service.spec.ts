@@ -10,12 +10,14 @@ import {
 import { StockService } from './stock.service';
 import { SuppliersService } from '../suppliers/suppliers.service';
 import { StockAdjustmentReason } from './enums/stock-adjustment-reason.enum';
+import { FinanceService } from '../finance/finance.service';
 
 describe('StockService', () => {
   let findOneAndUpdate: jest.Mock;
   let findById: jest.Mock;
   let createMovement: jest.Mock;
   let service: StockService;
+  let recordStockReplenishment: jest.Mock;
   const actor = { id: new Types.ObjectId().toString(), name: 'Administrador' };
 
   beforeEach(() => {
@@ -26,14 +28,24 @@ describe('StockService', () => {
       findById,
     } as unknown as Model<ProductDocument>;
     const counterModel = {} as Model<CounterDocument>;
-    createMovement = jest.fn().mockResolvedValue({});
+    createMovement = jest.fn().mockImplementation((data) =>
+      Promise.resolve({ _id: new Types.ObjectId(), createdAt: new Date(), ...data }),
+    );
     const movementModel = {
       create: createMovement,
     } as unknown as Model<StockMovementDocument>;
     const suppliersService = {
       assertActive: jest.fn().mockResolvedValue(null),
     } as unknown as SuppliersService;
-    service = new StockService(productModel, counterModel, movementModel, suppliersService);
+    recordStockReplenishment = jest.fn().mockResolvedValue(undefined);
+    const financeService = { recordStockReplenishment } as unknown as FinanceService;
+    service = new StockService(
+      productModel,
+      counterModel,
+      movementModel,
+      suppliersService,
+      financeService,
+    );
   });
 
   it('declara productId como ObjectId para convertir los IDs recibidos por URL', () => {
@@ -94,6 +106,13 @@ describe('StockService', () => {
     );
     expect(result.previousStock).toBe(0);
     expect(result.product.cantidadStock).toBe(1);
+    expect(recordStockReplenishment).toHaveBeenCalledWith(
+      expect.objectContaining({
+        productCode: product.codigo,
+        units: 1,
+        unitCostCents: product.costoCentavos,
+      }),
+    );
   });
 
   it('registra el cambio de stock mínimo sin modificar la cantidad actual', async () => {
@@ -182,7 +201,13 @@ describe('StockService', () => {
         type: StockMovementType.INCREMENT,
         previousStock: 1,
         currentStock: 16,
-        reason: 'Compra recibida: ingreso de 15 unidades — Remito 145',
+        reason: 'Compra recibida: ingreso de 15 unidades - Remito 145',
+      }),
+    );
+    expect(recordStockReplenishment).toHaveBeenCalledWith(
+      expect.objectContaining({
+        units: 15,
+        unitCostCents: product.costoCentavos,
       }),
     );
   });
@@ -204,7 +229,7 @@ describe('StockService', () => {
           peso: product.peso,
           unidadPeso: WeightUnit.KILOGRAM,
           ajusteStock: -10,
-          motivoAjuste: StockAdjustmentReason.SALE_OR_DELIVERY,
+          motivoAjuste: StockAdjustmentReason.BREAKAGE_OR_LOSS,
         },
         actor,
       ),
@@ -255,6 +280,7 @@ describe('StockService', () => {
       peso: 10,
       unidadPeso: 'kg',
       proveedorId: null,
+      costoCentavos: 1500,
       activo: true,
     } as ProductDocument;
     product.populate = jest.fn().mockResolvedValue(product) as ProductDocument['populate'];

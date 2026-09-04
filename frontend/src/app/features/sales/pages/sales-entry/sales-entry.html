@@ -23,7 +23,9 @@
           [options]="clientOptions()"
           [clearable]="false"
           placeholder="Buscar cliente..."
-      /></label>
+      />
+        @if (invalidSaleSelection(clientId)) { <small class="field-error">Seleccioná el cliente que realiza la compra.</small> }
+      </label>
       <div class="summary">
         <span>Lista de precios</span
         ><strong>{{ priceList()?.nombre || 'Sin lista seleccionada' }}</strong
@@ -39,27 +41,63 @@
       </div>
       <label
         ><span>Medio de pago *</span
-        ><select [(ngModel)]="paymentMethod">
+        ><select [(ngModel)]="paymentMethod" (ngModelChange)="onPaymentMethod()">
           <option value="EFECTIVO">Efectivo</option>
           <option value="TRANSFERENCIA">Transferencia / Mercado Pago</option>
           <option value="CREDITO" [disabled]="!selectedClient()?.permiteCuentaCorriente">
             Crédito / cuenta corriente
           </option>
+          <option value="CHEQUE">Cheque</option>
         </select></label
       >
       @if (paymentMethod === 'TRANSFERENCIA') {
         <label
           ><span>Referencia *</span
-          ><input [(ngModel)]="transferReference" placeholder="Nº de operación o referencia"
-        /></label>
+          ><input [(ngModel)]="transferReference" maxlength="100" placeholder="Nº de operación o referencia" [class.field-invalid]="invalidTransferReference()" />
+          @if (invalidTransferReference()) { <small class="field-error">Ingresá el número de operación o una referencia del pago.</small> }
+        </label>
       }
     </div>
+    @if (paymentMethod === 'CHEQUE') {
+      <section class="check-form" aria-label="Datos del cheque">
+        <header><div><span>CHEQUE RECIBIDO</span><strong>El importe se completa con el total de la venta</strong></div><em>{{ money(total()) }}</em></header>
+        <div>
+          <label><span>Número *</span><input [(ngModel)]="checkNumber" maxlength="50" [class.field-invalid]="invalidCheckRequired(checkNumber)" />
+            @if (invalidCheckRequired(checkNumber)) { <small class="field-error">Ingresá el número del cheque.</small> }
+          </label>
+          <label><span>Banco *</span><input [(ngModel)]="checkBank" maxlength="80" [class.field-invalid]="invalidCheckRequired(checkBank)" />
+            @if (invalidCheckRequired(checkBank)) { <small class="field-error">Ingresá la entidad bancaria.</small> }
+          </label>
+          <label><span>Domicilio de pago *</span><input [(ngModel)]="checkPaymentAddress" maxlength="180" [class.field-invalid]="invalidCheckRequired(checkPaymentAddress)" />
+            @if (invalidCheckRequired(checkPaymentAddress)) { <small class="field-error">Ingresá el domicilio de pago.</small> }
+          </label>
+          <label><span>Titular *</span><input [(ngModel)]="checkHolder" maxlength="120" [class.field-invalid]="invalidCheckRequired(checkHolder)" />
+            @if (invalidCheckRequired(checkHolder)) { <small class="field-error">Ingresá el titular de la cuenta.</small> }
+          </label>
+          <label><span>Domicilio del titular *</span><input [(ngModel)]="checkHolderAddress" maxlength="180" [class.field-invalid]="invalidCheckRequired(checkHolderAddress)" />
+            @if (invalidCheckRequired(checkHolderAddress)) { <small class="field-error">Ingresá el domicilio del titular.</small> }
+          </label>
+          <label><span>CUIT/CUIL del librador *</span><input [(ngModel)]="checkDrawerTaxId" inputmode="numeric" maxlength="11" [class.field-invalid]="invalidCheckCuit()" />
+            @if (invalidCheckCuit()) { <small class="field-error">Ingresá exactamente 11 dígitos, sin puntos ni guiones.</small> }
+          </label>
+          <label><span>Fecha de emisión</span><input type="date" [(ngModel)]="checkIssueDate" /></label>
+          <label><span>Lugar de emisión</span><input [(ngModel)]="checkIssuePlace" maxlength="80" /></label>
+        </div>
+        <p>{{ checkAmountWords() }}</p>
+        <label class="deferred"><input type="checkbox" [(ngModel)]="checkDeferred" /><span>Cheque diferido</span></label>
+        @if (checkDeferred) { <label class="due"><span>Fecha de cobro *</span><input type="date" [(ngModel)]="checkCollectionDate" [class.field-invalid]="invalidCheckDate()" />
+          @if (invalidCheckDate()) { <small class="field-error">Seleccioná la fecha de cobro del cheque diferido.</small> }
+        </label> }
+      </section>
+    }
     <div class="add-line">
       <app-searchable-select
         [(ngModel)]="productId"
         [options]="productOptions()"
         placeholder="Buscar producto con stock..."
-      /><button type="button" (click)="addProduct()">
+      />
+      @if (reviewAttempted() && !lines().length) { <small class="field-error">Agregá al menos un producto a la venta.</small> }
+      <button type="button" (click)="addProduct()">
         <i class="ti ti-plus"></i> Agregar producto
       </button>
     </div>
@@ -117,6 +155,7 @@
         maxlength="500"
 
       ></textarea>
+      <small>{{ observations.length }} / 500 caracteres</small>
     </label>
     <footer>
       <div>

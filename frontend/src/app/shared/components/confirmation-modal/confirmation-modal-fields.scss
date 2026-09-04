@@ -1,0 +1,35 @@
+.destination {
+  display: grid;
+  gap: 0.4rem;
+  margin-top: 1rem;
+}
+
+.destination span {
+  color: #704525;
+  font-size: 0.75rem;
+  font-weight: 750;
+}
+
+.destination select {
+  width: 100%;
+  padding: 0.7rem 0.8rem;
+  border: 1px solid #d8cbbf;
+  border-radius: 10px;
+  background: #fff;
+  color: #2c1b0e;
+  font: inherit;
+  appearance: none;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16' viewBox='0 0 24 24' fill='none' stroke='%23713b14' stroke-width='2'%3E%3Cpath d='m6 9 6 6 6-6'/%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: right 12px center;
+  padding-right: 38px;
+}
+
+.dialog.collection {
+  border-color: #d7c0ac;
+  background: #fffaf5;
+}
+
+.dialog.collection footer {
+  background: #f7eee6;
+}

@@ -1,7 +1,7 @@
 <section class="page">
   <header>
     <span>CAJA EN ZONA HORARIA ARGENTINA</span>
-    <h1>Caja, transferencias y crédito</h1>
+    <h1>Caja y medios de cobro</h1>
     <p>
       Por defecto muestra la caja del día de Buenos Aires. Podés consultar cualquier período
       registrado.
@@ -23,6 +23,7 @@
         <option value="EFECTIVO">Efectivo</option>
         <option value="TRANSFERENCIA">Transferencia / Mercado Pago</option>
         <option value="CREDITO">Crédito / cuenta corriente</option>
+        <option value="CHEQUE">Cheque</option>
       </select></label
     >
     <button type="button" class="apply" (click)="load()">Aplicar filtros</button>
@@ -36,6 +37,10 @@
     </article>
     <article>
       <span>Crédito / cuenta corriente</span><strong>{{ money(creditTotal()) }}</strong>
+    </article>
+    <article>
+      <span>Cheques</span><strong>{{ money(checkTotal()) }}</strong
+      ><small>{{ money(collectedCheckTotal()) }} cobrados · {{ money(pendingCheckTotal()) }} pendientes</small>
     </article>
     <article>
       <span>Total cobrado</span><strong>{{ money(collectedTotal()) }}</strong>
@@ -66,7 +71,7 @@
   }
   <div class="list">
     <div class="head">
-      <span>Venta</span><span>Fecha argentina</span><span>Cliente</span><span>Medio</span
+      <span>Venta</span><span>Fecha</span><span>Cliente</span><span>Medio</span
       ><span>Referencia</span><span>Importe final</span>
     </div>
     @if (loading()) {
@@ -78,7 +83,7 @@
         ><span data-label="Fecha">{{ date(sale.createdAt) }}</span
         ><span data-label="Cliente">{{ sale.clienteNombre }}</span
         ><span data-label="Medio" class="method">{{ paymentLabel(sale.medioPago) }}</span
-        ><span data-label="Referencia">{{ sale.referenciaTransferencia || '—' }}</span
+        ><span data-label="Referencia">{{ sale.referenciaTransferencia || sale.chequeNumero || '-' }}</span
         ><strong data-label="Importe">{{ money(sale.totalCentavos) }}</strong>
       </article>
     } @empty {

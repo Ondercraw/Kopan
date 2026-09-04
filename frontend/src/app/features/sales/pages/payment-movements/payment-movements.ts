@@ -59,8 +59,15 @@ export class PaymentMovementsPage implements OnInit {
       .filter((s) => s.medioPago === 'CREDITO')
       .reduce((a, s) => a + s.totalCentavos, 0),
   );
-  readonly collectedTotal = computed(() => this.cashTotal() + this.transferTotal());
-  readonly total = computed(() => this.collectedTotal() + this.creditTotal());
+  readonly collectedCheckTotal = computed(() =>
+    this.filtered().filter((s) => s.medioPago === 'CHEQUE' && s.chequeCobradoAt).reduce((a, s) => a + s.totalCentavos, 0),
+  );
+  readonly pendingCheckTotal = computed(() =>
+    this.filtered().filter((s) => s.medioPago === 'CHEQUE' && !s.chequeCobradoAt).reduce((a, s) => a + s.totalCentavos, 0),
+  );
+  readonly checkTotal = computed(() => this.collectedCheckTotal() + this.pendingCheckTotal());
+  readonly collectedTotal = computed(() => this.cashTotal() + this.transferTotal() + this.collectedCheckTotal());
+  readonly total = computed(() => this.cashTotal() + this.transferTotal() + this.creditTotal() + this.checkTotal());
   readonly average = computed(() =>
     this.filtered().length ? Math.round(this.total() / this.filtered().length) : 0,
   );
@@ -111,6 +118,7 @@ export class PaymentMovementsPage implements OnInit {
   paymentLabel(method: PaymentMethod): string {
     if (method === 'TRANSFERENCIA') return 'Transferencia / MP';
     if (method === 'CREDITO') return 'Crédito / cuenta corriente';
+    if (method === 'CHEQUE') return 'Cheque';
     return 'Efectivo';
   }
 }

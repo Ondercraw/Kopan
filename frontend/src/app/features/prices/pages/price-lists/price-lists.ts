@@ -37,6 +37,7 @@ export class PriceListsPage implements OnInit {
   readonly draftPrices = signal<Record<string, number>>({});
   readonly pendingPrice = signal<{ product: Product; amount: number } | null>(null);
   readonly savingPrice = signal(false);
+  readonly createAttempted = signal(false);
   readonly canEdit = computed(() =>
     normalizeUserRoles(this.auth.currentUser()?.roles ?? []).includes(UserRole.JEFE),
   );
@@ -77,12 +78,17 @@ export class PriceListsPage implements OnInit {
     });
   }
   create() {
+    this.createAttempted.set(true);
     const nombre = this.newName.trim();
-    if (nombre.length < 2) return;
+    if (nombre.length < 2 || nombre.length > 100 || this.newDescription.length > 300) {
+      this.error.set('Revisá los campos marcados de la nueva lista');
+      return;
+    }
     this.prices.create({ nombre, descripcion: this.newDescription.trim() || undefined }).subscribe({
       next: (l) => {
         this.newName = '';
         this.newDescription = '';
+        this.createAttempted.set(false);
         this.success.set('Lista creada');
         this.reload();
         this.open({ ...l });

@@ -1,0 +1,151 @@
+.form input,
+.form textarea,
+.pay select,
+.filters input,
+.list-tools input,
+.list-tools select {
+  border-radius: 10px !important;
+}
+
+.modal .form input,
+.modal .form textarea,
+.modal.pay select,
+.modal.pay textarea {
+  background: #ffffff !important;
+}
+
+.modal.pay textarea {
+  width: 100%;
+  min-height: 96px;
+  padding: 10px 11px;
+  resize: vertical;
+  border: 1px solid #d7c1b0;
+  border-radius: 10px;
+  color: #432915;
+}
+
+.modal.pay label > small {
+  color: #806d5e;
+  text-align: right;
+}
+
+.modal.pay .field-error {
+  color: #a52c20;
+  text-align: left;
+}
+
+.modal > footer button,
+.quick button,
+.action button {
+  border-radius: 10px !important;
+}
+
+.modal .icon {
+  display: grid;
+  width: 36px;
+  height: 36px;
+  place-items: center;
+  border-radius: 9px !important;
+  background: #f2e8df;
+  color: #653611;
+}
+
+.after,
+.warning {
+  border-radius: 10px !important;
+}
+
+.totals,
+.period-block,
+.movement-list,
+.list-tools input,
+.list-tools select,
+.filters input {
+  border-radius: 12px;
+}
+
+.totals > div {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
+.check-origin {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  margin-top: 3px;
+  color: #8a5a2a !important;
+  font-size: 0.72rem;
+  font-weight: 700;
+}
+
+.primary,
+.apply,
+.quick button,
+.action button {
+  border-radius: 10px !important;
+}
+
+.movement-type {
+  align-items: flex-start !important;
+}
+
+.movement-type strong {
+  line-height: 1.2;
+}
+
+.movement-type small {
+  font-size: 0.7rem;
+  line-height: 1.25;
+}
+
+.period-totals article > small {
+  color: #796557;
+  font-size: 0.72rem;
+  font-weight: 700;
+}
+
+.movement-list > article.cancelled {
+  border-left-color: #90877f !important;
+  background: #eeeae6 !important;
+  color: #706963;
+  filter: grayscale(0.65);
+}
+
+.movement-list > article.cancelled strong,
+.movement-list > article.cancelled small {
+  color: #706963 !important;
+}
+
+.cancellation-reason {
+  font-weight: 700;
+}
+
+.cancel-payment,
+.danger {
+  border: 1px solid #9a2f25 !important;
+  border-radius: 10px;
+  background: #9a2f25 !important;
+  color: #fff !important;
+  padding: 10px 16px;
+  font-weight: 750;
+  cursor: pointer;
+}
+
+.danger:disabled {
+  cursor: wait;
+  opacity: 0.65;
+}
+
+@media (max-width: 1050px) {
+  .movement-list > article > .movement-type {
+    grid-column: auto;
+  }
+  .totals > div {
+    grid-template-columns: 1fr;
+  }
+
+  .totals article {
+    border-top: 1px solid #eadfd6;
+    border-left: 0 !important;
+  }
+}

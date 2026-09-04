@@ -19,6 +19,7 @@ import {
   StockMovementDocument,
 } from './schemas/stock-movement.schema';
 import { SuppliersService } from '../suppliers/suppliers.service';
+import { FinanceService } from '../finance/finance.service';
 
 export interface StockActor {
   id: string;
@@ -37,6 +38,7 @@ export class StockService {
     @InjectModel(StockMovement.name)
     private readonly movementModel: Model<StockMovementDocument>,
     private readonly suppliersService: SuppliersService,
+    private readonly financeService: FinanceService,
   ) {}
 
   async findAll(): Promise<Product[]> {
@@ -75,13 +77,16 @@ export class StockService {
       proveedorId: dto.proveedorId ?? null,
     });
 
-    await this.recordMovement(product, {
+    const movement = await this.recordMovement(product, {
       actor,
       type: StockMovementType.INITIAL,
       previousStock: 0,
       currentStock: product.cantidadStock,
       reason: 'Carga inicial del producto',
     });
+    if (product.cantidadStock > 0 && movement) {
+      await this.recordReplenishmentExpense(product, movement, product.cantidadStock, actor);
+    }
     return product.populate('proveedorId', 'codigo nombre activo');
   }
 
@@ -95,6 +100,18 @@ export class StockService {
       throw new BadRequestException({
         code: 'ADJUSTMENT_REASON_REQUIRED',
         message: 'El motivo del ajuste de stock es obligatorio',
+      });
+    }
+    const additionReasons = ['PURCHASE_RECEIVED', 'RETURN', 'INVENTORY_CORRECTION'];
+    const subtractionReasons = ['RETURN', 'BREAKAGE_OR_LOSS', 'INVENTORY_CORRECTION', 'OTHER'];
+    if (
+      dto.motivoAjuste &&
+      ((stockDelta > 0 && !additionReasons.includes(dto.motivoAjuste)) ||
+        (stockDelta < 0 && !subtractionReasons.includes(dto.motivoAjuste)))
+    ) {
+      throw new BadRequestException({
+        code: 'INVALID_ADJUSTMENT_REASON',
+        message: 'El motivo seleccionado no corresponde a la operación de stock',
       });
     }
     await this.suppliersService.assertActive(dto.proveedorId);
@@ -142,7 +159,7 @@ export class StockService {
         ? STOCK_ADJUSTMENT_REASON_LABELS[dto.motivoAjuste]
         : 'Ajuste manual';
       const observation = dto.observacionAjuste?.trim();
-      await this.recordMovement(product, {
+      const movement = await this.recordMovement(product, {
         actor,
         type:
           stockDelta > 0
@@ -150,8 +167,11 @@ export class StockService {
             : StockMovementType.DECREMENT,
         previousStock: product.cantidadStock - stockDelta,
         currentStock: product.cantidadStock,
-        reason: `${reasonLabel}: ${stockDelta > 0 ? 'ingreso' : 'egreso'} de ${units} ${units === 1 ? 'unidad' : 'unidades'}${observation ? ` — ${observation}` : ''}`,
+        reason: `${reasonLabel}: ${stockDelta > 0 ? 'ingreso' : 'egreso'} de ${units} ${units === 1 ? 'unidad' : 'unidades'}${observation ? ` - ${observation}` : ''}`,
       });
+      if (stockDelta > 0 && movement) {
+        await this.recordReplenishmentExpense(product, movement, units, actor);
+      }
     }
     if (previousProduct.stockMinimo !== product.stockMinimo) {
       await this.recordMovement(product, {
@@ -187,7 +207,7 @@ export class StockService {
 
     if (product) {
       const previousStock = product.cantidadStock - dto.delta;
-      await this.recordMovement(product, {
+      const movement = await this.recordMovement(product, {
         actor,
         type:
           dto.delta > 0
@@ -200,6 +220,9 @@ export class StockService {
             ? 'Ingreso manual de una unidad'
             : 'Egreso manual de una unidad',
       });
+      if (dto.delta > 0 && movement) {
+        await this.recordReplenishmentExpense(product, movement, dto.delta, actor);
+      }
       const populatedProduct = await product.populate('proveedorId', 'codigo nombre activo');
       return {
         product: populatedProduct,
@@ -301,9 +324,9 @@ export class StockService {
       currentMinimumStock?: number;
       reason: string;
     },
-  ): Promise<void> {
+  ): Promise<StockMovementDocument | null> {
     try {
-      await this.movementModel.create({
+      return await this.movementModel.create({
         productId: product._id,
         productCode: product.codigo,
         productName: product.nombre,
@@ -320,6 +343,34 @@ export class StockService {
       // La operación principal ya terminó: registrar el fallo sin provocar un reintento que duplique stock.
       this.logger.error(
         `No se pudo registrar el movimiento de stock del producto ${product._id.toString()}`,
+        error instanceof Error ? error.stack : String(error),
+      );
+      return null;
+    }
+  }
+
+  private async recordReplenishmentExpense(
+    product: ProductDocument,
+    movement: StockMovementDocument,
+    units: number,
+    actor: StockActor,
+  ): Promise<void> {
+    try {
+      await this.financeService.recordStockReplenishment({
+        stockMovementId: movement._id,
+        productId: product._id,
+        productCode: product.codigo,
+        productName: product.nombre,
+        units,
+        unitCostCents: product.costoCentavos,
+        supplierId: product.proveedorId,
+        actor,
+        date: movement.createdAt ?? new Date(),
+      });
+    } catch (error) {
+      // El stock ya fue actualizado: no fallar la petición y provocar una segunda suma por reintento.
+      this.logger.error(
+        `No se pudo registrar el gasto de reposición del producto ${product._id.toString()}`,
         error instanceof Error ? error.stack : String(error),
       );
     }

@@ -2,6 +2,7 @@ import {
   ChangeDetectionStrategy,
   Component,
   computed,
+  DestroyRef,
   EventEmitter,
   HostListener,
   inject,
@@ -10,6 +11,7 @@ import {
   Output,
   signal,
 } from '@angular/core';
+import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { FormBuilder, ReactiveFormsModule, Validators } from '@angular/forms';
 import { Product, StockAdjustmentReason, VatRate, WeightUnit } from '../../models/product.model';
 import { StockService } from '../../services/stock.service';
@@ -33,6 +35,7 @@ export class ProductFormModal implements OnInit {
   private readonly fb = inject(FormBuilder);
   private readonly stockService = inject(StockService);
   private readonly suppliersService = inject(SuppliersService);
+  private readonly destroyRef = inject(DestroyRef);
 
   @Input() product: Product | null = null;
   @Input() typeOptions: string[] = [];
@@ -41,6 +44,7 @@ export class ProductFormModal implements OnInit {
 
   readonly guardando = signal(false);
   readonly errorMensaje = signal<string | null>(null);
+  readonly intentoGuardar = signal(false);
   readonly suppliers = signal<Supplier[]>([]);
   readonly supplierSelectOptions = computed<SearchableSelectOption[]>(() =>
     this.suppliers().map((supplier) => ({
@@ -84,8 +88,8 @@ export class ProductFormModal implements OnInit {
   ];
 
   readonly form = this.fb.nonNullable.group({
-    nombre: ['', [Validators.required, Validators.minLength(2), Validators.maxLength(120)]],
-    tipo: ['', [Validators.required, Validators.minLength(2), Validators.maxLength(80)]],
+    nombre: ['', [Validators.required, Validators.pattern(/\S/), Validators.minLength(2), Validators.maxLength(120)]],
+    tipo: ['', [Validators.required, Validators.pattern(/\S/), Validators.minLength(2), Validators.maxLength(80)]],
     cantidadStock: [0, [Validators.required, Validators.min(0), Validators.pattern(/^\d+$/)]],
     cantidadAjuste: [0, [Validators.required, Validators.min(0), Validators.pattern(/^\d+$/)]],
     operacionStock: this.fb.nonNullable.control<'ADD' | 'SUBTRACT'>('ADD'),
@@ -104,7 +108,21 @@ export class ProductFormModal implements OnInit {
     return this.typeOptions.map((type) => ({ value: type, label: type }));
   }
 
+  get visibleAdjustmentReasonOptions(): SearchableSelectOption[] {
+    const allowed =
+      this.form.controls.operacionStock.value === 'ADD'
+        ? ['PURCHASE_RECEIVED', 'RETURN', 'INVENTORY_CORRECTION']
+        : ['RETURN', 'BREAKAGE_OR_LOSS', 'INVENTORY_CORRECTION', 'OTHER'];
+    return this.adjustmentReasonOptions.filter((option) => allowed.includes(option.value));
+  }
+
   ngOnInit(): void {
+    this.form.controls.operacionStock.valueChanges
+      .pipe(takeUntilDestroyed(this.destroyRef))
+      .subscribe(() => {
+        this.form.controls.motivoAjuste.setValue('');
+        this.form.controls.motivoAjuste.markAsUntouched();
+      });
     this.suppliersService.findActive().subscribe({
       next: (suppliers) => {
         this.suppliers.set(suppliers);
@@ -127,6 +145,7 @@ export class ProductFormModal implements OnInit {
   }
 
   onSubmit(): void {
+    this.intentoGuardar.set(true);
     if (this.form.invalid || this.guardando()) {
       this.form.markAllAsTouched();
       return;
@@ -156,7 +175,9 @@ export class ProductFormModal implements OnInit {
     };
     const adjustmentAmount = Number(values.cantidadAjuste);
     if (this.product && adjustmentAmount > 0 && !values.motivoAjuste) {
-      this.errorMensaje.set('Seleccioná el motivo del ajuste de stock');
+      this.form.controls.motivoAjuste.markAsTouched();
+      this.errorMensaje.set('Revisá el campo marcado antes de guardar');
+      this.guardando.set(false);
       return;
     }
     const stockAdjustment =

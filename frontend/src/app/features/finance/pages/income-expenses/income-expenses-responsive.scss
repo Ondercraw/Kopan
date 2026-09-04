@@ -1,0 +1,39 @@
+/* Ajuste de la grilla dentro del dashboard: el ancho útil es menor por la barra lateral. */
+.head,
+.movement-list > article {
+  grid-template-columns: 125px minmax(170px, 1fr) 118px 116px 110px 82px;
+  gap: 6px;
+  padding-inline: 12px;
+}
+
+.action button {
+  width: 100%;
+  padding: 7px 4px;
+  font-size: 0.72rem;
+}
+
+@media (max-width: 1250px) and (min-width: 1051px) {
+  .head {
+    display: none;
+  }
+
+  .movement-list > article {
+    grid-template-columns: 1fr 1fr;
+    gap: 9px 16px;
+  }
+
+  .movement-list > article > div {
+    grid-column: 1 / -1;
+  }
+
+  .movement-list [data-label]::before {
+    content: attr(data-label) ': ';
+    color: #7e6b5d;
+    font-size: 0.68rem;
+  }
+
+  .action {
+    justify-self: end;
+    width: min(100%, 130px);
+  }
+}

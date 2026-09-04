@@ -6,7 +6,7 @@ export type ConfirmationTone = 'danger' | 'success' | 'warning';
   selector: 'app-confirmation-modal',
   standalone: true,
   templateUrl: './confirmation-modal.html',
-  styleUrl: './confirmation-modal.scss',
+  styleUrls: ['./confirmation-modal.scss', './confirmation-modal-fields.scss'],
   changeDetection: ChangeDetectionStrategy.OnPush,
 })
 export class ConfirmationModal {
@@ -16,9 +16,12 @@ export class ConfirmationModal {
   readonly confirmLabel = input<string>('Confirmar');
   readonly tone = input<ConfirmationTone>('warning');
   readonly loading = input(false);
+  readonly showCollectionDestination = input(false);
+  readonly collectionDestination = input<'EFECTIVO' | 'TRANSFERENCIA'>('EFECTIVO');
 
   readonly confirmed = output<void>();
   readonly cancelled = output<void>();
+  readonly collectionDestinationChange = output<'EFECTIVO' | 'TRANSFERENCIA'>();
 
   @HostListener('document:keydown.escape')
   close(): void {

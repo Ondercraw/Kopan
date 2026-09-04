@@ -1,0 +1,7 @@
+const units = ['', 'uno', 'dos', 'tres', 'cuatro', 'cinco', 'seis', 'siete', 'ocho', 'nueve'];
+const special = ['diez', 'once', 'doce', 'trece', 'catorce', 'quince'];
+const tens = ['', '', 'veinte', 'treinta', 'cuarenta', 'cincuenta', 'sesenta', 'setenta', 'ochenta', 'noventa'];
+const hundreds = ['', 'ciento', 'doscientos', 'trescientos', 'cuatrocientos', 'quinientos', 'seiscientos', 'setecientos', 'ochocientos', 'novecientos'];
+function underThousand(n:number):string{if(!n)return '';if(n===100)return 'cien';const h=Math.floor(n/100),r=n%100,p:string[]=[];if(h)p.push(hundreds[h]);if(r<10)p.push(units[r]);else if(r<16)p.push(special[r-10]);else if(r<20)p.push(`dieci${units[r-10]}`);else if(r<30)p.push(r===20?'veinte':`veinti${units[r-20]}`);else{const t=Math.floor(r/10),u=r%10;p.push(`${tens[t]}${u?` y ${units[u]}`:''}`)}return p.filter(Boolean).join(' ')}
+function integerWords(n:number):string{if(!n)return 'cero';if(n>999999999999)return String(n);const p:string[]=[];const m=Math.floor(n/1000000),k=Math.floor((n%1000000)/1000),r=n%1000;if(m)p.push(m===1?'un millón':`${integerWords(m)} millones`);if(k)p.push(k===1?'mil':`${underThousand(k)} mil`);if(r)p.push(underThousand(r));return p.join(' ')}
+export function amountInWords(cents:number):string{const pesos=Math.floor(cents/100),fraction=cents%100;return `${integerWords(pesos).replace(/uno$/,'un')} pesos con ${integerWords(fraction).replace(/uno$/,'un')} ${fraction===1?'centavo':'centavos'}`;}

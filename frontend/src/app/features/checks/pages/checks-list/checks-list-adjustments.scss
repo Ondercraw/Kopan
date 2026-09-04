@@ -1,0 +1,146 @@
+/* Solo las tarjetas que representan cheques conservan esquinas rectas. */
+.check {
+  border-radius: 0 !important;
+}
+
+.modal {
+  border-radius: 18px !important;
+}
+
+.form-grid input,
+.collection-date input,
+.filters input,
+.filters select {
+  border-radius: 10px !important;
+}
+
+.modal .form-grid input:not([type='checkbox']),
+.modal .collection-date input,
+.modal app-searchable-select,
+.modal app-currency-input {
+  border-radius: 10px !important;
+}
+
+.modal .form-grid input:not([type='checkbox']),
+.modal .collection-date input {
+  background: #ffffff !important;
+}
+
+.modal > footer button,
+.check > footer button {
+  border-radius: 10px !important;
+}
+
+.modal .icon {
+  display: grid;
+  width: 36px;
+  height: 36px;
+  place-items: center;
+  border-radius: 9px !important;
+  background: #f2e8df;
+  color: #653611;
+}
+
+.deferred {
+  border-radius: 10px !important;
+}
+
+.primary,
+.secondary,
+.filters input,
+.filters select,
+.summary article {
+  border-radius: 10px !important;
+}
+
+.modal {
+  box-shadow: 0 28px 70px rgba(45, 24, 9, 0.28);
+}
+
+.check-section-title {
+  grid-column: 1 / -1;
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  padding: 9px 2px;
+  color: #5b3519;
+}
+
+.check-section-title::after {
+  content: '';
+  flex: 1;
+  height: 1px;
+  background: #d8c1ac;
+}
+
+.check-section-title div {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.check-section-title span {
+  color: #7b4214;
+  font-size: 0.72rem;
+  font-weight: 850;
+  letter-spacing: 0.12em;
+}
+
+.check-section-title strong {
+  display: grid;
+  min-width: 25px;
+  height: 25px;
+  place-items: center;
+  border-radius: 999px;
+  background: #f0dfcf;
+  color: #6d3603;
+  font-size: 0.75rem;
+}
+
+.check-section-title small {
+  color: #806c5d;
+  font-size: 0.72rem;
+}
+
+.pending-heading {
+  order: 0;
+}
+
+.check.pending,
+.pending-empty {
+  order: 1;
+}
+
+.collected-heading {
+  order: 2;
+  margin-top: 12px;
+}
+
+.check.collected,
+.collected-empty {
+  order: 3;
+}
+
+.section-empty {
+  grid-column: 1 / -1;
+  margin: 0;
+  padding: 22px;
+  border: 1px dashed #d8c5b4;
+  border-radius: 10px;
+  background: #fffaf5;
+  color: #806b5b;
+  text-align: center;
+}
+
+@media (max-width: 600px) {
+  .check-section-title {
+    align-items: flex-start;
+    flex-direction: column;
+    gap: 4px;
+  }
+
+  .check-section-title::after {
+    width: 100%;
+    flex: none;
+  }
+}

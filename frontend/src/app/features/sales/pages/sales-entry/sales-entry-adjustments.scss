@@ -1,0 +1,13 @@
+/* El formulario mantiene el lenguaje redondeado; la forma recta se reserva para la grilla de cheques. */
+.check-form {
+  border-radius: 12px !important;
+}
+
+.check-form input {
+  border-radius: 10px !important;
+  background: #ffffff !important;
+}
+
+.check-form > p {
+  border-radius: 0 9px 9px 0;
+}

@@ -75,7 +75,7 @@ export class ClientFormModal implements OnInit {
     ];
   }
   readonly form = this.fb.nonNullable.group({
-    nombre: ['', [Validators.required, Validators.minLength(2), Validators.maxLength(120)]],
+    nombre: ['', [Validators.required, Validators.pattern(/\S/), Validators.minLength(2), Validators.maxLength(120)]],
     nombreFantasia: ['', Validators.maxLength(120)],
     cuit: ['', Validators.maxLength(20)],
     telefono: ['', Validators.maxLength(40)],
@@ -131,7 +131,8 @@ export class ClientFormModal implements OnInit {
     request.subscribe({
       next: () => this.saved.emit(),
       error: (r) => {
-        this.error.set(r.error?.message ?? 'No se pudo guardar el cliente');
+        const message = r.error?.message;
+        this.error.set(Array.isArray(message) ? message.join('. ') : message || 'No se pudo guardar el cliente');
         this.saving.set(false);
       },
     });

@@ -1,4 +1,5 @@
-export type PaymentMethod = 'EFECTIVO' | 'TRANSFERENCIA' | 'CREDITO';
+import { SaveCheckPayload } from '../../checks/models/check.model';
+export type PaymentMethod = 'EFECTIVO' | 'TRANSFERENCIA' | 'CREDITO' | 'CHEQUE';
 export interface SaleItemPayload {
   productoId: string;
   cantidad: number;
@@ -12,6 +13,7 @@ export interface CreateSalePayload {
   medioPago: PaymentMethod;
   referenciaTransferencia?: string;
   observaciones?: string;
+  cheque?: SaveCheckPayload;
   items: SaleItemPayload[];
 }
 export interface SaleItem {
@@ -40,6 +42,9 @@ export interface Sale {
   totalCentavos: number;
   medioPago: PaymentMethod;
   referenciaTransferencia: string;
+  chequeId?: string | null;
+  chequeNumero?: string;
+  chequeCobradoAt?: string | null;
   estado: string;
   estadoFiscal: string;
   actorName: string;

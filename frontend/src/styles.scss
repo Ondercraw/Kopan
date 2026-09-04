@@ -20,3 +20,22 @@ app-root {
 * {
   box-sizing: border-box;
 }
+
+/* Estado de validación compartido por todos los formularios y modales. */
+.field-error {
+  display: block;
+  margin-top: 0.3rem;
+  color: #a9362b;
+  font-size: 0.76rem;
+  font-weight: 700;
+  line-height: 1.25;
+}
+
+input.field-invalid,
+textarea.field-invalid,
+select.field-invalid,
+app-currency-input.field-invalid input,
+app-searchable-select.field-invalid .select-trigger {
+  border-color: #b64034 !important;
+  box-shadow: 0 0 0 3px rgba(182, 64, 52, 0.12) !important;
+}

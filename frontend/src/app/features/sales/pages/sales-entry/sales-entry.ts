@@ -22,6 +22,8 @@ import { StockService } from '../../../stock/services/stock.service';
 import { PaymentMethod } from '../../models/sale.model';
 import { SalesService } from '../../services/sales.service';
 import { CurrencyInput } from '../../../../shared/components/currency-input/currency-input';
+import { argentinaToday } from '../../../../shared/utils/argentina-date';
+import { amountInWords } from '../../../checks/utils/amount-in-words';
 interface DraftLine {
   product: Product;
   quantity: number;
@@ -33,7 +35,7 @@ interface DraftLine {
   standalone: true,
   imports: [FormsModule, SearchableSelect, CurrencyInput],
   templateUrl: './sales-entry.html',
-  styleUrl: './sales-entry.scss',
+  styleUrls: ['./sales-entry.scss', './sales-entry-adjustments.scss'],
   changeDetection: ChangeDetectionStrategy.OnPush,
 })
 export class SalesEntryPage implements OnInit {
@@ -50,11 +52,22 @@ export class SalesEntryPage implements OnInit {
   readonly reviewing = signal(false);
   readonly error = signal<string | null>(null);
   readonly success = signal<string | null>(null);
+  readonly reviewAttempted = signal(false);
   clientId = '';
   productId = '';
   paymentMethod: PaymentMethod = 'EFECTIVO';
   transferReference = '';
   observations = '';
+  checkBank = '';
+  checkPaymentAddress = '';
+  checkHolder = '';
+  checkHolderAddress = '';
+  checkDrawerTaxId = '';
+  checkIssueDate = argentinaToday();
+  checkIssuePlace = '';
+  checkNumber = '';
+  checkDeferred = false;
+  checkCollectionDate = '';
   readonly canChangePrice = computed(() =>
     normalizeUserRoles(this.auth.currentUser()?.roles ?? []).includes(UserRole.JEFE),
   );
@@ -104,6 +117,7 @@ export class SalesEntryPage implements OnInit {
     this.lines.set([]);
     this.priceList.set(null);
     const c = this.clients().find((client) => client._id === clientId);
+    if (this.paymentMethod === 'CHEQUE') this.prefillCheck(c ?? null);
     if (!c?.permiteCuentaCorriente && this.paymentMethod === 'CREDITO') {
       this.paymentMethod = 'EFECTIVO';
     }
@@ -116,6 +130,9 @@ export class SalesEntryPage implements OnInit {
       next: (v) => this.priceList.set(v),
       error: () => this.error.set('No se pudo cargar la lista de precios'),
     });
+  }
+  onPaymentMethod(): void {
+    if (this.paymentMethod === 'CHEQUE') this.prefillCheck(this.selectedClient());
   }
   addProduct() {
     const product = this.products().find((p) => p._id === this.productId),
@@ -166,12 +183,13 @@ export class SalesEntryPage implements OnInit {
     this.lines.update((lines) => lines.filter((l) => l.product._id !== id));
   }
   review() {
+    this.reviewAttempted.set(true);
     if (!this.selectedClient() || !this.priceList() || !this.lines().length) {
-      this.error.set('Seleccioná cliente, lista y al menos un producto');
+      this.error.set('Revisá los campos marcados antes de continuar');
       return;
     }
     if (this.paymentMethod === 'TRANSFERENCIA' && !this.transferReference.trim()) {
-      this.error.set('Ingresá la referencia de la transferencia o Mercado Pago');
+      this.error.set('Revisá la referencia de la transferencia antes de continuar');
       return;
     }
     if (this.paymentMethod === 'CREDITO') {
@@ -185,7 +203,34 @@ export class SalesEntryPage implements OnInit {
         return;
       }
     }
+    if (this.paymentMethod === 'CHEQUE') {
+      const required = [this.checkBank, this.checkPaymentAddress, this.checkHolder, this.checkHolderAddress, this.checkDrawerTaxId, this.checkNumber];
+      if (required.some((value) => !value.trim()) || !/^\d{11}$/.test(this.checkDrawerTaxId.replace(/\D/g, ''))) {
+        this.error.set('Revisá los campos marcados del cheque antes de continuar');
+        return;
+      }
+      if (this.checkDeferred && !this.checkCollectionDate) {
+        this.error.set('Indicá la fecha de cobro del cheque diferido');
+        return;
+      }
+    }
     this.reviewing.set(true);
+  }
+
+  invalidSaleSelection(value: unknown): boolean {
+    return this.reviewAttempted() && !value;
+  }
+  invalidTransferReference(): boolean {
+    return this.reviewAttempted() && this.paymentMethod === 'TRANSFERENCIA' && !this.transferReference.trim();
+  }
+  invalidCheckRequired(value: string): boolean {
+    return this.reviewAttempted() && this.paymentMethod === 'CHEQUE' && !value.trim();
+  }
+  invalidCheckCuit(): boolean {
+    return this.reviewAttempted() && this.paymentMethod === 'CHEQUE' && !/^\d{11}$/.test(this.checkDrawerTaxId.replace(/\D/g, ''));
+  }
+  invalidCheckDate(): boolean {
+    return this.reviewAttempted() && this.paymentMethod === 'CHEQUE' && this.checkDeferred && !this.checkCollectionDate;
   }
   confirm() {
     const client = this.selectedClient(),
@@ -201,6 +246,14 @@ export class SalesEntryPage implements OnInit {
         referenciaTransferencia:
           this.paymentMethod === 'TRANSFERENCIA' ? this.transferReference.trim() : undefined,
         observaciones: this.observations.trim() || undefined,
+        cheque: this.paymentMethod === 'CHEQUE' ? {
+          banco: this.checkBank.trim(), domicilioPago: this.checkPaymentAddress.trim(),
+          titular: this.checkHolder.trim(), domicilioTitular: this.checkHolderAddress.trim(),
+          libradorCuit: this.checkDrawerTaxId.replace(/\D/g, ''), montoCentavos: this.total(),
+          fechaEmision: this.checkIssueDate || undefined, lugarEmision: this.checkIssuePlace.trim() || undefined,
+          numero: this.checkNumber.trim(), diferido: this.checkDeferred,
+          fechaCobro: this.checkDeferred ? this.checkCollectionDate : undefined,
+        } : undefined,
         items: this.lines().map((l) => ({
           productoId: l.product._id,
           cantidad: l.quantity,
@@ -218,6 +271,9 @@ export class SalesEntryPage implements OnInit {
           this.saving.set(false);
           this.transferReference = '';
           this.observations = '';
+          this.resetCheck();
+          this.paymentMethod = 'EFECTIVO';
+          this.reviewAttempted.set(false);
           this.stockApi.findAll().subscribe((p) => this.products.set(p));
           this.clientsApi.findAll().subscribe((clients) => this.clients.set(clients));
         },
@@ -248,6 +304,19 @@ export class SalesEntryPage implements OnInit {
   paymentLabel(): string {
     if (this.paymentMethod === 'TRANSFERENCIA') return 'transferencia / Mercado Pago';
     if (this.paymentMethod === 'CREDITO') return 'crédito en cuenta corriente';
+    if (this.paymentMethod === 'CHEQUE') return `cheque #${this.checkNumber}`;
     return 'efectivo';
+  }
+  checkAmountWords(): string { return amountInWords(this.total()); }
+  private prefillCheck(client: Client | null): void {
+    if (!client) return;
+    if (!this.checkHolder) this.checkHolder = client.nombre;
+    if (!this.checkHolderAddress) this.checkHolderAddress = client.direccion;
+    if (!this.checkDrawerTaxId) this.checkDrawerTaxId = client.cuit.replace(/\D/g, '');
+  }
+  private resetCheck(): void {
+    this.checkBank=''; this.checkPaymentAddress=''; this.checkHolder=''; this.checkHolderAddress='';
+    this.checkDrawerTaxId=''; this.checkIssueDate=argentinaToday(); this.checkIssuePlace='';
+    this.checkNumber=''; this.checkDeferred=false; this.checkCollectionDate='';
   }
 }

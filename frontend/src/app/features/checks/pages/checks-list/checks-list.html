@@ -1,0 +1,217 @@
+<section class="page">
+  <header>
+    <div>
+      <span>VALORES RECIBIDOS</span>
+      <h1>Cheques</h1>
+      <p>Registrá, consultá y cobrá cheques vinculados a clientes y ventas.</p>
+    </div>
+    <button class="primary" type="button" (click)="openCreate()">
+      <i class="ti ti-plus"></i> Agregar cheque
+    </button>
+  </header>
+  <div class="summary">
+    <article>
+      <span>Pendientes</span><strong>{{ money(pendingTotal()) }}</strong>
+    </article>
+    <article>
+      <span>Cobrados</span><strong>{{ money(collectedTotal()) }}</strong>
+    </article>
+  </div>
+  <div class="filters">
+    <label
+      ><i class="ti ti-search"></i
+      ><input
+        [(ngModel)]="search"
+        placeholder="Buscar número, banco, titular o cliente..." /></label
+    ><select [(ngModel)]="statusFilter">
+      <option value="">Todos los estados</option>
+      <option value="PENDIENTE">Pendientes</option>
+      <option value="COBRADO">Cobrados</option>
+    </select>
+  </div>
+  @if (error()) {
+    <p class="message error">{{ error() }}</p>
+  }
+  @if (success()) {
+    <p class="message success">{{ success() }}</p>
+  }
+  <div class="check-grid">
+    @if (loading()) {
+      <p class="empty">Cargando cheques...</p>
+    }
+    @if (!loading() && statusFilter !== 'COBRADO') {
+      <div class="check-section-title pending-heading">
+        <div><span>PENDIENTES</span><strong>{{ filteredPending().length }}</strong></div>
+        <small>Valores todavía no acreditados</small>
+      </div>
+      @if (!filteredPending().length) {
+        <p class="section-empty pending-empty">No hay cheques pendientes.</p>
+      }
+    }
+    @if (!loading() && statusFilter !== 'PENDIENTE') {
+      <div class="check-section-title collected-heading">
+        <div><span>COBRADOS</span><strong>{{ filteredCollected().length }}</strong></div>
+        <small>Valores acreditados en efectivo o transferencia</small>
+      </div>
+      @if (!filteredCollected().length) {
+        <p class="section-empty collected-empty">No hay cheques cobrados.</p>
+      }
+    }
+    @for (check of filtered(); track check._id) {
+      <article class="check" [class.pending]="check.estado === 'PENDIENTE'" [class.collected]="check.estado === 'COBRADO'">
+        <header>
+          <div>
+            <small>BANCO</small><strong>{{ check.banco }}</strong
+            ><span>{{ check.domicilioPago }}</span>
+          </div>
+          <em>{{ check.estado }}</em>
+        </header>
+        <div class="amount">
+          <span>ARS</span><strong>{{ money(check.montoCentavos) }}</strong>
+        </div>
+        <p class="words">Son: {{ displayedWords(check) }}</p>
+        <div class="check-data">
+          <span
+            ><small>Titular</small><strong>{{ check.titular }}</strong></span
+          ><span
+            ><small>CUIT/CUIL</small><strong>{{ check.libradorCuit }}</strong></span
+          ><span
+            ><small>Número</small><strong>{{ check.numero }}</strong></span
+          ><span
+            ><small>Cliente</small
+            ><strong>{{ check.clienteNombre || 'Carga manual' }}</strong></span
+          ><span
+            ><small>Emisión</small
+            ><strong>{{ shortDate(check.fechaEmision) }} {{ check.lugarEmision }}</strong></span
+          ><span
+            ><small>{{ check.diferido ? 'Cobrar desde' : 'Tipo' }}</small
+            ><strong>{{
+              check.diferido ? shortDate(check.fechaCobro) : 'Cheque común'
+            }}</strong></span
+          >
+        </div>
+        <footer>
+          <span>
+            @if (check.ventaCodigo) {
+              Venta #{{ check.ventaCodigo }} ·
+            }
+            Cargado por {{ check.actorName }}</span
+          >
+          @if (check.estado === 'PENDIENTE') {
+            <button
+              type="button"
+              [disabled]="!canCollect(check)"
+              [title]="canCollect(check) ? 'Confirmar cobro' : 'Disponible desde la fecha de cobro'"
+              (click)="openCollection(check)"
+            >
+              <i class="ti ti-cash"></i>
+              {{ canCollect(check) ? 'Marcar cobrado' : 'Aún no cobrable' }}
+            </button>
+          } @else if (!check.destinoCobro) {
+            <button type="button" (click)="openCollection(check)">
+              <i class="ti ti-wallet"></i> Asignar destino
+            </button>
+          } @else {
+            <strong><i class="ti ti-lock"></i> Cobrado · {{ destinationLabel(check.destinoCobro) }}</strong>
+          }
+        </footer>
+      </article>
+    }
+  </div>
+</section>
+@if (modalOpen()) {
+  <div class="overlay">
+    <section class="modal" role="dialog" aria-modal="true">
+      <header>
+        <div>
+          <span>NUEVO VALOR</span>
+          <h2>Agregar cheque</h2>
+        </div>
+        <button type="button" class="icon" (click)="close()"><i class="ti ti-x"></i></button>
+      </header>
+      <div class="form-grid">
+        <label
+          ><span>Cliente (opcional)</span
+          ><app-searchable-select
+            [(ngModel)]="clienteId"
+            [options]="clientOptions()"
+            placeholder="Buscar cliente..." /></label
+        ><label><span>Número de cheque *</span><input [(ngModel)]="numero" maxlength="50" [class.field-invalid]="invalidRequired(numero)" />
+          @if (invalidRequired(numero)) { <small class="field-error">Ingresá el número que identifica al cheque.</small> }
+        </label
+        ><label><span>Banco *</span><input [(ngModel)]="banco" maxlength="80" [class.field-invalid]="invalidRequired(banco)" />
+          @if (invalidRequired(banco)) { <small class="field-error">Ingresá el nombre de la entidad bancaria.</small> }
+        </label
+        ><label
+          ><span>Domicilio de pago *</span
+          ><input [(ngModel)]="domicilioPago" maxlength="180" [class.field-invalid]="invalidRequired(domicilioPago)" />
+          @if (invalidRequired(domicilioPago)) { <small class="field-error">Ingresá el domicilio donde se paga el cheque.</small> }
+        </label
+        ><label><span>Titular *</span><input [(ngModel)]="titular" maxlength="120" [class.field-invalid]="invalidRequired(titular)" />
+          @if (invalidRequired(titular)) { <small class="field-error">Ingresá el nombre del titular de la cuenta.</small> }
+        </label
+        ><label
+          ><span>Domicilio del titular *</span
+          ><input [(ngModel)]="domicilioTitular" maxlength="180" [class.field-invalid]="invalidRequired(domicilioTitular)" />
+          @if (invalidRequired(domicilioTitular)) { <small class="field-error">Ingresá el domicilio del titular.</small> }
+        </label
+        ><label
+          ><span>CUIT/CUIL del librador *</span
+          ><input
+            [(ngModel)]="libradorCuit"
+            inputmode="numeric"
+            maxlength="11"
+            placeholder="11 dígitos"
+            [class.field-invalid]="invalidCuit()" />
+          @if (invalidCuit()) { <small class="field-error">Ingresá exactamente 11 dígitos, sin puntos ni guiones.</small> }
+        </label
+        ><label><span>Monto *</span><app-currency-input [(ngModel)]="monto" [class.field-invalid]="invalidAmount()" />
+          @if (invalidAmount()) { <small class="field-error">Ingresá un importe mayor a ARS $0.</small> }
+        </label
+        ><label><span>Fecha de emisión</span><input type="date" [(ngModel)]="fechaEmision" /></label
+        ><label
+          ><span>Lugar de emisión</span><input [(ngModel)]="lugarEmision" maxlength="80"
+        /></label>
+      </div>
+      <p class="amount-words">{{ words() }}</p>
+      <label class="deferred"
+        ><input type="checkbox" [(ngModel)]="diferido" /><span
+          ><strong>Cheque diferido</strong><small>Habilita una fecha futura de cobro.</small></span
+        ></label
+      >
+      @if (diferido) {
+        <label class="collection-date"
+          ><span>Fecha de cobro *</span><input type="date" [(ngModel)]="fechaCobro" [class.field-invalid]="invalidCollectionDate()" />
+          @if (invalidCollectionDate()) { <small class="field-error">Elegí la fecha a partir de la cual puede cobrarse.</small> }
+        </label>
+      }
+      <footer>
+        <button type="button" class="secondary" (click)="close()">Cancelar</button
+        ><button type="button" class="primary" (click)="save()" [disabled]="saving()">
+          {{ saving() ? 'Guardando...' : 'Agregar cheque' }}
+        </button>
+      </footer>
+    </section>
+  </div>
+}
+@if (collecting(); as check) {
+  <app-confirmation-modal
+    [title]="check.estado === 'COBRADO' ? 'Acreditar cheque' : 'Confirmar cobro'"
+    [message]="
+      'El cheque #' +
+      check.numero +
+      ' por ' +
+      money(check.montoCentavos) +
+      ' quedará cobrado de forma definitiva.'
+    "
+    detail="Esta acción no se puede revertir y habilitará el ingreso en Ingresos y gastos."
+    [confirmLabel]="check.estado === 'COBRADO' ? 'Asignar destino' : 'Marcar como cobrado'"
+    tone="success"
+    [showCollectionDestination]="true"
+    [collectionDestination]="collectionDestination"
+    (collectionDestinationChange)="collectionDestination = $event"
+    [loading]="saving()"
+    (cancelled)="collecting.set(null)"
+    (confirmed)="confirmCollect()"
+  />
+}

@@ -33,9 +33,11 @@
             type="text"
             formControlName="nombre"
             autofocus
+            maxlength="120"
+            [class.field-invalid]="form.controls.nombre.invalid && form.controls.nombre.touched"
           />
           @if (form.controls.nombre.invalid && form.controls.nombre.touched) {
-            <span class="field-error">Ingresá un nombre de al menos 2 caracteres</span>
+            <span class="field-error">Ingresá un nombre de entre 2 y 120 caracteres</span>
           }
         </div>
 
@@ -114,12 +116,12 @@
               <app-searchable-select
                 id="motivoAjuste"
                 formControlName="motivoAjuste"
-                [options]="adjustmentReasonOptions"
+                [options]="visibleAdjustmentReasonOptions"
                 [clearable]="false"
                 placeholder="Seleccionar motivo..."
                 emptyText="No hay motivos que coincidan."
               />
-              @if (!form.controls.motivoAjuste.value && errorMensaje()) {
+              @if (!form.controls.motivoAjuste.value && intentoGuardar()) {
                 <span class="field-error">El motivo es obligatorio cuando cambia la cantidad</span>
               }
             </div>
@@ -198,6 +200,9 @@
             [clearable]="false"
             placeholder="Seleccionar IVA."
           />
+          @if (form.controls.alicuotaIva.invalid && form.controls.alicuotaIva.touched) {
+            <span class="field-error">Seleccioná una alícuota de IVA válida</span>
+          }
         </div>
 
         <div class="field field-wide">

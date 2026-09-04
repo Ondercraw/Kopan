@@ -52,11 +52,12 @@ export class EmployeeFormModal implements OnChanges {
 
   readonly guardando = signal(false);
   readonly errorMensaje = signal<string | null>(null);
+  readonly intentoGuardar = signal(false);
 
   readonly rolesSeleccionados = signal<UserRole[]>([]);
 
   readonly form = this.fb.nonNullable.group({
-    nombre: ['', [Validators.required, Validators.minLength(2)]],
+    nombre: ['', [Validators.required, Validators.pattern(/\S/), Validators.minLength(2)]],
     email: ['', [Validators.required, Validators.email]],
     password: ['', [Validators.minLength(8)]],
   });
@@ -84,6 +85,7 @@ export class EmployeeFormModal implements OnChanges {
 
   private cargarDatosEmpleado(): void {
     this.errorMensaje.set(null);
+    this.intentoGuardar.set(false);
     this.guardando.set(false);
 
     if (!this.empleadoAEditar) {
@@ -130,6 +132,7 @@ export class EmployeeFormModal implements OnChanges {
   }
 
   onSubmit(): void {
+    this.intentoGuardar.set(true);
     if (this.form.invalid || this.rolesInvalidos || this.guardando()) {
       this.form.markAllAsTouched();
       return;
@@ -151,8 +154,8 @@ export class EmployeeFormModal implements OnChanges {
   private crearEmpleado(valores: { nombre: string; email: string; password: string }): void {
     this.employeesService
       .create({
-        nombre: valores.nombre,
-        email: valores.email,
+        nombre: valores.nombre.trim(),
+        email: valores.email.trim(),
         password: valores.password,
         roles: this.rolesSeleccionados(),
       })
@@ -177,8 +180,8 @@ export class EmployeeFormModal implements OnChanges {
 
     this.employeesService
       .actualizar(id, {
-        nombre: valores.nombre,
-        email: valores.email,
+        nombre: valores.nombre.trim(),
+        email: valores.email.trim(),
         roles: this.rolesSeleccionados(),
 
         // Si el campo está vacío, el backend no modifica

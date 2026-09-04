@@ -1,6 +1,7 @@
 import { Type } from 'class-transformer';
-import { ArrayMinSize, IsArray, IsEnum, IsInt, IsMongoId, IsOptional, IsString, Max, MaxLength, Min, ValidateNested } from 'class-validator';
+import { ArrayMinSize, IsArray, IsDefined, IsEnum, IsInt, IsMongoId, IsOptional, IsString, Max, MaxLength, Min, ValidateIf, ValidateNested } from 'class-validator';
 import { PaymentMethod } from '../enums/payment-method.enum';
+import { SaveCheckDto } from '../../checks/dto/save-check.dto';
 
 export class CreateSaleItemDto {
   @IsMongoId() productoId: string;
@@ -16,6 +17,11 @@ export class CreateSaleDto {
   @IsEnum(PaymentMethod) medioPago: PaymentMethod;
   @IsOptional() @IsString() @MaxLength(100) referenciaTransferencia?: string;
   @IsOptional() @IsString() @MaxLength(500) observaciones?: string;
+  @ValidateIf((dto: CreateSaleDto) => dto.medioPago === PaymentMethod.CHECK)
+  @IsDefined()
+  @ValidateNested()
+  @Type(() => SaveCheckDto)
+  cheque?: SaveCheckDto;
   @IsArray() @ArrayMinSize(1) @ValidateNested({ each: true }) @Type(() => CreateSaleItemDto)
   items: CreateSaleItemDto[];
 }

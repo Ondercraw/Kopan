@@ -10,8 +10,10 @@ import { StockMovement, StockMovementSchema } from '../stock/schemas/stock-movem
 import { SalesController } from './sales.controller';
 import { SalesService } from './sales.service';
 import { Sale, SaleSchema } from './schemas/sale.schema';
+import { ChecksModule } from '../checks/checks.module';
+import { FinanceModule } from '../finance/finance.module';
 
-@Module({ imports: [MongooseModule.forFeature([
+@Module({ imports: [ChecksModule, FinanceModule, MongooseModule.forFeature([
   { name: Sale.name, schema: SaleSchema }, { name: Client.name, schema: ClientSchema }, { name: Employee.name, schema: EmployeeSchema },
   { name: PriceList.name, schema: PriceListSchema }, { name: PriceListItem.name, schema: PriceListItemSchema },
   { name: Product.name, schema: ProductSchema }, { name: StockMovement.name, schema: StockMovementSchema }, { name: Counter.name, schema: CounterSchema },

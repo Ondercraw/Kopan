@@ -36,11 +36,17 @@
             placeholder="Ej.: Mayorista A"
             required
             minlength="2"
-          /><textarea
+            maxlength="100"
+            [class.field-invalid]="createAttempted() && (newName.trim().length < 2 || newName.length > 100)"
+          />
+          @if (createAttempted() && (newName.trim().length < 2 || newName.length > 100)) { <small class="field-error">Ingresá un nombre de entre 2 y 100 caracteres.</small> }
+          <textarea
             [(ngModel)]="newDescription"
             name="description"
             placeholder="Descripción opcional"
-          ></textarea
+            maxlength="300"
+          ></textarea>
+          <small>{{ newDescription.length }} / 300 caracteres</small
           ><button class="primary">Crear lista</button>
         </form>
       }

@@ -77,6 +77,11 @@ export class FinancialReports implements OnInit {
       .filter((s) => s.medioPago === 'CREDITO')
       .reduce((sum, s) => sum + s.totalCentavos, 0),
   );
+  readonly checks = computed(() =>
+    this.sales()
+      .filter((s) => s.medioPago === 'CHEQUE')
+      .reduce((sum, s) => sum + s.totalCentavos, 0),
+  );
   readonly topProducts = computed(() => {
     const map = new Map<string, { name: string; quantity: number; amount: number }>();
     for (const sale of this.sales())

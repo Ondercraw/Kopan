@@ -20,6 +20,7 @@
         <option value="EFECTIVO">Efectivo</option>
         <option value="TRANSFERENCIA">Transferencia / Mercado Pago</option>
         <option value="CREDITO">Crédito / cuenta corriente</option>
+        <option value="CHEQUE">Cheque</option>
       </select></label
     >
     <button class="apply" type="button" (click)="load()">Generar informe</button>
@@ -101,6 +102,10 @@
             <span>Crédito / cuenta corriente</span><strong>{{ money(credit()) }}</strong
             ><small>{{ percent(credit(), revenue()) }}</small>
           </div>
+          <div>
+            <span>Cheques</span><strong>{{ money(checks()) }}</strong
+            ><small>{{ percent(checks(), revenue()) }}</small>
+          </div>
         </div>
       </article>
       <article class="panel">
@@ -174,8 +179,8 @@
     <p class="scope-note">
       <i class="ti ti-info-circle"></i
       ><span
-        >Este informe contempla ventas confirmadas. Compras a proveedores, gastos y cierres por
-        usuario se incorporarán cuando esos circuitos estén definidos.</span
+        >Este informe contempla ventas confirmadas. La reposición automática y los gastos extra
+        se detallan en el módulo Ingresos y gastos.</span
       >
     </p>
   }

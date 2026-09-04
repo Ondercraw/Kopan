@@ -1,5 +1,5 @@
 <div class="overlay" role="presentation">
-  <section class="dialog" role="alertdialog" aria-modal="true" [attr.aria-labelledby]="'confirmation-title'" [attr.aria-describedby]="'confirmation-message'">
+  <section class="dialog" [class.collection]="showCollectionDestination()" role="alertdialog" aria-modal="true" [attr.aria-labelledby]="'confirmation-title'" [attr.aria-describedby]="'confirmation-message'">
     <div class="icon" [class.danger]="tone() === 'danger'" [class.success]="tone() === 'success'">
       <i class="ti" [class.ti-alert-triangle]="tone() !== 'success'" [class.ti-circle-check]="tone() === 'success'"></i>
     </div>
@@ -8,6 +8,15 @@
       <h2 id="confirmation-title">{{ title() }}</h2>
       <p id="confirmation-message">{{ message() }}</p>
       @if (detail()) { <small>{{ detail() }}</small> }
+      @if (showCollectionDestination()) {
+        <label class="destination">
+          <span>Acreditar el dinero en</span>
+          <select [value]="collectionDestination()" (change)="collectionDestinationChange.emit($any($event.target).value)">
+            <option value="EFECTIVO">Efectivo</option>
+            <option value="TRANSFERENCIA">Transferencia / Mercado Pago</option>
+          </select>
+        </label>
+      }
     </div>
     <footer>
       <button type="button" class="cancel" [disabled]="loading()" (click)="close()">Cancelar</button>

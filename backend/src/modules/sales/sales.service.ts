@@ -2,6 +2,7 @@ import {
   BadRequestException,
   ConflictException,
   Injectable,
+  Logger,
   NotFoundException,
 } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
@@ -34,6 +35,9 @@ import { CreateSaleDto } from './dto/create-sale.dto';
 import { PaymentMethod } from './enums/payment-method.enum';
 import { FiscalStatus, SaleStatus } from './enums/sale-status.enum';
 import { Sale, SaleDocument, SaleItem } from './schemas/sale.schema';
+import { ChecksService } from '../checks/checks.service';
+import { FinanceService } from '../finance/finance.service';
+import { BankCheckDocument } from '../checks/schemas/bank-check.schema';
 
 export interface SaleActor {
   id: string;
@@ -43,6 +47,7 @@ export interface SaleActor {
 
 @Injectable()
 export class SalesService {
+  private readonly logger = new Logger(SalesService.name);
   constructor(
     @InjectModel(Sale.name) private readonly saleModel: Model<SaleDocument>,
     @InjectModel(Client.name)
@@ -59,6 +64,8 @@ export class SalesService {
     private readonly movementModel: Model<StockMovementDocument>,
     @InjectModel(Counter.name)
     private readonly counterModel: Model<CounterDocument>,
+    private readonly checksService: ChecksService,
+    private readonly financeService: FinanceService,
   ) {}
 
   findAll(filters: { from?: string; to?: string; medioPago?: string } = {}) {
@@ -125,6 +132,9 @@ export class SalesService {
         'El cliente no tiene cuenta corriente habilitada',
       );
     }
+    if (dto.medioPago === PaymentMethod.CHECK && !dto.cheque) {
+      throw new BadRequestException('Completá los datos del cheque');
+    }
     if (dto.vendedorId) {
       const seller = await this.employeeModel.exists({
         _id: dto.vendedorId,
@@ -155,7 +165,10 @@ export class SalesService {
     }
     const productIds = [...grouped.keys()];
     const [products, prices] = await Promise.all([
-      this.productModel.find({ _id: { $in: productIds }, activo: true }).exec(),
+      this.productModel
+        .find({ _id: { $in: productIds }, activo: true })
+        .populate('proveedorId', 'nombre')
+        .exec(),
       this.priceItemModel
         .find({ listaId: list._id, productoId: { $in: productIds } })
         .exec(),
@@ -192,6 +205,10 @@ export class SalesService {
       );
       const iva = Math.round((neto * Number(product.alicuotaIva)) / 100);
       const total = neto + iva;
+      const supplier = product.proveedorId as unknown as {
+        _id: Types.ObjectId;
+        nombre: string;
+      } | null;
       return {
         productoId: product._id,
         productoCodigo: product.codigo,
@@ -203,6 +220,8 @@ export class SalesService {
         netoCentavos: neto,
         ivaCentavos: iva,
         costoUnitarioCentavos: product.costoCentavos,
+        proveedorId: supplier?._id ?? null,
+        proveedorNombre: supplier?.nombre ?? '',
         totalCentavos: total,
       } as SaleItem;
     });
@@ -236,6 +255,9 @@ export class SalesService {
       totalCentavos,
       medioPago: dto.medioPago,
       referenciaTransferencia: dto.referenciaTransferencia?.trim() ?? '',
+      chequeId: null,
+      chequeNumero: '',
+      chequeCobradoAt: null,
       observaciones: dto.observaciones?.trim() ?? '',
       actorId: actor.id,
       actorName: actor.name,
@@ -251,7 +273,21 @@ export class SalesService {
       quantity: number;
     }> = [];
     let creditReserved = false;
+    let createdCheck: BankCheckDocument | null = null;
     try {
+      if (dto.medioPago === PaymentMethod.CHECK && dto.cheque) {
+        if (dto.cheque.montoCentavos !== totalCentavos) {
+          throw new BadRequestException('El monto del cheque debe coincidir con el total de la venta');
+        }
+        createdCheck = await this.checksService.createForSale(
+          { ...dto.cheque, clienteId: client._id.toString() },
+          { id: actor.id, name: actor.name },
+          client,
+          sale,
+        );
+        sale.chequeId = createdCheck._id;
+        sale.chequeNumero = createdCheck.numero;
+      }
       if (dto.medioPago === PaymentMethod.CREDIT) {
         const updatedClient = await this.clientModel
           .findOneAndUpdate(
@@ -332,7 +368,17 @@ export class SalesService {
         })),
       );
       sale.estado = SaleStatus.CONFIRMED;
-      return await sale.save();
+      const confirmedSale = await sale.save();
+      try {
+        await this.financeService.recordSale(confirmedSale);
+      } catch (financeError) {
+        // La conciliación del módulo financiero reintentará este registro al abrirse.
+        this.logger.error(
+          `No se pudieron registrar los movimientos financieros de la venta ${sale.codigo}`,
+          financeError instanceof Error ? financeError.stack : String(financeError),
+        );
+      }
+      return confirmedSale;
     } catch (error) {
       if (creditReserved) {
         await this.clientModel
@@ -363,6 +409,7 @@ export class SalesService {
       await this.movementModel
         .deleteMany({ referenceType: 'SALE', referenceId: sale._id })
         .exec();
+      if (createdCheck) await this.checksService.removeForFailedSale(createdCheck._id);
       sale.estado = SaleStatus.FAILED;
       await sale.save();
       throw error;
