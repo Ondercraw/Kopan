@@ -56,8 +56,8 @@ export class EmployeesService {
     return this.sinPassword(creado);
   }
 
-  async findAll(): Promise<Employee[]> {
-    return this.employeeModel.find().sort({ nombre: 1 }).exec();
+  findAll() {
+    return this.employeeModel.find().sort({ nombre: 1 }).lean().exec();
   }
 
   /**

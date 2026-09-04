@@ -8,7 +8,7 @@ import {
   signal,
 } from '@angular/core';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
-import { filter, interval } from 'rxjs';
+import { catchError, filter, finalize, forkJoin, interval, of } from 'rxjs';
 import { normalizeUserRoles, UserRole } from '../../../../core/models/user-role.enum';
 import { AuthService } from '../../../../core/services/auth.service';
 import { ProductDeactivateModal } from '../../components/product-deactivate-modal/product-deactivate-modal';
@@ -64,6 +64,8 @@ export class StockList implements OnInit {
   private readonly csv = inject(CsvExportService);
   private readonly destroyRef = inject(DestroyRef);
   private dataRevision = 0;
+  private backgroundRefreshInFlight = false;
+  private backgroundRefreshCycle = 0;
 
   readonly products = signal<Product[]>([]);
   readonly inactiveProducts = signal<Product[]>([]);
@@ -154,7 +156,12 @@ export class StockList implements OnInit {
     this.loadProducts();
     interval(10_000)
       .pipe(
-        filter(() => this.pendingProductIds().size === 0),
+        filter(
+          () =>
+            document.visibilityState === 'visible' &&
+            this.pendingProductIds().size === 0 &&
+            !this.backgroundRefreshInFlight,
+        ),
         takeUntilDestroyed(this.destroyRef),
       )
       .subscribe(() => this.refreshProductsInBackground());
@@ -182,34 +189,35 @@ export class StockList implements OnInit {
   }
 
   private refreshProductsInBackground(): void {
+    this.backgroundRefreshInFlight = true;
     const revisionAtRequest = this.dataRevision;
-    this.stockService.findAll().subscribe({
-      next: (products) => {
-        if (revisionAtRequest !== this.dataRevision) return;
-        this.products.set(products);
-        const editingId = this.editingProduct()?._id;
-        if (editingId) {
-          this.editingProduct.set(products.find((product) => product._id === editingId) ?? null);
-        }
-        const expandedId = this.expandedProductId();
-        if (expandedId) {
-          this.loadMovements(expandedId, true);
-        }
-      },
-      // Un fallo transitorio no reemplaza los datos visibles ni interrumpe al usuario.
-      error: () => undefined,
-    });
+    this.backgroundRefreshCycle += 1;
+    const refreshInactive = this.canManageStock() && this.backgroundRefreshCycle % 6 === 0;
 
-    if (this.canManageStock()) {
-      this.stockService.findInactive().subscribe({
-        next: (products) => {
-          if (revisionAtRequest === this.dataRevision) {
-            this.inactiveProducts.set(products);
+    forkJoin({
+      products: this.stockService.findAll(),
+      // Los productos inactivos cambian muy poco: se actualizan una vez por minuto,
+      // no en cada sondeo de stock activo.
+      inactive: refreshInactive
+        ? this.stockService.findInactive().pipe(catchError(() => of(null)))
+        : of(null),
+    })
+      .pipe(finalize(() => (this.backgroundRefreshInFlight = false)))
+      .subscribe({
+        next: ({ products, inactive }) => {
+          if (revisionAtRequest !== this.dataRevision) return;
+          this.products.set(products);
+          if (inactive) this.inactiveProducts.set(inactive);
+          const editingId = this.editingProduct()?._id;
+          if (editingId) {
+            this.editingProduct.set(
+              products.find((product) => product._id === editingId) ?? null,
+            );
           }
         },
+        // Un fallo transitorio no reemplaza los datos visibles ni interrumpe al usuario.
         error: () => undefined,
       });
-    }
   }
 
   onSearch(event: Event): void {

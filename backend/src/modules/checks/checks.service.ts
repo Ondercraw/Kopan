@@ -23,23 +23,8 @@ export class ChecksService {
     private readonly financeService: FinanceService,
   ) {}
 
-  async findAll() {
-    const checks = await this.checkModel.find().sort({ estado: 1, fechaCobro: 1, createdAt: -1 }).limit(2000).exec();
-    await Promise.all(
-      checks
-        .filter((check) => !check.ventaId && check.estado === CheckStatus.PENDING)
-        .map((check) => this.financeService.recordPendingCheck({
-          _id: check._id,
-          numero: check.numero,
-          montoCentavos: check.montoCentavos,
-          clienteId: check.clienteId,
-          clienteNombre: check.clienteNombre,
-          actorId: check.actorId,
-          actorName: check.actorName,
-          createdAt: check.createdAt,
-        })),
-    );
-    return checks;
+  findAll() {
+    return this.checkModel.find().sort({ estado: 1, fechaCobro: 1, createdAt: -1 }).limit(2000).lean().exec();
   }
 
   async create(dto: SaveCheckDto, actor: CheckActor) {

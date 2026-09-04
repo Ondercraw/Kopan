@@ -18,13 +18,13 @@ export class PricesService {
     @InjectModel(Counter.name) private readonly counterModel: Model<CounterDocument>,
   ) {}
 
-  findAll() { return this.listModel.find().sort({ activo: -1, codigo: 1 }).exec(); }
+  findAll() { return this.listModel.find().sort({ activo: -1, codigo: 1 }).lean().exec(); }
 
   async findOne(id: string) {
-    const list = await this.listModel.findById(id).exec();
+    const list = await this.listModel.findById(id).lean().exec();
     if (!list) throw new NotFoundException('Lista de precios no encontrada');
-    const items = await this.itemModel.find({ listaId: id }).populate('productoId', 'codigo nombre tipo activo alicuotaIva costoCentavos cantidadStock').exec();
-    return { ...list.toObject(), items };
+    const items = await this.itemModel.find({ listaId: id }).populate('productoId', 'codigo nombre tipo activo alicuotaIva costoCentavos cantidadStock').lean().exec();
+    return { ...list, items };
   }
 
   async create(dto: SavePriceListDto) {

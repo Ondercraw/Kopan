@@ -433,86 +433,165 @@ export class FinanceService {
   }
 
   async findAll(filters: { from?: string; to?: string } = {}) {
-    await this.reconcileSales();
-    await this.reconcilePendingManualChecks();
-    await this.reconcileLegacyManualExpenseTimes();
     const query: Record<string, unknown> = {};
     const range: Record<string, Date> = {};
     if (filters.from) range.$gte = new Date(filters.from);
     if (filters.to) range.$lt = new Date(filters.to);
     if (Object.keys(range).length) query.fechaMovimiento = range;
-    const [items, all] = await Promise.all([
-      this.movementModel.find(query).sort({ fechaMovimiento: -1, createdAt: -1 }).limit(3000).exec(),
-      this.movementModel.find().sort({ fechaMovimiento: -1 }).limit(10000).exec(),
+    const [items, period, overall] = await Promise.all([
+      this.movementModel.find(query).sort({ fechaMovimiento: -1, createdAt: -1 }).limit(3000).lean().exec(),
+      this.summarizeQuery(query),
+      this.summarizeQuery({}),
     ]);
-    return { items, period: this.summarize(items), overall: this.summarize(all) };
+    return { items, period, overall };
   }
 
-  private summarize(items: FinancialMovementDocument[]) {
-    const sum = (predicate: (item: FinancialMovementDocument) => boolean) =>
-      items.filter(predicate).reduce((total, item) => total + item.montoCentavos, 0);
-    const incomes = sum((item) => item.tipo === FinancialMovementKind.INCOME);
-    const activeExpense = (item: FinancialMovementDocument) =>
-      item.tipo === FinancialMovementKind.EXPENSE && !item.cancelado;
-    const paidAutomatic = sum(
-      (item) => activeExpense(item) && item.categoria === FinancialMovementCategory.REPLENISHMENT && item.pagado,
-    );
-    const pendingAutomatic = sum(
-      (item) => activeExpense(item) && item.categoria === FinancialMovementCategory.REPLENISHMENT && !item.pagado,
-    );
-    const paidManual = sum(
-      (item) => activeExpense(item) && item.categoria === FinancialMovementCategory.MANUAL && item.pagado,
-    );
-    const pendingManual = sum(
-      (item) => activeExpense(item) && item.categoria === FinancialMovementCategory.MANUAL && !item.pagado,
-    );
-    const cashIncome = sum(
-      (item) => item.tipo === FinancialMovementKind.INCOME && item.disponible &&
-        (item.medioPago === FinancialPaymentMethod.CASH || item.acreditadoEn === FinancialPaymentMethod.CASH),
-    );
-    const transferIncome = sum(
-      (item) => item.tipo === FinancialMovementKind.INCOME && item.disponible &&
-        (item.medioPago === FinancialPaymentMethod.TRANSFER || item.acreditadoEn === FinancialPaymentMethod.TRANSFER),
-    );
-    const checkIncome = sum(
-      (item) => item.tipo === FinancialMovementKind.INCOME && item.disponible && item.medioPago === FinancialPaymentMethod.CHECK,
-    );
-    const checkCashIncome = sum(
-      (item) => item.tipo === FinancialMovementKind.INCOME && item.disponible &&
-        item.medioPago === FinancialPaymentMethod.CHECK && item.acreditadoEn === FinancialPaymentMethod.CASH,
-    );
-    const checkTransferIncome = sum(
-      (item) => item.tipo === FinancialMovementKind.INCOME && item.disponible &&
-        item.medioPago === FinancialPaymentMethod.CHECK && item.acreditadoEn === FinancialPaymentMethod.TRANSFER,
-    );
-    const cashExpenses = sum(
-      (item) => activeExpense(item) && item.pagado && item.medioPago === FinancialPaymentMethod.CASH,
-    );
-    const transferExpenses = sum(
-      (item) => activeExpense(item) && item.pagado && item.medioPago === FinancialPaymentMethod.TRANSFER,
-    );
+  /**
+   * Reparación explícita para instalaciones anteriores o fallos transitorios.
+   * No se ejecuta al abrir la pantalla porque puede recorrer miles de registros.
+   */
+  async reconcile() {
+    await Promise.all([
+      this.reconcileSales(),
+      this.reconcilePendingManualChecks(),
+      this.reconcileLegacyManualExpenseTimes(),
+    ]);
+    return { reconciled: true };
+  }
+
+  private async summarizeQuery(query: Record<string, unknown>) {
+    const eq = (field: string, value: unknown) => ({ $eq: [`$${field}`, value] });
+    const amountWhen = (...conditions: Record<string, unknown>[]) => ({
+      $sum: {
+        $cond: [{ $and: conditions }, { $ifNull: ['$montoCentavos', 0] }, 0],
+      },
+    });
+    const income = eq('tipo', FinancialMovementKind.INCOME);
+    const activeExpense = [
+      eq('tipo', FinancialMovementKind.EXPENSE),
+      { $ne: ['$cancelado', true] },
+    ];
+    const available = eq('disponible', true);
+    const paid = eq('pagado', true);
+    const unpaid = { $ne: ['$pagado', true] };
+
+    const [totals] = await this.movementModel
+      .aggregate<{
+        incomes: number;
+        paidAutomatic: number;
+        pendingAutomatic: number;
+        paidManual: number;
+        pendingManual: number;
+        cashIncome: number;
+        transferIncome: number;
+        checkIncome: number;
+        checkCashIncome: number;
+        checkTransferIncome: number;
+        cashExpenses: number;
+        transferExpenses: number;
+        pendingChecks: number;
+        currentAccount: number;
+        pendingExpenses: number;
+      }>([
+        { $match: query },
+        {
+          $group: {
+            _id: null,
+            incomes: amountWhen(income),
+            paidAutomatic: amountWhen(
+              ...activeExpense,
+              eq('categoria', FinancialMovementCategory.REPLENISHMENT),
+              paid,
+            ),
+            pendingAutomatic: amountWhen(
+              ...activeExpense,
+              eq('categoria', FinancialMovementCategory.REPLENISHMENT),
+              unpaid,
+            ),
+            paidManual: amountWhen(
+              ...activeExpense,
+              eq('categoria', FinancialMovementCategory.MANUAL),
+              paid,
+            ),
+            pendingManual: amountWhen(
+              ...activeExpense,
+              eq('categoria', FinancialMovementCategory.MANUAL),
+              unpaid,
+            ),
+            cashIncome: amountWhen(
+              income,
+              available,
+              { $or: [eq('medioPago', FinancialPaymentMethod.CASH), eq('acreditadoEn', FinancialPaymentMethod.CASH)] },
+            ),
+            transferIncome: amountWhen(
+              income,
+              available,
+              { $or: [eq('medioPago', FinancialPaymentMethod.TRANSFER), eq('acreditadoEn', FinancialPaymentMethod.TRANSFER)] },
+            ),
+            checkIncome: amountWhen(income, available, eq('medioPago', FinancialPaymentMethod.CHECK)),
+            checkCashIncome: amountWhen(
+              income,
+              available,
+              eq('medioPago', FinancialPaymentMethod.CHECK),
+              eq('acreditadoEn', FinancialPaymentMethod.CASH),
+            ),
+            checkTransferIncome: amountWhen(
+              income,
+              available,
+              eq('medioPago', FinancialPaymentMethod.CHECK),
+              eq('acreditadoEn', FinancialPaymentMethod.TRANSFER),
+            ),
+            cashExpenses: amountWhen(...activeExpense, paid, eq('medioPago', FinancialPaymentMethod.CASH)),
+            transferExpenses: amountWhen(...activeExpense, paid, eq('medioPago', FinancialPaymentMethod.TRANSFER)),
+            pendingChecks: amountWhen(
+              income,
+              { $ne: ['$disponible', true] },
+              eq('medioPago', FinancialPaymentMethod.CHECK),
+            ),
+            currentAccount: amountWhen(
+              income,
+              { $ne: ['$disponible', true] },
+              eq('medioPago', FinancialPaymentMethod.CREDIT),
+            ),
+            pendingExpenses: amountWhen(...activeExpense, unpaid),
+          },
+        },
+      ])
+      .exec();
+
+    const values = totals ?? {
+      incomes: 0,
+      paidAutomatic: 0,
+      pendingAutomatic: 0,
+      paidManual: 0,
+      pendingManual: 0,
+      cashIncome: 0,
+      transferIncome: 0,
+      checkIncome: 0,
+      checkCashIncome: 0,
+      checkTransferIncome: 0,
+      cashExpenses: 0,
+      transferExpenses: 0,
+      pendingChecks: 0,
+      currentAccount: 0,
+      pendingExpenses: 0,
+    };
     return {
-      ingresosCentavos: incomes,
-      gastosAutomaticosCentavos: paidAutomatic,
-      gastosReposicionPagadosCentavos: paidAutomatic,
-      gastosReposicionPendientesCentavos: pendingAutomatic,
-      gastosManualesCentavos: paidManual,
-      gastosManualesPendientesCentavos: pendingManual,
-      resultadoCentavos: incomes - paidAutomatic - paidManual,
-      efectivoDisponibleCentavos: cashIncome - cashExpenses,
-      transferenciaDisponibleCentavos: transferIncome - transferExpenses,
-      chequesCobradosCentavos: checkIncome,
-      chequesEfectivoCentavos: checkCashIncome,
-      chequesTransferenciaCentavos: checkTransferIncome,
-      chequesPendientesCentavos: sum(
-        (item) => item.tipo === FinancialMovementKind.INCOME && !item.disponible && item.medioPago === FinancialPaymentMethod.CHECK,
-      ),
-      cuentaCorrienteCentavos: sum(
-        (item) => item.tipo === FinancialMovementKind.INCOME && !item.disponible && item.medioPago === FinancialPaymentMethod.CREDIT,
-      ),
-      gastosPendientesCentavos: sum(
-        (item) => activeExpense(item) && !item.pagado,
-      ),
+      ingresosCentavos: values.incomes,
+      gastosAutomaticosCentavos: values.paidAutomatic,
+      gastosReposicionPagadosCentavos: values.paidAutomatic,
+      gastosReposicionPendientesCentavos: values.pendingAutomatic,
+      gastosManualesCentavos: values.paidManual,
+      gastosManualesPendientesCentavos: values.pendingManual,
+      resultadoCentavos: values.incomes - values.paidAutomatic - values.paidManual,
+      efectivoDisponibleCentavos: values.cashIncome - values.cashExpenses,
+      transferenciaDisponibleCentavos: values.transferIncome - values.transferExpenses,
+      chequesCobradosCentavos: values.checkIncome,
+      chequesEfectivoCentavos: values.checkCashIncome,
+      chequesTransferenciaCentavos: values.checkTransferIncome,
+      chequesPendientesCentavos: values.pendingChecks,
+      cuentaCorrienteCentavos: values.currentAccount,
+      gastosPendientesCentavos: values.pendingExpenses,
     };
   }
 

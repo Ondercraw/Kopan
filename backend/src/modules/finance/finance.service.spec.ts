@@ -5,6 +5,42 @@ import { FinancialMovementCategory, FinancialMovementKind } from './enums/financ
 import { Types } from 'mongoose';
 
 describe('FinanceService', () => {
+  it('consulta movimientos sin ejecutar conciliaciones masivas en cada apertura', async () => {
+    const movementQuery = {
+      sort: jest.fn(),
+      limit: jest.fn(),
+      lean: jest.fn(),
+      exec: jest.fn().mockResolvedValue([]),
+    };
+    movementQuery.sort.mockReturnValue(movementQuery);
+    movementQuery.limit.mockReturnValue(movementQuery);
+    movementQuery.lean.mockReturnValue(movementQuery);
+    const aggregateExec = jest.fn().mockResolvedValue([]);
+    const movementModel = {
+      find: jest.fn().mockReturnValue(movementQuery),
+      aggregate: jest.fn().mockReturnValue({ exec: aggregateExec }),
+    };
+    const saleModel = { find: jest.fn() };
+    const checkModel = { find: jest.fn() };
+    const service = new FinanceService(
+      movementModel as never,
+      saleModel as never,
+      {} as never,
+      checkModel as never,
+      {} as never,
+      {} as never,
+    );
+
+    const result = await service.findAll();
+
+    expect(movementModel.find).toHaveBeenCalledTimes(1);
+    expect(movementModel.aggregate).toHaveBeenCalledTimes(2);
+    expect(saleModel.find).not.toHaveBeenCalled();
+    expect(checkModel.find).not.toHaveBeenCalled();
+    expect(result.period.ingresosCentavos).toBe(0);
+    expect(result.overall.gastosPendientesCentavos).toBe(0);
+  });
+
   it('registra un ingreso y el costo de reposición de cada venta confirmada', async () => {
     const movementModel = { updateOne: jest.fn().mockResolvedValue({ acknowledged: true }) };
     const service = new FinanceService(

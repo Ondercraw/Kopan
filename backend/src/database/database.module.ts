@@ -8,6 +8,11 @@ import { MongooseModule } from '@nestjs/mongoose';
       inject: [ConfigService],
       useFactory: (configService: ConfigService) => ({
         uri: configService.get<string>('mongodb.uri'),
+        // Reutiliza un pool acotado durante la vida de cada instancia serverless.
+        maxPoolSize: 5,
+        minPoolSize: 0,
+        maxIdleTimeMS: 60_000,
+        serverSelectionTimeoutMS: 5_000,
       }),
     }),
   ],

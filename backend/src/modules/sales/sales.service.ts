@@ -89,6 +89,7 @@ export class SalesService {
       .find(query)
       .sort({ createdAt: -1 })
       .limit(2000)
+      .lean()
       .exec();
   }
   findTransfers() {
@@ -96,6 +97,7 @@ export class SalesService {
       .find({ estado: SaleStatus.CONFIRMED, medioPago: PaymentMethod.TRANSFER })
       .sort({ createdAt: -1 })
       .limit(500)
+      .lean()
       .exec();
   }
 
@@ -372,7 +374,8 @@ export class SalesService {
       try {
         await this.financeService.recordSale(confirmedSale);
       } catch (financeError) {
-        // La conciliación del módulo financiero reintentará este registro al abrirse.
+        // La conciliación manual del módulo financiero permite reintentar este registro
+        // sin penalizar cada apertura de la pantalla de Ingresos y gastos.
         this.logger.error(
           `No se pudieron registrar los movimientos financieros de la venta ${sale.codigo}`,
           financeError instanceof Error ? financeError.stack : String(financeError),

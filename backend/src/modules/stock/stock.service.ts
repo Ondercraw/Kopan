@@ -41,12 +41,12 @@ export class StockService {
     private readonly financeService: FinanceService,
   ) {}
 
-  async findAll(): Promise<Product[]> {
-    return this.productModel.find({ activo: true }).populate('proveedorId', 'codigo nombre activo').sort({ codigo: 1 }).exec();
+  findAll() {
+    return this.productModel.find({ activo: true }).populate('proveedorId', 'codigo nombre activo').sort({ codigo: 1 }).lean().exec();
   }
 
-  async findInactive(): Promise<Product[]> {
-    return this.productModel.find({ activo: false }).populate('proveedorId', 'codigo nombre activo').sort({ codigo: 1 }).exec();
+  findInactive() {
+    return this.productModel.find({ activo: false }).populate('proveedorId', 'codigo nombre activo').sort({ codigo: 1 }).lean().exec();
   }
 
   async findMovements(productId: string): Promise<StockMovement[]> {
@@ -54,6 +54,7 @@ export class StockService {
       .find({ productId })
       .sort({ createdAt: -1 })
       .limit(100)
+      .lean()
       .exec();
   }
 

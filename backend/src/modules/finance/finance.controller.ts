@@ -19,6 +19,9 @@ export class FinanceController {
   @Get() findAll(@Query('from') from?: string, @Query('to') to?: string) {
     return this.service.findAll({ from, to });
   }
+  @Post('reconcile') reconcile() {
+    return this.service.reconcile();
+  }
   @Post('expenses') createExpense(@Body() dto: CreateExpenseDto, @CurrentUser() user: JwtPayload) {
     return this.service.createExpense(dto, { id: user.sub, name: user.nombre });
   }

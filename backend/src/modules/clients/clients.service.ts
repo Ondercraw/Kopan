@@ -43,12 +43,13 @@ export class ClientsService {
     private readonly priceListModel: Model<PriceListDocument>,
   ) {}
 
-  findAll(): Promise<Client[]> {
+  findAll() {
     return this.clientModel
       .find()
       .populate('vendedorId', 'nombre email activo')
       .populate('listaPreciosId', 'codigo nombre activo')
       .sort({ activo: -1, nombre: 1 })
+      .lean()
       .exec();
   }
 
@@ -57,20 +58,24 @@ export class ClientsService {
       this.catalogModel
         .find({ kind: ClientCatalogKind.GROUP, activo: true })
         .sort({ nombre: 1 })
+        .lean()
         .exec(),
       this.catalogModel
         .find({ kind: ClientCatalogKind.LOCATION, activo: true })
         .sort({ nombre: 1 })
+        .lean()
         .exec(),
       this.employeeModel
         .find({ activo: true, roles: UserRole.VENDEDOR })
         .select('nombre email')
         .sort({ nombre: 1 })
+        .lean()
         .exec(),
       this.priceListModel
         .find({ activo: true })
         .select('codigo nombre')
         .sort({ codigo: 1 })
+        .lean()
         .exec(),
     ]);
     return {

@@ -18,12 +18,12 @@ export class SuppliersService implements OnModuleInit {
     await this.migrateLegacyProductSuppliers();
   }
 
-  findAll(): Promise<Supplier[]> {
-    return this.supplierModel.find().sort({ activo: -1, nombre: 1 }).exec();
+  findAll() {
+    return this.supplierModel.find().sort({ activo: -1, nombre: 1 }).lean().exec();
   }
 
-  findActive(): Promise<Supplier[]> {
-    return this.supplierModel.find({ activo: true }).sort({ nombre: 1 }).exec();
+  findActive() {
+    return this.supplierModel.find({ activo: true }).sort({ nombre: 1 }).lean().exec();
   }
 
   async create(dto: SaveSupplierDto): Promise<SupplierDocument> {
