@@ -82,6 +82,8 @@
   padding: 18px;
   margin-bottom: 20px;
 }
+.history { container-type: inline-size; }
+.purchase-row > *, .account-grid article > * { min-width: 0; overflow-wrap: anywhere; }
 .section-title > strong {
   font-size: 1.45rem;
   color: #9d2d24;
@@ -411,3 +413,27 @@ button:disabled {
   position: relative;
   z-index: 1;
 }
+
+/* El espacio útil incluye la sidebar: responder al contenedor, no solo al viewport. */
+@container (max-width: 1000px) {
+  .table-head { display: none; }
+  .purchase-row { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 14px; }
+  .purchase-row > [data-label]::before {
+    content: attr(data-label);
+    display: block;
+    margin-bottom: 5px;
+    color: #826b5b;
+    font-size: 0.7rem;
+    font-weight: 700;
+  }
+  .purchase-row .items, .purchase-row .row-actions { grid-column: 1 / -1; }
+  .row-actions { align-items: center; }
+  .history-head { flex-wrap: wrap; }
+  .filters { flex-wrap: wrap; }
+}
+@container (max-width: 400px) {
+  .purchase-row { grid-template-columns: minmax(0, 1fr); }
+}
+.primary:hover:not(:disabled) { background: #653006; }
+.secondary:hover:not(:disabled), .pay-account:hover:not(:disabled), .row-actions button:hover:not(:disabled) { background: #f4e8dc; }
+button:focus-visible { outline: 2px solid #8a4b15; outline-offset: 2px; }

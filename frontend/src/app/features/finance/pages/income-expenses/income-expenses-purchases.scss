@@ -5,15 +5,26 @@
 .movement-list > article.purchase:not(.cancelled) > strong:nth-last-child(2) {
   color: #a52c20;
 }
-.action a {
-  display: inline-block;
+.action a,
+.action button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 9px;
+  min-height: 36px;
+  max-width: 100%;
+  text-align: center;
   border: 1px solid #8a4b15;
   background: #fff;
   color: #713805;
   padding: 8px;
   font-weight: 700;
   text-decoration: none;
+  cursor: pointer;
+  transition: background-color 150ms, border-color 150ms;
 }
+.action a:hover, .action button:hover { background: #f4e8dc; border-color: #713805; }
+.action a:focus-visible, .action button:focus-visible { outline: 2px solid #8a4b15; outline-offset: 2px; }
 .period-totals {
   grid-template-columns: repeat(5, 1fr);
 }

@@ -35,7 +35,7 @@
           <i class="ti ti-package-import"></i>
           <div>
             <small>ABASTECIMIENTO</small>
-            <h3>Agregar un producto</h3>
+            <h3>Abastecer y valorizar stock</h3>
           </div>
         </header>
         <div class="workflow-steps">
@@ -50,7 +50,7 @@
             ><span>02</span>
             <div>
               <strong>Registrar producto</strong
-              ><small>Definir tipo, peso, stock inicial y mínimo.</small>
+              ><small>Definir presentación, IVA, stock físico inicial y mínimo.</small>
             </div>
             <i class="ti ti-arrow-up-right"></i
           ></a>
@@ -59,7 +59,7 @@
             <div>
               <strong>Comprar o valorar stock</strong
               ><small
-                >Registrar unidades a cada costo; el promedio se calcula automáticamente.</small
+                >Valorar existencias o ingresar compras con sus costos históricos por lote.</small
               >
             </div>
             <i class="ti ti-arrow-up-right"></i
@@ -68,7 +68,7 @@
             ><span>04</span>
             <div>
               <strong>Asignar precio de venta</strong
-              ><small>Agregarlo a la lista que utilizarán los clientes.</small>
+              ><small>Consultar el promedio ponderado y definir el precio en cada lista.</small>
             </div>
             <i class="ti ti-arrow-up-right"></i
           ></a>
@@ -111,7 +111,7 @@
             ><span>04</span>
             <div>
               <strong>Confirmar venta</strong
-              ><small>Elegir efectivo, transferencia o crédito y descontar el stock.</small>
+              ><small>Elegir efectivo, transferencia, crédito o cheque y descontar por FIFO.</small>
             </div>
             <i class="ti ti-arrow-up-right"></i
           ></a>
@@ -127,7 +127,7 @@
             ><span>06</span>
             <div>
               <strong>Revisar ingresos y gastos</strong
-              ><small>Controlar ingresos, compras a proveedores y gastos extra.</small>
+              ><small>Controlar cobros, cheques, deuda con proveedores y gastos extra.</small>
             </div>
             <i class="ti ti-arrow-up-right"></i
           ></a>
@@ -229,6 +229,11 @@
   </header>
   <div class="access-lines">
     @if (isOwner()) {
+      <a routerLink="/proveedores"
+        ><i class="ti ti-truck"></i
+        ><span><small>Abastecimiento</small><strong>Proveedores</strong></span
+        ><i class="ti ti-arrow-right"></i
+      ></a>
       <a routerLink="/stock"
         ><i class="ti ti-package"></i
         ><span><small>Gestión</small><strong>Stock y movimientos</strong></span
@@ -239,8 +244,18 @@
         ><span><small>Comercial</small><strong>Precios y costos</strong></span
         ><i class="ti ti-arrow-right"></i
       ></a>
+      <a routerLink="/compras"
+        ><i class="ti ti-shopping-cart"></i
+        ><span><small>Abastecimiento</small><strong>Compras y costos FIFO</strong></span
+        ><i class="ti ti-arrow-right"></i
+      ></a>
       <a routerLink="/clientes"
         ><i class="ti ti-users"></i><span><small>Comercial</small><strong>Clientes</strong></span
+        ><i class="ti ti-arrow-right"></i
+      ></a>
+      <a routerLink="/vendedores"
+        ><i class="ti ti-user-dollar"></i
+        ><span><small>Comercial</small><strong>Vendedores</strong></span
         ><i class="ti ti-arrow-right"></i
       ></a>
       <a routerLink="/ventas"

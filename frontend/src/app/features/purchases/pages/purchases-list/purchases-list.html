@@ -69,21 +69,22 @@
     </div>
     @for (purchase of purchases(); track purchase._id) {
       <article class="purchase-row" [class.cancelled]="purchase.estado === 'CANCELADA'">
-        <span>{{ date(purchase.fechaCompra) }}</span
-        ><strong
+        <span data-label="Fecha">{{ date(purchase.fechaCompra) }}</span
+        ><strong data-label="Compra"
           >#{{ purchase.codigo
           }}<small>{{ purchase.tipo === 'COMPRA' ? 'Compra' : 'Stock inicial' }}</small></strong
-        ><span>{{ purchase.proveedorNombre }}</span>
-        <div class="items">
+        ><span data-label="Proveedor">{{ purchase.proveedorNombre }}</span>
+        <div class="items" data-label="Productos">
           @for (item of purchase.items; track item.lineNumber) {
             <small
               >{{ item.productName }}: {{ item.quantity }} a {{ money(item.unitCostCents) }}</small
             >
           }
         </div>
-        <strong>{{ money(purchase.totalCentavos) }}</strong
+        <strong data-label="Total">{{ money(purchase.totalCentavos) }}</strong
         ><span
           class="status"
+          data-label="Estado"
           [class.pending]="!purchase.pagada"
           [class.cancelled-status]="purchase.estado === 'CANCELADA'"
           >{{
