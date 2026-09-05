@@ -33,6 +33,15 @@ export const routes: Routes = [
         pathMatch: 'full',
       },
       {
+        path: 'compras',
+        loadComponent: () =>
+          import('./features/purchases/pages/purchases-list/purchases-list').then(
+            (m) => m.PurchasesListPage,
+          ),
+        data: { titulo: 'Compras' },
+        canActivate: [roleGuard([UserRole.JEFE])],
+      },
+      {
         path: 'stock',
         loadComponent: () =>
           import('./features/stock/pages/stock-list/stock-list').then((m) => m.StockList),

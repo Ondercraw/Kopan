@@ -194,7 +194,7 @@
             </span>
             <span class="cell" data-label="Tipo">{{ product.tipo }}</span>
             <span class="cell provider" data-label="Proveedor">
-              {{ product.proveedorId?.nombre || 'Sin proveedor' }}
+              {{ supplierNames(product) }}
             </span>
             <span class="cell description" data-label="Descripción">
               {{ product.descripcionAdicional || 'Sin descripción adicional' }}
@@ -295,7 +295,7 @@
               </div>
               <div>
                 <dt>Proveedor</dt>
-                <dd>{{ product.proveedorId?.nombre || 'Sin proveedor asignado' }}</dd>
+                <dd>{{ supplierNames(product) }}</dd>
               </div>
               <div>
                 <dt>Precio de costo con IVA (precio final)</dt>

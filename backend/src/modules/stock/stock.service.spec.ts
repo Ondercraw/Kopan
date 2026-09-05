@@ -28,9 +28,15 @@ describe('StockService', () => {
       findById,
     } as unknown as Model<ProductDocument>;
     const counterModel = {} as Model<CounterDocument>;
-    createMovement = jest.fn().mockImplementation((data) =>
-      Promise.resolve({ _id: new Types.ObjectId(), createdAt: new Date(), ...data }),
-    );
+    createMovement = jest
+      .fn()
+      .mockImplementation((data) =>
+        Promise.resolve({
+          _id: new Types.ObjectId(),
+          createdAt: new Date(),
+          ...data,
+        }),
+      );
     const movementModel = {
       create: createMovement,
     } as unknown as Model<StockMovementDocument>;
@@ -38,13 +44,16 @@ describe('StockService', () => {
       assertActive: jest.fn().mockResolvedValue(null),
     } as unknown as SuppliersService;
     recordStockReplenishment = jest.fn().mockResolvedValue(undefined);
-    const financeService = { recordStockReplenishment } as unknown as FinanceService;
+    const financeService = {
+      recordStockReplenishment,
+    } as unknown as FinanceService;
     service = new StockService(
       productModel,
       counterModel,
       movementModel,
       suppliersService,
-      financeService,
+      { adjust: jest.fn().mockResolvedValue(1500) } as never,
+      { transaction: (callback: () => unknown) => callback() } as never,
     );
   });
 
@@ -106,13 +115,7 @@ describe('StockService', () => {
     );
     expect(result.previousStock).toBe(0);
     expect(result.product.cantidadStock).toBe(1);
-    expect(recordStockReplenishment).toHaveBeenCalledWith(
-      expect.objectContaining({
-        productCode: product.codigo,
-        units: 1,
-        unitCostCents: product.costoCentavos,
-      }),
-    );
+    expect(recordStockReplenishment).not.toHaveBeenCalled();
   });
 
   it('registra el cambio de stock mínimo sin modificar la cantidad actual', async () => {
@@ -150,6 +153,7 @@ describe('StockService', () => {
           peso: 25,
           unidadPeso: WeightUnit.KILOGRAM,
           proveedorId: null,
+          proveedorIds: [],
         },
       },
       { new: true, runValidators: true },
@@ -185,7 +189,7 @@ describe('StockService', () => {
         unidadPeso: WeightUnit.KILOGRAM,
         proveedorId: undefined,
         ajusteStock: 15,
-        motivoAjuste: StockAdjustmentReason.PURCHASE_RECEIVED,
+        motivoAjuste: StockAdjustmentReason.INVENTORY_CORRECTION,
         observacionAjuste: 'Remito 145',
       },
       actor,
@@ -201,15 +205,10 @@ describe('StockService', () => {
         type: StockMovementType.INCREMENT,
         previousStock: 1,
         currentStock: 16,
-        reason: 'Compra recibida: ingreso de 15 unidades - Remito 145',
+        reason: 'Corrección de inventario: ingreso de 15 unidades - Remito 145',
       }),
     );
-    expect(recordStockReplenishment).toHaveBeenCalledWith(
-      expect.objectContaining({
-        units: 15,
-        unitCostCents: product.costoCentavos,
-      }),
-    );
+    expect(recordStockReplenishment).not.toHaveBeenCalled();
   });
 
   it('rechaza una resta masiva mayor al stock disponible', async () => {
@@ -262,7 +261,9 @@ describe('StockService', () => {
         },
         actor,
       ),
-    ).rejects.toMatchObject({ response: { code: 'ADJUSTMENT_REASON_REQUIRED' } });
+    ).rejects.toMatchObject({
+      response: { code: 'ADJUSTMENT_REASON_REQUIRED' },
+    });
 
     expect(findById).not.toHaveBeenCalled();
     expect(findOneAndUpdate).not.toHaveBeenCalled();
@@ -283,7 +284,10 @@ describe('StockService', () => {
       costoCentavos: 1500,
       activo: true,
     } as ProductDocument;
-    product.populate = jest.fn().mockResolvedValue(product) as ProductDocument['populate'];
+    product.save = jest.fn().mockResolvedValue(product) as never;
+    product.populate = jest
+      .fn()
+      .mockResolvedValue(product) as ProductDocument['populate'];
     return product;
   }
 });

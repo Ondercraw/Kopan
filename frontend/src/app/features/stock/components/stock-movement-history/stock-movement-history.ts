@@ -1,4 +1,11 @@
-import { ChangeDetectionStrategy, Component, inject, Input, OnChanges, signal } from '@angular/core';
+import {
+  ChangeDetectionStrategy,
+  Component,
+  inject,
+  Input,
+  OnChanges,
+  signal,
+} from '@angular/core';
 import { StockMovement, StockMovementType } from '../../models/product.model';
 import { PaginationControls } from '../../../../shared/components/pagination-controls/pagination-controls';
 import { CsvExportService } from '../../../../shared/services/csv-export.service';
@@ -52,6 +59,10 @@ export class StockMovementHistory implements OnChanges {
 
   movementLabel(type: StockMovementType): string {
     const labels: Record<StockMovementType, string> = {
+      PURCHASE: 'Compra',
+      OPENING_VALUATION: 'Valuación inicial',
+      PURCHASE_CANCELLATION: 'Cancelación de compra',
+      VALUATION_CANCELLATION: 'Cancelación de valuación',
       INITIAL: 'Carga inicial',
       INCREMENT: 'Ingreso',
       DECREMENT: 'Egreso',

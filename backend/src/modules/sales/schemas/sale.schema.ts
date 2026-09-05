@@ -19,6 +19,15 @@ export class SaleItem {
   @Prop({ required: true, min: 0, default: 0 }) netoCentavos: number;
   @Prop({ required: true, min: 0, default: 0 }) ivaCentavos: number;
   @Prop({ required: true, min: 0, default: 0 }) costoUnitarioCentavos: number;
+  @Prop({ type: Number, min: 0, default: null }) costoTotalCentavos:
+    number | null;
+  @Prop({
+    type: [
+      { lotId: { type: MongooseSchema.Types.ObjectId }, quantity: Number },
+    ],
+    default: [],
+  })
+  lotesConsumidos: { lotId: Types.ObjectId; quantity: number }[];
   @Prop({ type: MongooseSchema.Types.ObjectId, ref: 'Supplier', default: null })
   proveedorId: Types.ObjectId | null;
   @Prop({ trim: true, maxlength: 120, default: '' }) proveedorNombre: string;
@@ -58,7 +67,12 @@ export class Sale {
   medioPago: PaymentMethod;
   @Prop({ trim: true, maxlength: 100, default: '' })
   referenciaTransferencia: string;
-  @Prop({ type: MongooseSchema.Types.ObjectId, ref: 'BankCheck', default: null, index: true })
+  @Prop({
+    type: MongooseSchema.Types.ObjectId,
+    ref: 'BankCheck',
+    default: null,
+    index: true,
+  })
   chequeId: Types.ObjectId | null;
   @Prop({ trim: true, maxlength: 50, default: '' }) chequeNumero: string;
   @Prop({ type: Date, default: null }) chequeCobradoAt: Date | null;

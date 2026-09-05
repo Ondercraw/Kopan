@@ -1,3 +1,4 @@
+import { PurchasesModule } from '../purchases/purchases.module';
 import { Module } from '@nestjs/common';
 import { MongooseModule } from '@nestjs/mongoose';
 import { Sale, SaleSchema } from '../sales/schemas/sale.schema';
@@ -10,7 +11,7 @@ import { FinanceService } from './finance.service';
 import { FinancialMovement, FinancialMovementSchema } from './schemas/financial-movement.schema';
 
 @Module({
-  imports: [MongooseModule.forFeature([
+  imports: [PurchasesModule, MongooseModule.forFeature([
     { name: FinancialMovement.name, schema: FinancialMovementSchema },
     { name: Sale.name, schema: SaleSchema },
     { name: Supplier.name, schema: SupplierSchema },

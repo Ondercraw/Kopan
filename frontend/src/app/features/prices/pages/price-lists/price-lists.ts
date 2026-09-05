@@ -12,14 +12,15 @@ import { AuthService } from '../../../../core/services/auth.service';
 import { Product } from '../../../stock/models/product.model';
 import { StockService } from '../../../stock/services/stock.service';
 import { PriceList, PriceListDetail } from '../../models/price-list.model';
-import { PricesService } from '../../services/prices.service';
+import { PriceProductHistory, PricesService } from '../../services/prices.service';
 import { ConfirmationModal } from '../../../../shared/components/confirmation-modal/confirmation-modal';
 import { CurrencyInput } from '../../../../shared/components/currency-input/currency-input';
+import { DatePipe } from '@angular/common';
 
 @Component({
   selector: 'app-price-lists',
   standalone: true,
-  imports: [FormsModule, ConfirmationModal, CurrencyInput],
+  imports: [FormsModule, ConfirmationModal, CurrencyInput, DatePipe],
   templateUrl: './price-lists.html',
   styleUrls: ['./price-lists.scss', './price-lists-adjustments.scss'],
   changeDetection: ChangeDetectionStrategy.OnPush,
@@ -44,6 +45,10 @@ export class PriceListsPage implements OnInit {
   newName = '';
   newDescription = '';
   readonly search = signal('');
+  readonly historyProductId = signal<string | null>(null);
+  readonly historyData = signal<PriceProductHistory | null>(null);
+  historyFrom = '';
+  historyTo = '';
   readonly visibleProducts = computed(() => {
     const q = this.search().trim().toLocaleLowerCase('es');
     return this.products().filter(
@@ -72,6 +77,8 @@ export class PriceListsPage implements OnInit {
     });
   }
   open(list: PriceList) {
+    this.historyProductId.set(null);
+    this.historyData.set(null);
     this.prices.findOne(list._id).subscribe({
       next: (d) => this.selected.set(d),
       error: () => this.error.set('No se pudo abrir la lista'),
@@ -147,5 +154,35 @@ export class PriceListsPage implements OnInit {
     return netCents === null
       ? null
       : Math.round(netCents * (1 + Number(product.alicuotaIva ?? 21) / 100));
+  }
+  toggleHistory(product: Product) {
+    if (this.historyProductId() === product._id) {
+      this.historyProductId.set(null);
+      this.historyData.set(null);
+      return;
+    }
+    const list = this.selected();
+    if (!list) return;
+    this.historyProductId.set(product._id);
+    this.historyData.set(null);
+    this.prices
+      .history(list._id, product._id, this.historyFrom || undefined, this.historyTo || undefined)
+      .subscribe({
+        next: (data) => {
+          if (this.historyProductId() === product._id && this.selected()?._id === list._id)
+            this.historyData.set(data);
+        },
+        error: () => this.error.set('No se pudo cargar el historial de costos y precios'),
+      });
+  }
+  reloadHistory() {
+    const product = this.products().find((p) => p._id === this.historyProductId());
+    if (product) {
+      this.historyProductId.set(null);
+      this.toggleHistory(product);
+    }
+  }
+  costLayers(productId: string) {
+    return this.historyProductId() === productId ? (this.historyData()?.lots ?? []) : [];
   }
 }

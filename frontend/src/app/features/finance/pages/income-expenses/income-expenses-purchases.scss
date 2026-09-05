@@ -1,0 +1,32 @@
+.movement-list > article.purchase:not(.cancelled) {
+  border-left-color: #b52d24;
+  background: #fff1ef;
+}
+.movement-list > article.purchase:not(.cancelled) > strong:nth-last-child(2) {
+  color: #a52c20;
+}
+.action a {
+  display: inline-block;
+  border: 1px solid #8a4b15;
+  background: #fff;
+  color: #713805;
+  padding: 8px;
+  font-weight: 700;
+  text-decoration: none;
+}
+.period-totals {
+  grid-template-columns: repeat(5, 1fr);
+}
+.period-totals article.purchase-summary strong {
+  color: #a52c20;
+}
+@media (max-width: 1050px) {
+  .period-totals {
+    grid-template-columns: 1fr 1fr;
+  }
+}
+@media (max-width: 600px) {
+  .period-totals {
+    grid-template-columns: 1fr;
+  }
+}

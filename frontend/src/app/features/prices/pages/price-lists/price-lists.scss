@@ -137,6 +137,82 @@
   flex-direction: column;
   gap: 4px;
 }
+.history-toggle {
+  border: 0;
+  background: none;
+  color: #8b4b10;
+  text-align: left;
+  padding: 3px 0;
+  font-weight: 750;
+  text-decoration: underline;
+  cursor: pointer;
+}
+.product-history {
+  margin: 0 0 12px;
+  border: 1px solid #dcbf9f;
+  border-top: 0;
+  background: #fffaf3;
+  padding: 15px;
+}
+.history-filter {
+  display: flex;
+  gap: 10px;
+  align-items: end;
+}
+.history-filter > div {
+  margin-right: auto;
+  display: grid;
+  gap: 3px;
+}
+.history-filter label {
+  display: grid;
+  gap: 3px;
+  font-size: 0.75rem;
+  font-weight: 700;
+}
+.history-filter input {
+  border: 1px solid #d9c4b5;
+  border-radius: 8px;
+  padding: 8px;
+  background: #fff;
+}
+.layers {
+  margin-top: 14px;
+}
+.layers h3,
+.timeline h3 {
+  font:
+    700 1rem Georgia,
+    serif;
+  color: #5f2d0a;
+}
+.layers > div {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 8px;
+  border-bottom: 1px solid #eaded5;
+}
+.timeline article {
+  display: grid;
+  grid-template-columns: 140px 1fr 1fr;
+  gap: 12px;
+  padding: 9px;
+  border-bottom: 1px solid #eaded5;
+}
+.timeline article div {
+  display: grid;
+  gap: 3px;
+}
+.timeline small,
+.history-filter small {
+  color: #856c5b;
+}
+.loading-history {
+  padding: 20px;
+  text-align: center;
+  color: #856c5b;
+}
 .price-cell {
   display: grid;
   grid-template-columns: 1fr 90px auto;
@@ -200,5 +276,18 @@
   }
   .price-cell {
     grid-column: auto;
+  }
+  .history-filter {
+    align-items: stretch;
+    flex-direction: column;
+  }
+  .history-filter > div {
+    margin-right: 0;
+  }
+  .timeline article {
+    grid-template-columns: 1fr;
+  }
+  .layers > div {
+    display: grid;
   }
 }

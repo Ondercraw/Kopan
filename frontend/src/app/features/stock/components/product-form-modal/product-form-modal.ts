@@ -21,12 +21,11 @@ import {
   SearchableSelect,
   SearchableSelectOption,
 } from '../../../../shared/components/searchable-select/searchable-select';
-import { CurrencyInput } from '../../../../shared/components/currency-input/currency-input';
 
 @Component({
   selector: 'app-product-form-modal',
   standalone: true,
-  imports: [ReactiveFormsModule, SearchableSelect, CurrencyInput],
+  imports: [ReactiveFormsModule, SearchableSelect],
   templateUrl: './product-form-modal.html',
   styleUrl: './product-form-modal.scss',
   changeDetection: ChangeDetectionStrategy.OnPush,
@@ -46,6 +45,18 @@ export class ProductFormModal implements OnInit {
   readonly errorMensaje = signal<string | null>(null);
   readonly intentoGuardar = signal(false);
   readonly suppliers = signal<Supplier[]>([]);
+  readonly selectedSupplierIds = signal<string[]>([]);
+  supplierLabel(id: string) {
+    return (
+      this.suppliers().find((s) => s._id === id)?.nombre ??
+      this.product?.proveedorIds?.find((s) => s._id === id)?.nombre ??
+      this.product?.proveedorId?.nombre ??
+      id
+    );
+  }
+  removeSupplier(id: string) {
+    this.selectedSupplierIds.update((ids) => ids.filter((value) => value !== id));
+  }
   readonly supplierSelectOptions = computed<SearchableSelectOption[]>(() =>
     this.suppliers().map((supplier) => ({
       value: supplier._id,
@@ -68,11 +79,6 @@ export class ProductFormModal implements OnInit {
   ];
   readonly adjustmentReasonOptions: SearchableSelectOption[] = [
     {
-      value: 'PURCHASE_RECEIVED',
-      label: 'Compra recibida',
-      meta: 'Ingreso por entrega de un proveedor',
-    },
-    {
       value: 'SALE_OR_DELIVERY',
       label: 'Venta o entrega',
       meta: 'Egreso por mercadería entregada',
@@ -88,8 +94,24 @@ export class ProductFormModal implements OnInit {
   ];
 
   readonly form = this.fb.nonNullable.group({
-    nombre: ['', [Validators.required, Validators.pattern(/\S/), Validators.minLength(2), Validators.maxLength(120)]],
-    tipo: ['', [Validators.required, Validators.pattern(/\S/), Validators.minLength(2), Validators.maxLength(80)]],
+    nombre: [
+      '',
+      [
+        Validators.required,
+        Validators.pattern(/\S/),
+        Validators.minLength(2),
+        Validators.maxLength(120),
+      ],
+    ],
+    tipo: [
+      '',
+      [
+        Validators.required,
+        Validators.pattern(/\S/),
+        Validators.minLength(2),
+        Validators.maxLength(80),
+      ],
+    ],
     cantidadStock: [0, [Validators.required, Validators.min(0), Validators.pattern(/^\d+$/)]],
     cantidadAjuste: [0, [Validators.required, Validators.min(0), Validators.pattern(/^\d+$/)]],
     operacionStock: this.fb.nonNullable.control<'ADD' | 'SUBTRACT'>('ADD'),
@@ -99,7 +121,7 @@ export class ProductFormModal implements OnInit {
     peso: [1, [Validators.required, Validators.min(0.001)]],
     unidadPeso: this.fb.nonNullable.control<WeightUnit>('kg', Validators.required),
     alicuotaIva: this.fb.nonNullable.control<string>('21', Validators.required),
-    costo: [0, [Validators.required, Validators.min(0)]],
+    costo: this.fb.nonNullable.control({ value: 0, disabled: true }),
     proveedorId: [''],
     descripcionAdicional: ['', [Validators.maxLength(500)]],
   });
@@ -111,12 +133,27 @@ export class ProductFormModal implements OnInit {
   get visibleAdjustmentReasonOptions(): SearchableSelectOption[] {
     const allowed =
       this.form.controls.operacionStock.value === 'ADD'
-        ? ['PURCHASE_RECEIVED', 'RETURN', 'INVENTORY_CORRECTION']
+        ? ['RETURN', 'INVENTORY_CORRECTION']
         : ['RETURN', 'BREAKAGE_OR_LOSS', 'INVENTORY_CORRECTION', 'OTHER'];
     return this.adjustmentReasonOptions.filter((option) => allowed.includes(option.value));
   }
 
   ngOnInit(): void {
+    this.selectedSupplierIds.set(
+      this.product?.proveedorIds?.length
+        ? this.product.proveedorIds.map((s) => s._id)
+        : this.product?.proveedorId
+          ? [this.product.proveedorId._id]
+          : [],
+    );
+    this.form.controls.proveedorId.valueChanges
+      .pipe(takeUntilDestroyed(this.destroyRef))
+      .subscribe((id) => {
+        if (id) {
+          this.selectedSupplierIds.update((ids) => [...new Set([...ids, id])]);
+          this.form.controls.proveedorId.setValue('', { emitEvent: false });
+        }
+      });
     this.form.controls.operacionStock.valueChanges
       .pipe(takeUntilDestroyed(this.destroyRef))
       .subscribe(() => {
@@ -139,7 +176,7 @@ export class ProductFormModal implements OnInit {
       unidadPeso: this.product.unidadPeso,
       alicuotaIva: String(this.product.alicuotaIva ?? 21),
       costo: (this.product.costoCentavos ?? 0) / 100,
-      proveedorId: this.product.proveedorId?._id ?? '',
+      proveedorId: '',
       descripcionAdicional: this.product.descripcionAdicional,
     });
   }
@@ -169,8 +206,8 @@ export class ProductFormModal implements OnInit {
       peso: Number(values.peso),
       unidadPeso: values.unidadPeso,
       alicuotaIva: Number(values.alicuotaIva) as VatRate,
-      costoCentavos: Math.round(Number(values.costo) * 100),
-      proveedorId: values.proveedorId || undefined,
+      proveedorId: this.selectedSupplierIds()[0],
+      proveedorIds: this.selectedSupplierIds(),
       descripcionAdicional: values.descripcionAdicional.trim() || undefined,
     };
     const adjustmentAmount = Number(values.cantidadAjuste);

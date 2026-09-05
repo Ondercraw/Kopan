@@ -169,7 +169,7 @@
         </div>
 
         <div class="field">
-          <label for="proveedor">Proveedor <small>(opcional)</small></label>
+          <label for="proveedor">Proveedores <small>(opcional, podés elegir varios)</small></label>
           <app-searchable-select
             id="proveedor"
             formControlName="proveedorId"
@@ -177,18 +177,23 @@
             placeholder="Buscar proveedor…"
             emptyText="No hay proveedores que coincidan."
           />
+          <div class="supplier-chips">
+            @for (id of selectedSupplierIds(); track id) {
+              <button
+                type="button"
+                (click)="removeSupplier(id)"
+                [attr.aria-label]="'Quitar ' + supplierLabel(id)"
+              >
+                {{ supplierLabel(id) }} ×
+              </button>
+            }
+          </div>
         </div>
 
         <div class="field">
-          <label for="costo">Precio de costo con IVA <small>(precio final)</small></label>
-          <app-currency-input
-            inputId="costo"
-            formControlName="costo"
-            ariaLabel="Precio de costo en pesos argentinos"
-          />
-          @if (form.controls.costo.invalid && form.controls.costo.touched) {
-            <span class="field-error">Ingresá un costo igual o mayor a cero</span>
-          }
+          <label>Costo promedio con IVA</label>
+          <div class="automatic-id">{{ (product?.costoCentavos ?? 0) / 100 }}</div>
+          <small>Se calcula desde Compras. El stock existente se valora en ese módulo.</small>
         </div>
 
         <div class="field">
@@ -212,7 +217,6 @@
             rows="3"
             maxlength="500"
             formControlName="descripcionAdicional"
-
           ></textarea>
           <span class="textarea-counter" aria-live="polite">
             {{ form.controls.descripcionAdicional.value.length }} / 500 caracteres

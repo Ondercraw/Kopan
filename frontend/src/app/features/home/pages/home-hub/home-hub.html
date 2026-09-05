@@ -54,11 +54,13 @@
             </div>
             <i class="ti ti-arrow-up-right"></i
           ></a>
-          <a routerLink="/stock"
+          <a routerLink="/compras"
             ><span>03</span>
             <div>
-              <strong>Cargar costo e IVA</strong
-              ><small>Guardar el costo final y la alícuota correspondiente.</small>
+              <strong>Comprar o valorar stock</strong
+              ><small
+                >Registrar unidades a cada costo; el promedio se calcula automáticamente.</small
+              >
             </div>
             <i class="ti ti-arrow-up-right"></i
           ></a>
@@ -125,7 +127,7 @@
             ><span>06</span>
             <div>
               <strong>Revisar ingresos y gastos</strong
-              ><small>Controlar ingresos, reposición automática y gastos extra.</small>
+              ><small>Controlar ingresos, compras a proveedores y gastos extra.</small>
             </div>
             <i class="ti ti-arrow-up-right"></i
           ></a>
@@ -242,8 +244,7 @@
         ><i class="ti ti-arrow-right"></i
       ></a>
       <a routerLink="/ventas"
-        ><i class="ti ti-invoice"></i
-        ><span><small>Operación</small><strong>Ventas</strong></span
+        ><i class="ti ti-invoice"></i><span><small>Operación</small><strong>Ventas</strong></span
         ><i class="ti ti-arrow-right"></i
       ></a>
       <a routerLink="/caja"
@@ -300,8 +301,7 @@
         ><i class="ti ti-arrow-right"></i
       ></a>
       <a routerLink="/ventas"
-        ><i class="ti ti-invoice"></i
-        ><span><small>Operación</small><strong>Ventas</strong></span
+        ><i class="ti ti-invoice"></i><span><small>Operación</small><strong>Ventas</strong></span
         ><i class="ti ti-arrow-right"></i
       ></a>
     }
@@ -312,14 +312,8 @@
   <aside class="pending-track">
     <div>
       <i class="ti ti-file-invoice"></i
-      ><span
-        ><strong>La facturación fiscal queda gestionada externamente</strong
-
-        ></span
-      >
+      ><span><strong>La facturación fiscal queda gestionada externamente</strong></span>
     </div>
-    <p>
-      Los cierres formales de caja continúan pendientes hasta validar sus reglas.
-    </p>
+    <p>Los cierres formales de caja continúan pendientes hasta validar sus reglas.</p>
   </aside>
 }

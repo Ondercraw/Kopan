@@ -3,6 +3,7 @@ import {
   Controller,
   Get,
   Param,
+  Query,
   Patch,
   Post,
   Put,
@@ -31,6 +32,15 @@ export class PricesController {
   }
   @Get(':id') findOne(@Param('id', MongoIdPipe) id: string) {
     return this.service.findOne(id);
+  }
+  @Get(':listId/products/:productId/history')
+  history(
+    @Param('listId', MongoIdPipe) listId: string,
+    @Param('productId', MongoIdPipe) productId: string,
+    @Query('from') from?: string,
+    @Query('to') to?: string,
+  ) {
+    return this.service.history(listId, productId, { from, to });
   }
   @Post() @Roles(UserRole.JEFE) create(@Body() dto: SavePriceListDto) {
     return this.service.create(dto);

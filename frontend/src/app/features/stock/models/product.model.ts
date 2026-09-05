@@ -7,7 +7,20 @@ export type StockAdjustmentReason =
   | 'BREAKAGE_OR_LOSS'
   | 'INVENTORY_CORRECTION'
   | 'OTHER';
-export interface ProductSupplier { _id: string; codigo: number; nombre: string; activo: boolean; }
+export interface ProductSupplier {
+  _id: string;
+  codigo: number;
+  nombre: string;
+  activo: boolean;
+}
+export interface ProductCostLayer {
+  purchaseCode: number;
+  supplierName: string;
+  initialQuantity: number;
+  remainingQuantity: number;
+  unitCostCents: number;
+  receivedAt: string;
+}
 
 export interface Product {
   _id: string;
@@ -30,6 +43,8 @@ export interface Product {
   costoCentavos: number;
   // El backend entrega la relación poblada bajo proveedorId.
   proveedorId: ProductSupplier | null;
+  proveedorIds?: ProductSupplier[];
+  costLayers?: ProductCostLayer[];
   activo: boolean;
   createdAt: string;
   updatedAt: string;
@@ -44,8 +59,9 @@ export interface CreateProductPayload {
   peso: number;
   unidadPeso: WeightUnit;
   proveedorId?: string;
+  proveedorIds?: string[];
   alicuotaIva: VatRate;
-  costoCentavos: number;
+  costoCentavos?: number;
 }
 
 export interface UpdateProductPayload {
@@ -56,15 +72,25 @@ export interface UpdateProductPayload {
   peso: number;
   unidadPeso: WeightUnit;
   proveedorId?: string;
+  proveedorIds?: string[];
   alicuotaIva: VatRate;
-  costoCentavos: number;
+  costoCentavos?: number;
   ajusteStock?: number;
   motivoAjuste?: StockAdjustmentReason;
   observacionAjuste?: string;
 }
 
 export type StockMovementType =
-  'INITIAL' | 'INCREMENT' | 'DECREMENT' | 'MINIMUM_CHANGE' | 'DEACTIVATION' | 'REACTIVATION';
+  | 'INITIAL'
+  | 'INCREMENT'
+  | 'DECREMENT'
+  | 'MINIMUM_CHANGE'
+  | 'DEACTIVATION'
+  | 'REACTIVATION'
+  | 'PURCHASE'
+  | 'OPENING_VALUATION'
+  | 'PURCHASE_CANCELLATION'
+  | 'VALUATION_CANCELLATION';
 
 export interface StockMovement {
   _id: string;

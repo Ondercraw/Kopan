@@ -7,6 +7,7 @@ export enum FinancialMovementCategory {
   SALE = 'VENTA',
   CHECK = 'CHEQUE',
   REPLENISHMENT = 'REPOSICION_AUTOMATICA',
+  PURCHASE = 'COMPRA_PRODUCTOS',
   MANUAL = 'GASTO_MANUAL',
 }
 

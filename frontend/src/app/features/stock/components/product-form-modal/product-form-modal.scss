@@ -296,3 +296,15 @@ button:disabled {
     grid-column: 1 / -1;
   }
 }
+.supplier-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 5px;
+}
+.supplier-chips button {
+  border: 1px solid #d5bca9;
+  border-radius: 8px;
+  background: #fff;
+  color: #713508;
+  padding: 5px 8px;
+}

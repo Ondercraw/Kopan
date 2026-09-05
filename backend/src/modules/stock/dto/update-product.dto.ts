@@ -1,5 +1,7 @@
 import {
   IsEnum,
+  IsArray,
+  ArrayMaxSize,
   IsInt,
   IsNotEmpty,
   IsMongoId,
@@ -38,9 +40,10 @@ export class UpdateProductDto {
   @IsEnum(VatRate, { message: 'La alícuota de IVA debe ser 21%, 10,5% o 0%' })
   alicuotaIva: VatRate;
 
+  @IsOptional()
   @IsInt({ message: 'El costo debe expresarse en centavos enteros' })
   @Min(0, { message: 'El costo no puede ser negativo' })
-  costoCentavos: number;
+  costoCentavos?: number;
 
   @IsInt({ message: 'El stock mínimo debe ser un número entero' })
   @Min(0, { message: 'El stock mínimo no puede ser negativo' })
@@ -49,6 +52,12 @@ export class UpdateProductDto {
   @IsOptional()
   @IsMongoId({ message: 'El proveedor seleccionado no es válido' })
   proveedorId?: string;
+
+  @IsOptional()
+  @IsArray()
+  @ArrayMaxSize(50)
+  @IsMongoId({ each: true, message: 'Seleccioná proveedores existentes' })
+  proveedorIds?: string[];
 
   @IsOptional()
   @IsString()
@@ -63,8 +72,13 @@ export class UpdateProductDto {
   @Max(100000)
   ajusteStock?: number;
 
-  @ValidateIf((dto: UpdateProductDto) => dto.ajusteStock !== undefined && dto.ajusteStock !== 0)
-  @IsEnum(StockAdjustmentReason, { message: 'Seleccioná un motivo válido para el ajuste' })
+  @ValidateIf(
+    (dto: UpdateProductDto) =>
+      dto.ajusteStock !== undefined && dto.ajusteStock !== 0,
+  )
+  @IsEnum(StockAdjustmentReason, {
+    message: 'Seleccioná un motivo válido para el ajuste',
+  })
   @IsNotEmpty({ message: 'El motivo del ajuste es obligatorio' })
   motivoAjuste?: StockAdjustmentReason;
 

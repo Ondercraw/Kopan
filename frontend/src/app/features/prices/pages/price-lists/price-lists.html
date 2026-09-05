@@ -37,9 +37,13 @@
             required
             minlength="2"
             maxlength="100"
-            [class.field-invalid]="createAttempted() && (newName.trim().length < 2 || newName.length > 100)"
+            [class.field-invalid]="
+              createAttempted() && (newName.trim().length < 2 || newName.length > 100)
+            "
           />
-          @if (createAttempted() && (newName.trim().length < 2 || newName.length > 100)) { <small class="field-error">Ingresá un nombre de entre 2 y 100 caracteres.</small> }
+          @if (createAttempted() && (newName.trim().length < 2 || newName.length > 100)) {
+            <small class="field-error">Ingresá un nombre de entre 2 y 100 caracteres.</small>
+          }
           <textarea
             [(ngModel)]="newDescription"
             name="description"
@@ -69,14 +73,20 @@
           /></label>
         </div>
         <div class="table-head">
-          <span>Producto</span><span>Costo</span><span>IVA</span
-          ><span>Precio s/IVA Y Final</span>
+          <span>Producto</span><span>Costo</span><span>IVA</span><span>Precio s/IVA Y Final</span>
         </div>
         @for (product of visibleProducts(); track product._id) {
           <article class="product-row">
             <div class="product-name">
               <strong>#{{ product.codigo }} · {{ product.nombre }}</strong
               ><small>{{ product.tipo }} · Stock {{ product.cantidadStock }}</small>
+              <button type="button" class="history-toggle" (click)="toggleHistory(product)">
+                {{
+                  historyProductId() === product._id
+                    ? 'Ocultar historial'
+                    : 'Ver costos e historial'
+                }}
+              </button>
             </div>
             <span class="money-value">{{ money(product.costoCentavos ?? 0) }}</span
             ><span>{{ product.alicuotaIva ?? 21 }}%</span>
@@ -103,6 +113,116 @@
               }
             </div>
           </article>
+          @if (historyProductId() === product._id) {
+            <section class="product-history">
+              <div class="history-filter">
+                <div>
+                  <strong>Historial de {{ product.nombre }}</strong
+                  ><small>Sin fechas se muestran todos los registros disponibles.</small>
+                </div>
+                <label>Desde<input type="date" [(ngModel)]="historyFrom" /></label
+                ><label>Hasta<input type="date" [(ngModel)]="historyTo" /></label
+                ><button type="button" class="save-price" (click)="reloadHistory()">Aplicar</button>
+              </div>
+              <div class="layers">
+                <h3>Stock actual por costo FIFO</h3>
+                @for (layer of costLayers(product._id); track layer.purchaseCode + '-' + $index) {
+                  <div>
+                    <span
+                      >{{
+                        layer.purchaseCode
+                          ? 'Compra #' + layer.purchaseCode
+                          : 'Ajuste de inventario'
+                      }}
+                      · {{ layer.supplierName }}</span
+                    ><strong
+                      >{{ layer.remainingQuantity }} de {{ layer.initialQuantity }} unidades a
+                      {{ money(layer.unitCostCents) }}</strong
+                    >
+                  </div>
+                } @empty {
+                  <p>No hay lotes de compra valuados para este producto.</p>
+                }
+              </div>
+              @if (historyData(); as history) {
+                @if (history.closingSnapshot; as closing) {
+                  <div class="layers">
+                    <h3>Último registro al cierre del {{ closing.date }}</h3>
+                    <p>Stock: {{ closing.stock ? closing.stock.currentStock + ' unidades' : 'Sin registro histórico' }} ·
+                      Costo promedio: {{ closing.stock?.currentAverageCostCents != null ? money(closing.stock!.currentAverageCostCents) : 'Sin registro histórico' }} ·
+                      Precio de venta neto: {{ closing.price ? money(closing.price.precioCentavos) : 'Sin registro histórico' }}</p>
+                  </div>
+                }
+                <div class="timeline">
+                  <h3>Compras y valuaciones del período</h3>
+                  @for (event of history.purchases; track event.purchaseId + '-' + $index) {
+                    <article>
+                      <time>{{ event.date | date: 'dd/MM/yyyy HH:mm' : '-0300' }}</time>
+                      <div>
+                        <strong
+                          >{{ event.kind === 'STOCK_INICIAL' ? 'Valuación' : 'Compra' }} #{{
+                            event.purchaseCode
+                          }}
+                          · {{ event.supplierName }}
+                          {{ event.status === 'CANCELADA' ? '(Cancelada)' : '' }}</strong
+                        ><small
+                          >{{ event.quantity }} unidades a {{ money(event.unitCostCents) }}</small
+                        >
+                      </div>
+                      <div>
+                        <span>Stock {{ event.previousStock }} → {{ event.currentStock }}</span
+                        ><small
+                          >Promedio {{ money(event.previousAverageCostCents) }} →
+                          {{ money(event.currentAverageCostCents) }}</small
+                        >
+                      </div>
+                    </article>
+                  } @empty {
+                    <p>No hubo compras en el período.</p>
+                  }
+                  <h3>Movimientos de stock del período</h3>
+                  @for (movement of history.movements; track movement._id) {
+                    <article>
+                      <time>{{ movement.createdAt | date: 'dd/MM/yyyy HH:mm' : '-0300' }}</time>
+                      <div>
+                        <strong>{{ movement.reason }}</strong
+                        ><small
+                          >Stock {{ movement.previousStock }} → {{ movement.currentStock }}</small
+                        >
+                        @if (movement.currentAverageCostCents !== null) {
+                          <small
+                            >Costo promedio posterior:
+                            {{ money(movement.currentAverageCostCents) }}</small
+                          >
+                        }
+                      </div>
+                    </article>
+                  } @empty {
+                    <p>Sin movimientos registrados en el período.</p>
+                  }
+                  <h3>Cambios de precio de venta</h3>
+                  @for (price of history.prices; track price._id) {
+                    <article>
+                      <time>{{ price.vigenteDesde | date: 'dd/MM/yyyy HH:mm' }}</time>
+                      <div>
+                        <strong
+                          >{{ money(price.precioAnteriorCentavos) }} →
+                          {{ money(price.precioCentavos) }}</strong
+                        ><small>Modificado por {{ price.actorName }}</small>
+                      </div>
+                    </article>
+                  } @empty {
+                    <p>
+                      No hubo cambios de precio en el período. Los cambios anteriores a esta función
+                      no pueden reconstruirse con certeza.
+                    </p>
+                  }
+                </div>
+              } @else {
+                <p class="loading-history">Cargando historial…</p>
+              }
+            </section>
+          }
         } @empty {
           <p class="empty">No hay productos que coincidan.</p>
         }

@@ -42,7 +42,12 @@ export class Product {
 
   // Decisión relevada el 21/08/2026: Kopan usa 21%, 10,5% y 0%.
   // La condición fiscal del cliente sigue siendo un dato independiente.
-  @Prop({ required: true, type: Number, enum: [0, 10.5, 21], default: VatRate.TWENTY_ONE })
+  @Prop({
+    required: true,
+    type: Number,
+    enum: [0, 10.5, 21],
+    default: VatRate.TWENTY_ONE,
+  })
   alicuotaIva: VatRate;
 
   // Los importes monetarios se guardan en centavos para evitar errores de punto flotante.
@@ -54,8 +59,20 @@ export class Product {
   @Prop({ trim: true, maxlength: 120, select: false })
   proveedor?: string;
 
-  @Prop({ type: MongooseSchema.Types.ObjectId, ref: 'Supplier', default: null, index: true })
+  @Prop({
+    type: MongooseSchema.Types.ObjectId,
+    ref: 'Supplier',
+    default: null,
+    index: true,
+  })
   proveedorId: Types.ObjectId | null;
+
+  @Prop({
+    type: [{ type: MongooseSchema.Types.ObjectId, ref: 'Supplier' }],
+    default: [],
+    index: true,
+  })
+  proveedorIds: Types.ObjectId[];
 
   @Prop({ default: true, index: true })
   activo: boolean;

@@ -1,3 +1,8 @@
+import mongoose from 'mongoose';
+
+// Propaga la sesión a todos los modelos de una operación, incluso entre servicios.
+mongoose.set('transactionAsyncLocalStorage', true);
+
 import { Module } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { MongooseModule } from '@nestjs/mongoose';

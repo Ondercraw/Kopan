@@ -5,8 +5,8 @@ import {
   Logger,
   NotFoundException,
 } from '@nestjs/common';
-import { InjectModel } from '@nestjs/mongoose';
-import { Model } from 'mongoose';
+import { InjectModel, InjectConnection } from '@nestjs/mongoose';
+import { Connection, Model } from 'mongoose';
 import { AdjustStockDto } from './dto/adjust-stock.dto';
 import { CreateProductDto } from './dto/create-product.dto';
 import { UpdateProductDto } from './dto/update-product.dto';
@@ -19,7 +19,7 @@ import {
   StockMovementDocument,
 } from './schemas/stock-movement.schema';
 import { SuppliersService } from '../suppliers/suppliers.service';
-import { FinanceService } from '../finance/finance.service';
+import { InventoryLotsService } from '../purchases/inventory-lots.service';
 
 export interface StockActor {
   id: string;
@@ -38,15 +38,26 @@ export class StockService {
     @InjectModel(StockMovement.name)
     private readonly movementModel: Model<StockMovementDocument>,
     private readonly suppliersService: SuppliersService,
-    private readonly financeService: FinanceService,
+    private readonly inventoryLots: InventoryLotsService,
+    @InjectConnection() private readonly connection: Connection,
   ) {}
 
   findAll() {
-    return this.productModel.find({ activo: true }).populate('proveedorId', 'codigo nombre activo').sort({ codigo: 1 }).lean().exec();
+    return this.productModel
+      .find({ activo: true })
+      .populate('proveedorId proveedorIds', 'codigo nombre activo')
+      .sort({ codigo: 1 })
+      .lean()
+      .exec();
   }
 
   findInactive() {
-    return this.productModel.find({ activo: false }).populate('proveedorId', 'codigo nombre activo').sort({ codigo: 1 }).lean().exec();
+    return this.productModel
+      .find({ activo: false })
+      .populate('proveedorId proveedorIds', 'codigo nombre activo')
+      .sort({ codigo: 1 })
+      .lean()
+      .exec();
   }
 
   async findMovements(productId: string): Promise<StockMovement[]> {
@@ -58,11 +69,23 @@ export class StockService {
       .exec();
   }
 
-  async create(
+  create(dto: CreateProductDto, actor: StockActor) {
+    return this.connection.transaction(() =>
+      this.createInTransaction(dto, actor),
+    );
+  }
+
+  private async createInTransaction(
     dto: CreateProductDto,
     actor: StockActor,
   ): Promise<ProductDocument> {
-    await this.suppliersService.assertActive(dto.proveedorId);
+    const supplierIds = [
+      ...new Set(
+        dto.proveedorIds ?? (dto.proveedorId ? [dto.proveedorId] : []),
+      ),
+    ];
+    for (const supplierId of supplierIds)
+      await this.suppliersService.assertActive(supplierId);
     const codigo = await this.nextProductCode();
     const product = await this.productModel.create({
       codigo,
@@ -74,24 +97,28 @@ export class StockService {
       peso: dto.peso,
       unidadPeso: dto.unidadPeso,
       alicuotaIva: dto.alicuotaIva,
-      costoCentavos: dto.costoCentavos,
-      proveedorId: dto.proveedorId ?? null,
+      costoCentavos: 0,
+      proveedorId: supplierIds[0] ?? null,
+      proveedorIds: supplierIds,
     });
 
-    const movement = await this.recordMovement(product, {
+    await this.recordMovement(product, {
       actor,
       type: StockMovementType.INITIAL,
       previousStock: 0,
       currentStock: product.cantidadStock,
       reason: 'Carga inicial del producto',
     });
-    if (product.cantidadStock > 0 && movement) {
-      await this.recordReplenishmentExpense(product, movement, product.cantidadStock, actor);
-    }
-    return product.populate('proveedorId', 'codigo nombre activo');
+    return product.populate('proveedorId proveedorIds', 'codigo nombre activo');
   }
 
-  async update(
+  update(id: string, dto: UpdateProductDto, actor: StockActor) {
+    return this.connection.transaction(() =>
+      this.updateInTransaction(id, dto, actor),
+    );
+  }
+
+  private async updateInTransaction(
     id: string,
     dto: UpdateProductDto,
     actor: StockActor,
@@ -103,8 +130,13 @@ export class StockService {
         message: 'El motivo del ajuste de stock es obligatorio',
       });
     }
-    const additionReasons = ['PURCHASE_RECEIVED', 'RETURN', 'INVENTORY_CORRECTION'];
-    const subtractionReasons = ['RETURN', 'BREAKAGE_OR_LOSS', 'INVENTORY_CORRECTION', 'OTHER'];
+    const additionReasons = ['RETURN', 'INVENTORY_CORRECTION'];
+    const subtractionReasons = [
+      'RETURN',
+      'BREAKAGE_OR_LOSS',
+      'INVENTORY_CORRECTION',
+      'OTHER',
+    ];
     if (
       dto.motivoAjuste &&
       ((stockDelta > 0 && !additionReasons.includes(dto.motivoAjuste)) ||
@@ -112,10 +144,17 @@ export class StockService {
     ) {
       throw new BadRequestException({
         code: 'INVALID_ADJUSTMENT_REASON',
-        message: 'El motivo seleccionado no corresponde a la operación de stock',
+        message:
+          'El motivo seleccionado no corresponde a la operación de stock',
       });
     }
-    await this.suppliersService.assertActive(dto.proveedorId);
+    const supplierIds = [
+      ...new Set(
+        dto.proveedorIds ?? (dto.proveedorId ? [dto.proveedorId] : []),
+      ),
+    ];
+    for (const supplierId of supplierIds)
+      await this.suppliersService.assertActive(supplierId);
     const previousProduct = await this.productModel.findById(id).exec();
     if (!previousProduct?.activo) {
       throw new NotFoundException('Producto no encontrado');
@@ -135,8 +174,8 @@ export class StockService {
         peso: dto.peso,
         unidadPeso: dto.unidadPeso,
         alicuotaIva: dto.alicuotaIva,
-        costoCentavos: dto.costoCentavos,
-        proveedorId: dto.proveedorId ?? null,
+        proveedorId: supplierIds[0] ?? null,
+        proveedorIds: supplierIds,
       },
     };
     if (stockDelta !== 0) {
@@ -154,25 +193,32 @@ export class StockService {
       });
     }
 
+    const oldAverage = product.costoCentavos;
     if (stockDelta !== 0) {
+      product.costoCentavos = await this.inventoryLots.adjust(
+        product._id,
+        stockDelta,
+        product.cantidadStock - stockDelta,
+        oldAverage,
+      );
+      await product.save();
       const units = Math.abs(stockDelta);
       const reasonLabel = dto.motivoAjuste
         ? STOCK_ADJUSTMENT_REASON_LABELS[dto.motivoAjuste]
         : 'Ajuste manual';
       const observation = dto.observacionAjuste?.trim();
-      const movement = await this.recordMovement(product, {
+      await this.recordMovement(product, {
         actor,
         type:
           stockDelta > 0
             ? StockMovementType.INCREMENT
             : StockMovementType.DECREMENT,
+        previousAverageCostCents: oldAverage,
+        currentAverageCostCents: product.costoCentavos,
         previousStock: product.cantidadStock - stockDelta,
         currentStock: product.cantidadStock,
         reason: `${reasonLabel}: ${stockDelta > 0 ? 'ingreso' : 'egreso'} de ${units} ${units === 1 ? 'unidad' : 'unidades'}${observation ? ` - ${observation}` : ''}`,
       });
-      if (stockDelta > 0 && movement) {
-        await this.recordReplenishmentExpense(product, movement, units, actor);
-      }
     }
     if (previousProduct.stockMinimo !== product.stockMinimo) {
       await this.recordMovement(product, {
@@ -185,10 +231,16 @@ export class StockService {
         reason: `Stock mínimo actualizado de ${previousProduct.stockMinimo} a ${product.stockMinimo} unidades`,
       });
     }
-    return product.populate('proveedorId', 'codigo nombre activo');
+    return product.populate('proveedorId proveedorIds', 'codigo nombre activo');
   }
 
-  async adjustStock(
+  adjustStock(id: string, dto: AdjustStockDto, actor: StockActor) {
+    return this.connection.transaction(() =>
+      this.adjustStockInTransaction(id, dto, actor),
+    );
+  }
+
+  private async adjustStockInTransaction(
     id: string,
     dto: AdjustStockDto,
     actor: StockActor,
@@ -208,12 +260,22 @@ export class StockService {
 
     if (product) {
       const previousStock = product.cantidadStock - dto.delta;
-      const movement = await this.recordMovement(product, {
+      const oldAverage = product.costoCentavos;
+      product.costoCentavos = await this.inventoryLots.adjust(
+        product._id,
+        dto.delta,
+        previousStock,
+        oldAverage,
+      );
+      await product.save();
+      await this.recordMovement(product, {
         actor,
         type:
           dto.delta > 0
             ? StockMovementType.INCREMENT
             : StockMovementType.DECREMENT,
+        previousAverageCostCents: oldAverage,
+        currentAverageCostCents: product.costoCentavos,
         previousStock,
         currentStock: product.cantidadStock,
         reason:
@@ -221,10 +283,10 @@ export class StockService {
             ? 'Ingreso manual de una unidad'
             : 'Egreso manual de una unidad',
       });
-      if (dto.delta > 0 && movement) {
-        await this.recordReplenishmentExpense(product, movement, dto.delta, actor);
-      }
-      const populatedProduct = await product.populate('proveedorId', 'codigo nombre activo');
+      const populatedProduct = await product.populate(
+        'proveedorId proveedorIds',
+        'codigo nombre activo',
+      );
       return {
         product: populatedProduct,
         previousStock,
@@ -321,6 +383,8 @@ export class StockService {
       type: StockMovementType;
       previousStock: number;
       currentStock: number;
+      previousAverageCostCents?: number;
+      currentAverageCostCents?: number;
       previousMinimumStock?: number;
       currentMinimumStock?: number;
       reason: string;
@@ -334,6 +398,8 @@ export class StockService {
         type: data.type,
         previousStock: data.previousStock,
         currentStock: data.currentStock,
+        previousAverageCostCents: data.previousAverageCostCents,
+        currentAverageCostCents: data.currentAverageCostCents,
         previousMinimumStock: data.previousMinimumStock,
         currentMinimumStock: data.currentMinimumStock,
         reason: data.reason,
@@ -346,34 +412,7 @@ export class StockService {
         `No se pudo registrar el movimiento de stock del producto ${product._id.toString()}`,
         error instanceof Error ? error.stack : String(error),
       );
-      return null;
-    }
-  }
-
-  private async recordReplenishmentExpense(
-    product: ProductDocument,
-    movement: StockMovementDocument,
-    units: number,
-    actor: StockActor,
-  ): Promise<void> {
-    try {
-      await this.financeService.recordStockReplenishment({
-        stockMovementId: movement._id,
-        productId: product._id,
-        productCode: product.codigo,
-        productName: product.nombre,
-        units,
-        unitCostCents: product.costoCentavos,
-        supplierId: product.proveedorId,
-        actor,
-        date: movement.createdAt ?? new Date(),
-      });
-    } catch (error) {
-      // El stock ya fue actualizado: no fallar la petición y provocar una segunda suma por reintento.
-      this.logger.error(
-        `No se pudo registrar el gasto de reposición del producto ${product._id.toString()}`,
-        error instanceof Error ? error.stack : String(error),
-      );
+      throw error;
     }
   }
 

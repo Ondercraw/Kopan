@@ -15,12 +15,18 @@
       <article [class.negative]="overall().efectivoDisponibleCentavos < 0">
         <span>Efectivo disponible</span
         ><strong>{{ money(overall().efectivoDisponibleCentavos) }}</strong>
-        <small class="check-origin"><i class="ti ti-file-dollar"></i> {{ money(overall().chequesEfectivoCentavos) }} provenientes de cheques</small>
+        <small class="check-origin"
+          ><i class="ti ti-file-dollar"></i>
+          {{ money(overall().chequesEfectivoCentavos) }} provenientes de cheques</small
+        >
       </article>
       <article [class.negative]="overall().transferenciaDisponibleCentavos < 0">
         <span>Transferencia disponible</span
         ><strong>{{ money(overall().transferenciaDisponibleCentavos) }}</strong>
-        <small class="check-origin"><i class="ti ti-file-dollar"></i> {{ money(overall().chequesTransferenciaCentavos) }} provenientes de cheques</small>
+        <small class="check-origin"
+          ><i class="ti ti-file-dollar"></i>
+          {{ money(overall().chequesTransferenciaCentavos) }} provenientes de cheques</small
+        >
       </article>
       <article class="pending">
         <span>No disponible</span
@@ -58,8 +64,14 @@
         <small>A pagar: - {{ money(period().gastosReposicionPendientesCentavos) }}</small>
       </article>
       <article class="manual">
-        <span>Gastos extra</span><strong>Pagado: - {{ money(period().gastosManualesCentavos) }}</strong>
+        <span>Gastos extra</span
+        ><strong>Pagado: - {{ money(period().gastosManualesCentavos) }}</strong>
         <small>A pagar: - {{ money(period().gastosManualesPendientesCentavos) }}</small>
+      </article>
+      <article class="purchase-summary">
+        <span>Compras a proveedores</span
+        ><strong>Pagado: - {{ money(period().comprasPagadasCentavos) }}</strong>
+        <small>A pagar: - {{ money(period().comprasPendientesCentavos) }}</small>
       </article>
       <article [class.negative]="period().resultadoCentavos < 0">
         <span>Resultado</span><strong>{{ money(period().resultadoCentavos) }}</strong>
@@ -98,6 +110,7 @@
         [class.income]="item.tipo === 'INGRESO'"
         [class.automatic]="item.categoria === 'REPOSICION_AUTOMATICA'"
         [class.manual]="item.categoria === 'GASTO_MANUAL'"
+        [class.purchase]="item.categoria === 'COMPRA_PRODUCTOS'"
         [class.cancelled]="item.cancelado"
       >
         <div class="movement-type" data-label="Tipo">
@@ -111,7 +124,9 @@
             <small>Proveedor: {{ item.proveedorNombre }}</small>
           }
           @if (item.cancelado) {
-            <small class="cancellation-reason">Motivo de cancelación: {{ item.motivoCancelacion }}</small>
+            <small class="cancellation-reason"
+              >Motivo de cancelación: {{ item.motivoCancelacion }}</small
+            >
             <small>Cancelado por: {{ item.canceladoPorNombre || 'Sistema' }}</small>
           }
         </div>
@@ -120,7 +135,13 @@
           ><strong>{{ method(item.medioPago) }}</strong
           ><small>
             @if (item.tipo === 'INGRESO') {
-              {{ item.disponible ? (item.acreditadoEn ? 'Acreditado en ' + method(item.acreditadoEn) : 'Disponible') : 'No disponible' }}
+              {{
+                item.disponible
+                  ? item.acreditadoEn
+                    ? 'Acreditado en ' + method(item.acreditadoEn)
+                    : 'Disponible'
+                  : 'No disponible'
+              }}
             } @else {
               {{ item.cancelado ? 'Cancelado' : item.pagado ? 'Pagado' : 'A pagar' }}
             }
@@ -132,10 +153,14 @@
             <i class="ti ti-lock" title="Movimiento cancelado"></i>
           } @else if (item.categoria === 'CHEQUE' && !item.disponible && item.chequeId) {
             <button type="button" (click)="openCheckCollection(item)">Cobrar cheque</button>
+          } @else if (item.categoria === 'COMPRA_PRODUCTOS') {
+            <a routerLink="/compras">Gestionar compra</a>
           } @else if (item.tipo === 'GASTO' && !item.pagado) {
             <button type="button" (click)="openPay(item)">Pagar gasto</button>
           } @else if (item.pagado && isManualReplenishment(item)) {
-            <button class="cancel-payment" type="button" (click)="openCancellation(item)">Cancelar pago</button>
+            <button class="cancel-payment" type="button" (click)="openCancellation(item)">
+              Cancelar pago
+            </button>
           } @else {
             <i class="ti ti-lock"></i>
           }
@@ -164,15 +189,34 @@
       <div class="form">
         <label
           ><span>Concepto *</span
-          ><input [(ngModel)]="concept" maxlength="160" placeholder="Ej. Pago a empleado" [class.field-invalid]="invalidExpenseConcept()" />
-          @if (invalidExpenseConcept()) { <small class="field-error">Describí brevemente el motivo del gasto.</small> }
-        </label
-        ><label><span>Monto *</span><app-currency-input [(ngModel)]="amount" [class.field-invalid]="invalidExpenseAmount()" />
-          @if (invalidExpenseAmount()) { <small class="field-error">Ingresá un importe mayor a ARS $0.</small> }
-        </label
-        ><label><span>Fecha *</span><input type="date" [(ngModel)]="expenseDate" [class.field-invalid]="invalidExpenseDate()" />
-          @if (invalidExpenseDate()) { <small class="field-error">Seleccioná la fecha del gasto.</small> }
-        </label
+          ><input
+            [(ngModel)]="concept"
+            maxlength="160"
+            placeholder="Ej. Pago a empleado"
+            [class.field-invalid]="invalidExpenseConcept()"
+          />
+          @if (invalidExpenseConcept()) {
+            <small class="field-error">Describí brevemente el motivo del gasto.</small>
+          }</label
+        ><label
+          ><span>Monto *</span
+          ><app-currency-input
+            [(ngModel)]="amount"
+            [class.field-invalid]="invalidExpenseAmount()"
+          />
+          @if (invalidExpenseAmount()) {
+            <small class="field-error">Ingresá un importe mayor a ARS $0.</small>
+          }</label
+        ><label
+          ><span>Fecha *</span
+          ><input
+            type="date"
+            [(ngModel)]="expenseDate"
+            [class.field-invalid]="invalidExpenseDate()"
+          />
+          @if (invalidExpenseDate()) {
+            <small class="field-error">Seleccioná la fecha del gasto.</small>
+          }</label
         ><label
           ><span>Proveedor (opcional)</span
           ><app-searchable-select
@@ -230,8 +274,8 @@
       <span>CANCELAR REPOSICIÓN</span>
       <h2>Cancelar pago de {{ money(item.montoCentavos) }}</h2>
       <p>
-        Se restarán del stock las unidades de esta reposición. El movimiento quedará bloqueado
-        y visible como cancelado.
+        Se restarán del stock las unidades de esta reposición. El movimiento quedará bloqueado y
+        visible como cancelado.
       </p>
       <label>
         <span>Motivo de la cancelación *</span>
@@ -239,7 +283,8 @@
           [(ngModel)]="cancelReason"
           maxlength="300"
           placeholder="Ej. La mercadería fue devuelta al proveedor"
-          [class.field-invalid]="invalidCancelReason()"></textarea>
+          [class.field-invalid]="invalidCancelReason()"
+        ></textarea>
         <small>{{ cancelReason.length }}/300</small>
         @if (invalidCancelReason()) {
           <small class="field-error">Ingresá un motivo de entre 3 y 300 caracteres.</small>

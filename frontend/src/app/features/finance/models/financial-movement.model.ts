@@ -1,6 +1,6 @@
 export type FinancialMovementKind = 'INGRESO' | 'GASTO';
 export type FinancialMovementCategory =
-  'VENTA' | 'CHEQUE' | 'REPOSICION_AUTOMATICA' | 'GASTO_MANUAL';
+  'VENTA' | 'CHEQUE' | 'REPOSICION_AUTOMATICA' | 'GASTO_MANUAL' | 'COMPRA_PRODUCTOS';
 export type FinancialPaymentMethod = 'EFECTIVO' | 'TRANSFERENCIA' | 'CREDITO' | 'CHEQUE';
 export interface FinancialMovement {
   _id: string;
@@ -34,6 +34,8 @@ export interface FinancialSummary {
   gastosReposicionPendientesCentavos: number;
   gastosManualesCentavos: number;
   gastosManualesPendientesCentavos: number;
+  comprasPagadasCentavos: number;
+  comprasPendientesCentavos: number;
   resultadoCentavos: number;
   efectivoDisponibleCentavos: number;
   transferenciaDisponibleCentavos: number;

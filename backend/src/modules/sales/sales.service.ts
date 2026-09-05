@@ -5,8 +5,8 @@ import {
   Logger,
   NotFoundException,
 } from '@nestjs/common';
-import { InjectModel } from '@nestjs/mongoose';
-import { Model, Types } from 'mongoose';
+import { InjectModel, InjectConnection } from '@nestjs/mongoose';
+import { Model, Types, Connection } from 'mongoose';
 import {
   normalizeUserRoles,
   UserRole,
@@ -38,6 +38,10 @@ import { Sale, SaleDocument, SaleItem } from './schemas/sale.schema';
 import { ChecksService } from '../checks/checks.service';
 import { FinanceService } from '../finance/finance.service';
 import { BankCheckDocument } from '../checks/schemas/bank-check.schema';
+import {
+  InventoryLotsService,
+  LotConsumption,
+} from '../purchases/inventory-lots.service';
 
 export interface SaleActor {
   id: string;
@@ -49,6 +53,7 @@ export interface SaleActor {
 export class SalesService {
   private readonly logger = new Logger(SalesService.name);
   constructor(
+    @InjectConnection() private readonly connection: Connection,
     @InjectModel(Sale.name) private readonly saleModel: Model<SaleDocument>,
     @InjectModel(Client.name)
     private readonly clientModel: Model<ClientDocument>,
@@ -66,6 +71,7 @@ export class SalesService {
     private readonly counterModel: Model<CounterDocument>,
     private readonly checksService: ChecksService,
     private readonly financeService: FinanceService,
+    private readonly inventoryLots: InventoryLotsService,
   ) {}
 
   findAll(filters: { from?: string; to?: string; medioPago?: string } = {}) {
@@ -101,11 +107,19 @@ export class SalesService {
       .exec();
   }
 
-  async create(dto: CreateSaleDto, actor: SaleActor) {
-    const [client, list] = await Promise.all([
-      this.clientModel.findOne({ _id: dto.clienteId, activo: true }).exec(),
-      this.listModel.findOne({ _id: dto.listaPreciosId, activo: true }).exec(),
-    ]);
+  create(dto: CreateSaleDto, actor: SaleActor) {
+    return this.connection.transaction(() =>
+      this.createInTransaction(dto, actor),
+    );
+  }
+
+  private async createInTransaction(dto: CreateSaleDto, actor: SaleActor) {
+    const client = await this.clientModel
+      .findOne({ _id: dto.clienteId, activo: true })
+      .exec();
+    const list = await this.listModel
+      .findOne({ _id: dto.listaPreciosId, activo: true })
+      .exec();
     if (!client) throw new NotFoundException('Cliente inexistente o inactivo');
     if (!list)
       throw new NotFoundException('Lista de precios inexistente o inactiva');
@@ -166,15 +180,13 @@ export class SalesService {
       });
     }
     const productIds = [...grouped.keys()];
-    const [products, prices] = await Promise.all([
-      this.productModel
-        .find({ _id: { $in: productIds }, activo: true })
-        .populate('proveedorId', 'nombre')
-        .exec(),
-      this.priceItemModel
-        .find({ listaId: list._id, productoId: { $in: productIds } })
-        .exec(),
-    ]);
+    const products = await this.productModel
+      .find({ _id: { $in: productIds }, activo: true })
+      .populate('proveedorId', 'nombre')
+      .exec();
+    const prices = await this.priceItemModel
+      .find({ listaId: list._id, productoId: { $in: productIds } })
+      .exec();
     if (products.length !== productIds.length)
       throw new NotFoundException(
         'Uno o más productos no existen o están inactivos',
@@ -267,19 +279,21 @@ export class SalesService {
       estadoFiscal: FiscalStatus.PENDING_EXTERNAL,
     });
 
-    // TODO(regla pendiente): cuando producción use MongoDB replica set, reemplazar esta
-    // compensación por una transacción ACID que incluya venta, stock y movimientos.
+    // Venta, consumo FIFO, deuda, cheque e ingreso se confirman juntos.
     const decremented: Array<{
       product: ProductDocument;
       previous: number;
       quantity: number;
+      consumptions: LotConsumption[];
     }> = [];
     let creditReserved = false;
     let createdCheck: BankCheckDocument | null = null;
-    try {
+    {
       if (dto.medioPago === PaymentMethod.CHECK && dto.cheque) {
         if (dto.cheque.montoCentavos !== totalCentavos) {
-          throw new BadRequestException('El monto del cheque debe coincidir con el total de la venta');
+          throw new BadRequestException(
+            'El monto del cheque debe coincidir con el total de la venta',
+          );
         }
         createdCheck = await this.checksService.createForSale(
           { ...dto.cheque, clienteId: client._id.toString() },
@@ -347,12 +361,32 @@ export class SalesService {
           throw new ConflictException(
             `Stock insuficiente para ${item.productoNombre}`,
           );
+        const fifo = await this.inventoryLots.consumeFifo(
+          product._id,
+          item.cantidad,
+          item.costoUnitarioCentavos,
+          product.cantidadStock + item.cantidad,
+        );
+        item.costoUnitarioCentavos = fifo.averageUnitCostCents;
+        item.costoTotalCentavos = fifo.totalCostCents;
+        item.lotesConsumidos = fifo.consumptions;
+        product.costoCentavos = fifo.remainingAverageCostCents;
+        await product.save();
         decremented.push({
           product,
           previous: product.cantidadStock + item.cantidad,
           quantity: item.cantidad,
+          consumptions: fifo.consumptions,
         });
       }
+      sale.items = items;
+      sale.costoCentavos = items.reduce(
+        (sum, item) =>
+          sum +
+          (item.costoTotalCentavos ??
+            item.costoUnitarioCentavos * item.cantidad),
+        0,
+      );
       await this.movementModel.insertMany(
         decremented.map(({ product, previous }) => ({
           productId: product._id,
@@ -361,6 +395,7 @@ export class SalesService {
           type: StockMovementType.DECREMENT,
           previousStock: previous,
           currentStock: product.cantidadStock,
+          currentAverageCostCents: product.costoCentavos,
           reason: `Venta #${sale.codigo}`,
           referenceType: 'SALE',
           referenceId: sale._id,
@@ -371,51 +406,8 @@ export class SalesService {
       );
       sale.estado = SaleStatus.CONFIRMED;
       const confirmedSale = await sale.save();
-      try {
-        await this.financeService.recordSale(confirmedSale);
-      } catch (financeError) {
-        // La conciliación manual del módulo financiero permite reintentar este registro
-        // sin penalizar cada apertura de la pantalla de Ingresos y gastos.
-        this.logger.error(
-          `No se pudieron registrar los movimientos financieros de la venta ${sale.codigo}`,
-          financeError instanceof Error ? financeError.stack : String(financeError),
-        );
-      }
+      await this.financeService.recordSale(confirmedSale);
       return confirmedSale;
-    } catch (error) {
-      if (creditReserved) {
-        await this.clientModel
-          .updateOne(
-            { _id: client._id },
-            {
-              $inc: { saldoCuentaCorrienteCentavos: -totalCentavos },
-              $pull: {
-                historialCambios: {
-                  action: 'CREDIT_SALE',
-                  detail: `Venta #${sale.codigo} a crédito por ${totalCentavos} centavos`,
-                },
-              },
-            },
-          )
-          .exec();
-      }
-      await Promise.all(
-        decremented.map(({ product, quantity }) =>
-          this.productModel
-            .updateOne(
-              { _id: product._id },
-              { $inc: { cantidadStock: quantity } },
-            )
-            .exec(),
-        ),
-      );
-      await this.movementModel
-        .deleteMany({ referenceType: 'SALE', referenceId: sale._id })
-        .exec();
-      if (createdCheck) await this.checksService.removeForFailedSale(createdCheck._id);
-      sale.estado = SaleStatus.FAILED;
-      await sale.save();
-      throw error;
     }
   }
 

@@ -41,6 +41,12 @@ const NAV_GROUPS: NavGroup[] = [
         rolesPermitidos: [UserRole.JEFE, UserRole.VENDEDOR],
       },
       {
+        label: 'Compras',
+        icon: 'ti-shopping-cart',
+        path: '/compras',
+        rolesPermitidos: [UserRole.JEFE],
+      },
+      {
         label: 'Clientes',
         icon: 'ti-users',
         path: '/clientes',

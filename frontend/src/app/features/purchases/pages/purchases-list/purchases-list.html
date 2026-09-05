@@ -1,0 +1,338 @@
+<section class="page">
+  <header class="page-header">
+    <div>
+      <span>ABASTECIMIENTO</span>
+      <h1>Compras</h1>
+      <p>Ingresá mercadería, controlá sus costos por lote y la cuenta corriente de proveedores.</p>
+    </div>
+    <div class="header-actions">
+      <button class="secondary" type="button" (click)="open('STOCK_INICIAL')">
+        <i class="ti ti-calculator"></i> Valorar stock existente</button
+      ><button class="primary" type="button" (click)="open('COMPRA')">
+        <i class="ti ti-plus"></i> Registrar compra
+      </button>
+    </div>
+  </header>
+  @if (error()) {
+    <p class="message error">{{ error() }}</p>
+  }
+  @if (success()) {
+    <p class="message success">{{ success() }}</p>
+  }
+
+  <section class="accounts">
+    <div class="section-title">
+      <div>
+        <span>CUENTAS CORRIENTES</span>
+        <h2>Deuda con proveedores</h2>
+      </div>
+      <strong>{{ money(totalDebtCents()) }}</strong>
+    </div>
+    <div class="account-grid">
+      @for (account of accounts(); track account._id) {
+        <article>
+          <div>
+            <strong>{{ account.proveedorNombre }}</strong
+            ><small
+              >{{ account.compras }}
+              {{ account.compras === 1 ? 'compra pendiente' : 'compras pendientes' }}</small
+            ><button type="button" class="pay-account" (click)="openAccountPayment(account)">
+              Pagar deuda completa
+            </button>
+          </div>
+          <div class="debt">
+            <strong>{{ money(account.deudaCentavos) }}</strong
+            ><small>Vence: {{ date(account.proximoVencimiento) }}</small>
+          </div>
+        </article>
+      } @empty {
+        <p class="empty-inline">No hay deudas pendientes con proveedores.</p>
+      }
+    </div>
+  </section>
+
+  <section class="history">
+    <div class="history-head">
+      <div>
+        <span>HISTORIAL</span>
+        <h2>Compras y valuaciones</h2>
+      </div>
+      <div class="filters">
+        <label>Desde<input type="date" [(ngModel)]="from" /></label
+        ><label>Hasta<input type="date" [(ngModel)]="to" /></label
+        ><button type="button" class="secondary" (click)="reload()">Aplicar</button>
+      </div>
+    </div>
+    <div class="table-head">
+      <span>Fecha</span><span>Compra</span><span>Proveedor</span><span>Productos</span
+      ><span>Total</span><span>Estado</span><span>Acciones</span>
+    </div>
+    @for (purchase of purchases(); track purchase._id) {
+      <article class="purchase-row" [class.cancelled]="purchase.estado === 'CANCELADA'">
+        <span>{{ date(purchase.fechaCompra) }}</span
+        ><strong
+          >#{{ purchase.codigo
+          }}<small>{{ purchase.tipo === 'COMPRA' ? 'Compra' : 'Stock inicial' }}</small></strong
+        ><span>{{ purchase.proveedorNombre }}</span>
+        <div class="items">
+          @for (item of purchase.items; track item.lineNumber) {
+            <small
+              >{{ item.productName }}: {{ item.quantity }} a {{ money(item.unitCostCents) }}</small
+            >
+          }
+        </div>
+        <strong>{{ money(purchase.totalCentavos) }}</strong
+        ><span
+          class="status"
+          [class.pending]="!purchase.pagada"
+          [class.cancelled-status]="purchase.estado === 'CANCELADA'"
+          >{{
+            purchase.estado === 'CANCELADA' ? 'Cancelada' : purchase.pagada ? 'Pagada' : 'A pagar'
+          }}</span
+        >
+        <div class="row-actions">
+          @if (purchase.estado === 'CONFIRMADA' && !purchase.pagada) {
+            <button type="button" (click)="openAction(purchase, 'PAY')">Pagar</button>
+          }
+          @if (purchase.estado === 'CONFIRMADA') {
+            <button type="button" class="danger" (click)="openAction(purchase, 'CANCEL')">
+              Cancelar
+            </button>
+          }
+        </div>
+        @if (purchase.estado === 'CANCELADA') {
+          <p class="cancel-reason">Motivo: {{ purchase.motivoCancelacion }}</p>
+        }
+      </article>
+    } @empty {
+      <p class="empty">No hay compras para el período seleccionado.</p>
+    }
+  </section>
+</section>
+
+@if (modalMode(); as mode) {
+  <div class="modal-overlay">
+    <section class="modal-card wide" role="dialog" aria-modal="true">
+      <header>
+        <div>
+          <span>COMPRAS</span>
+          <h2>{{ mode === 'COMPRA' ? 'Registrar compra' : 'Valorar stock existente' }}</h2>
+        </div>
+        <button type="button" class="icon" (click)="close()"><i class="ti ti-x"></i></button>
+      </header>
+      <div class="form-grid">
+        <label class="field"
+          ><span>Proveedor *</span
+          ><app-searchable-select
+            [(ngModel)]="supplierId"
+            [options]="supplierOptions()"
+            placeholder="Buscar proveedor..."
+            [clearable]="false"
+        /></label>
+        <label class="field"
+          ><span>Fecha *</span><input type="date" [(ngModel)]="purchaseDate"
+        /></label>
+        <label class="field"
+          ><span>Forma de pago *</span
+          ><app-searchable-select
+            [(ngModel)]="paymentMethod"
+            [options]="paymentOptions"
+            [clearable]="false"
+        /></label>
+        @if (paymentMethod === 'CUENTA_CORRIENTE') {
+          <label class="field"
+            ><span>Vencimiento <small>(opcional)</small></span
+            ><input type="date" [(ngModel)]="dueDate"
+          /></label>
+        }
+        <label class="field"
+          ><span>N.º comprobante <small>(opcional)</small></span
+          ><input maxlength="80" [(ngModel)]="documentNumber"
+        /></label>
+        <label class="field span-2"
+          ><span>Observaciones <small>(opcional)</small></span
+          ><textarea maxlength="500" rows="2" [(ngModel)]="notes"></textarea
+          ><small>{{ notes.length }} / 500</small></label
+        >
+      </div>
+      <div class="lines-head">
+        <div>
+          <h3>Productos y costos</h3>
+          <p>
+            {{
+              mode === 'COMPRA'
+                ? 'Podés repetir un producto si distintas unidades tuvieron costos diferentes.'
+                : 'Distribuí todas las unidades sin valorar entre sus distintos costos.'
+            }}
+          </p>
+        </div>
+        <button type="button" class="secondary" (click)="addLine()">
+          <i class="ti ti-plus"></i> Otro costo
+        </button>
+      </div>
+      <div class="line-labels">
+        <span>Producto</span><span>Unidades</span><span>Costo unitario con IVA</span
+        ><span>Subtotal</span><span></span>
+      </div>
+      @for (line of lines; track $index; let i = $index) {
+        <div class="line-row">
+          @if (mode === 'STOCK_INICIAL' && i > 0) {
+            <div class="locked-product">{{ productName(line.productId) }}</div>
+          } @else {
+            <app-searchable-select
+              [(ngModel)]="line.productId"
+              (ngModelChange)="mode === 'STOCK_INICIAL' && selectOpeningProduct($event)"
+              [options]="mode === 'STOCK_INICIAL' ? openingProductOptions() : productOptions()"
+              placeholder="Buscar producto..."
+              [clearable]="false"
+            />
+          }
+          <input type="number" min="1" step="1" [(ngModel)]="line.quantity" /><app-currency-input
+            [(ngModel)]="line.unitCostPesos"
+            [ngModelOptions]="{ standalone: true }"
+            ariaLabel="Costo unitario con IVA"
+          /><strong>{{ money(line.quantity * line.unitCostPesos * 100) }}</strong
+          ><button
+            class="remove"
+            type="button"
+            [disabled]="lines.length === 1"
+            (click)="removeLine(i)"
+          >
+            <i class="ti ti-trash"></i>
+          </button>
+        </div>
+      }
+      @if (mode === 'STOCK_INICIAL' && lines[0]?.productId) {
+        <div class="valuation-check" [class.invalid]="openingAssigned() !== openingTarget()">
+          <span>Asignadas {{ openingAssigned() }} de {{ openingTarget() }} unidades</span
+          ><strong>Promedio ponderado: {{ money(weightedAverageCents()) }}</strong>
+        </div>
+      }
+      @if (error()) {
+        <p class="message error" role="alert">{{ error() }}</p>
+      }
+      <footer>
+        <div class="grand-total">
+          <small>Total</small><strong>{{ money(totalCents()) }}</strong>
+        </div>
+        <button type="button" class="secondary" (click)="close()">Cerrar</button
+        ><button type="button" class="primary" (click)="requestSave()" [disabled]="saving()">
+          Revisar y confirmar
+        </button>
+      </footer>
+    </section>
+  </div>
+}
+@if (pendingConfirmation()) {
+  <app-confirmation-modal
+    title="Confirmar registro"
+    [message]="'¿Registrar esta operación por ' + money(totalCents()) + '?'"
+    [detail]="'Se actualizará el stock y se conservará cada cantidad a su costo histórico. Esta acción sólo podrá cancelarse si todavía no se vendieron esas unidades.'"
+    confirmLabel="Confirmar"
+    tone="warning"
+    [loading]="saving()"
+    (cancelled)="pendingConfirmation.set(false)"
+    (confirmed)="save()"
+  />
+}
+@if (actionPurchase(); as purchase) {
+  <div class="modal-overlay action-overlay">
+    <section class="modal-card action-card" role="dialog" aria-modal="true">
+      <header>
+        <div>
+          <span>COMPRA #{{ purchase.codigo }}</span>
+          <h2>{{ actionMode() === 'PAY' ? 'Pagar deuda completa' : 'Cancelar compra' }}</h2>
+        </div>
+        <button type="button" class="icon" (click)="closeAction()"><i class="ti ti-x"></i></button>
+      </header>
+      @if (actionMode() === 'PAY') {
+        <p>Se pagarán {{ money(purchase.totalCentavos) }} a {{ purchase.proveedorNombre }}.</p>
+        <label class="field"
+          ><span>Medio de pago</span
+          ><app-searchable-select
+            [(ngModel)]="actionPayment"
+            [options]="payOptions"
+            [clearable]="false"
+        /></label>
+      } @else {
+        <p>
+          {{
+            purchase.tipo === 'STOCK_INICIAL'
+              ? 'Se retirará la valuación y se conservará la cantidad física.'
+              : 'Se retirarán las unidades recibidas en esta compra.'
+          }}
+          Sólo es posible si los lotes siguen completos.
+        </p>
+        <label class="field"
+          ><span>Motivo *</span
+          ><textarea rows="3" maxlength="300" [(ngModel)]="cancellationReason"></textarea
+          ><small>{{ cancellationReason.length }} / 300</small></label
+        >
+      }
+      @if (error()) {
+        <p class="message error" role="alert">{{ error() }}</p>
+      }
+      <footer>
+        <button class="secondary" type="button" (click)="closeAction()">Volver</button
+        ><button
+          class="primary"
+          [class.danger-solid]="actionMode() === 'CANCEL'"
+          type="button"
+          (click)="confirmAction()"
+          [disabled]="saving()"
+        >
+          Confirmar
+        </button>
+      </footer>
+    </section>
+  </div>
+}
+@if (accountToPay(); as account) {
+  <div class="modal-overlay">
+    <section
+      class="modal-card action-card"
+      role="dialog"
+      aria-modal="true"
+      aria-label="Pagar deuda completa"
+    >
+      <header>
+        <h2>Pagar deuda completa</h2>
+        <button
+          type="button"
+          class="icon"
+          (click)="closeAccountPayment()"
+          [disabled]="saving()"
+          aria-label="Cerrar"
+        >
+          <i class="ti ti-x"></i>
+        </button>
+      </header>
+      <p>
+        {{ account.proveedorNombre }}: {{ account.compras }} compras por
+        {{ money(account.deudaCentavos) }}.
+      </p>
+      <label class="field"
+        ><span>Medio de pago</span
+        ><app-searchable-select
+          [(ngModel)]="actionPayment"
+          [options]="payOptions"
+          [clearable]="false"
+      /></label>
+      @if (error()) {
+        <p class="message error" role="alert">{{ error() }}</p>
+      }
+      <footer>
+        <button
+          class="secondary"
+          type="button"
+          (click)="closeAccountPayment()"
+          [disabled]="saving()"
+        >
+          Volver</button
+        ><button class="primary" type="button" (click)="payAccount()" [disabled]="saving()">
+          {{ saving() ? 'Guardando…' : 'Pagar deuda' }}
+        </button>
+      </footer>
+    </section>
+  </div>
+}

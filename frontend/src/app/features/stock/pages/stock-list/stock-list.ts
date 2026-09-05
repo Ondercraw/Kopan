@@ -99,10 +99,26 @@ export class StockList implements OnInit {
     ].sort((a, b) => a.localeCompare(b, 'es')),
   );
 
+  productSuppliers(product: Product) {
+    return product.proveedorIds?.length
+      ? product.proveedorIds
+      : product.proveedorId
+        ? [product.proveedorId]
+        : [];
+  }
+
+  supplierNames(product: Product) {
+    return (
+      this.productSuppliers(product)
+        .map((item) => item.nombre)
+        .join(' · ') || 'Sin proveedor'
+    );
+  }
+
   readonly supplierOptions = computed(() => {
     const unique = new Map<string, NonNullable<Product['proveedorId']>>();
     for (const product of this.products()) {
-      if (product.proveedorId) unique.set(product.proveedorId._id, product.proveedorId);
+      for (const supplier of this.productSuppliers(product)) unique.set(supplier._id, supplier);
     }
     return [...unique.values()].sort((a, b) => a.nombre.localeCompare(b.nombre, 'es'));
   });
@@ -126,7 +142,8 @@ export class StockList implements OnInit {
 
     const filtered = this.products().filter((product) => {
       const matchesName = !search || this.normalize(product.nombre).includes(search);
-      const matchesSupplier = !supplier || product.proveedorId?._id === supplier;
+      const matchesSupplier =
+        !supplier || this.productSuppliers(product).some((item) => item._id === supplier);
       const matchesType = !type || product.tipo === type;
       const matchesWeight = !weight || this.weightKey(product) === weight;
       return matchesName && matchesSupplier && matchesType && matchesWeight;
@@ -210,9 +227,7 @@ export class StockList implements OnInit {
           if (inactive) this.inactiveProducts.set(inactive);
           const editingId = this.editingProduct()?._id;
           if (editingId) {
-            this.editingProduct.set(
-              products.find((product) => product._id === editingId) ?? null,
-            );
+            this.editingProduct.set(products.find((product) => product._id === editingId) ?? null);
           }
         },
         // Un fallo transitorio no reemplaza los datos visibles ni interrumpe al usuario.

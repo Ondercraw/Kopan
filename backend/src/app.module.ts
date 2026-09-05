@@ -1,4 +1,9 @@
-import { MiddlewareConsumer, Module, NestModule, RequestMethod } from '@nestjs/common';
+import {
+  MiddlewareConsumer,
+  Module,
+  NestModule,
+  RequestMethod,
+} from '@nestjs/common';
 import { ConfigModule } from '@nestjs/config';
 import { APP_GUARD } from '@nestjs/core';
 import { ThrottlerGuard, ThrottlerModule } from '@nestjs/throttler';
@@ -16,6 +21,7 @@ import { PricesModule } from './modules/prices/prices.module';
 import { SalesModule } from './modules/sales/sales.module';
 import { ChecksModule } from './modules/checks/checks.module';
 import { FinanceModule } from './modules/finance/finance.module';
+import { PurchasesModule } from './modules/purchases/purchases.module';
 
 @Module({
   imports: [
@@ -42,6 +48,7 @@ import { FinanceModule } from './modules/finance/finance.module';
     SalesModule,
     ChecksModule,
     FinanceModule,
+    PurchasesModule,
   ],
   providers: [
     {

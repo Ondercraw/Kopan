@@ -28,6 +28,7 @@ import {
 } from '../../models/financial-movement.model';
 import { FinanceService } from '../../services/finance.service';
 import { ChecksService } from '../../../checks/services/checks.service';
+import { RouterLink } from '@angular/router';
 
 const EMPTY: FinancialSummary = {
   ingresosCentavos: 0,
@@ -36,6 +37,8 @@ const EMPTY: FinancialSummary = {
   gastosReposicionPendientesCentavos: 0,
   gastosManualesCentavos: 0,
   gastosManualesPendientesCentavos: 0,
+  comprasPagadasCentavos: 0,
+  comprasPendientesCentavos: 0,
   resultadoCentavos: 0,
   efectivoDisponibleCentavos: 0,
   transferenciaDisponibleCentavos: 0,
@@ -49,12 +52,13 @@ const EMPTY: FinancialSummary = {
 @Component({
   selector: 'app-income-expenses',
   standalone: true,
-  imports: [FormsModule, CurrencyInput, PaginationControls, SearchableSelect],
+  imports: [FormsModule, CurrencyInput, PaginationControls, SearchableSelect, RouterLink],
   templateUrl: './income-expenses.html',
   styleUrls: [
     './income-expenses.scss',
     './income-expenses-responsive.scss',
     './income-expenses-adjustments.scss',
+    './income-expenses-purchases.scss',
   ],
   changeDetection: ChangeDetectionStrategy.OnPush,
 })
@@ -244,7 +248,8 @@ export class IncomeExpensesPage implements OnInit {
   confirmCancellation() {
     const item = this.cancelling();
     this.cancelAttempted.set(true);
-    if (!item || this.cancelReason.trim().length < 3 || this.cancelReason.trim().length > 300) return;
+    if (!item || this.cancelReason.trim().length < 3 || this.cancelReason.trim().length > 300)
+      return;
     this.saving.set(true);
     this.api.cancelReplenishment(item._id, this.cancelReason.trim()).subscribe({
       next: () => {
@@ -298,6 +303,7 @@ export class IncomeExpensesPage implements OnInit {
     }
     if (i.categoria === 'REPOSICION_AUTOMATICA') return 'Reposición automática';
     if (i.categoria === 'GASTO_MANUAL') return 'Gasto extra';
+    if (i.categoria === 'COMPRA_PRODUCTOS') return 'Compra de productos';
     if (i.categoria === 'CHEQUE') return 'Ingreso de cheque';
     return 'Ingreso de venta';
   }
@@ -314,5 +320,4 @@ export class IncomeExpensesPage implements OnInit {
       .replace(/[\u0300-\u036f]/g, '')
       .toLowerCase();
   }
-
 }

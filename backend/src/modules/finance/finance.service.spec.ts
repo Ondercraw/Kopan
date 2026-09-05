@@ -1,7 +1,10 @@
 import { PaymentMethod } from '../sales/enums/payment-method.enum';
 import { SaleStatus } from '../sales/enums/sale-status.enum';
 import { FinanceService } from './finance.service';
-import { FinancialMovementCategory, FinancialMovementKind } from './enums/financial-movement.enum';
+import {
+  FinancialMovementCategory,
+  FinancialMovementKind,
+} from './enums/financial-movement.enum';
 import { Types } from 'mongoose';
 
 describe('FinanceService', () => {
@@ -29,6 +32,7 @@ describe('FinanceService', () => {
       checkModel as never,
       {} as never,
       {} as never,
+      {} as never,
     );
 
     const result = await service.findAll();
@@ -41,10 +45,18 @@ describe('FinanceService', () => {
     expect(result.overall.gastosPendientesCentavos).toBe(0);
   });
 
-  it('registra un ingreso y el costo de reposición de cada venta confirmada', async () => {
-    const movementModel = { updateOne: jest.fn().mockResolvedValue({ acknowledged: true }) };
+  it('registra sólo el ingreso de venta sin duplicar el gasto de compra', async () => {
+    const movementModel = {
+      updateOne: jest.fn().mockResolvedValue({ acknowledged: true }),
+      deleteOne: jest
+        .fn()
+        .mockReturnValue({
+          exec: jest.fn().mockResolvedValue({ acknowledged: true }),
+        }),
+    };
     const service = new FinanceService(
       movementModel as never,
+      {} as never,
       {} as never,
       {} as never,
       {} as never,
@@ -60,7 +72,13 @@ describe('FinanceService', () => {
       costoCentavos: 80_000_00,
       clienteId: 'client-id',
       clienteNombre: 'Cliente prueba',
-      items: [{ productoNombre: 'Harina', cantidad: 2, costoUnitarioCentavos: 40_000_00 }],
+      items: [
+        {
+          productoNombre: 'Harina',
+          cantidad: 2,
+          costoUnitarioCentavos: 40_000_00,
+        },
+      ],
       actorId: 'owner-id',
       actorName: 'Dueño',
       createdAt: new Date('2026-09-02T12:00:00Z'),
@@ -71,19 +89,15 @@ describe('FinanceService', () => {
 
     await service.recordSale(sale as never);
 
-    expect(movementModel.updateOne).toHaveBeenCalledTimes(2);
-    expect(movementModel.updateOne.mock.calls[0][1].$setOnInsert).toMatchObject({
-      tipo: FinancialMovementKind.INCOME,
-      categoria: FinancialMovementCategory.SALE,
-      montoCentavos: 100_000_00,
-      disponible: true,
-    });
-    expect(movementModel.updateOne.mock.calls[1][1].$setOnInsert).toMatchObject({
-      tipo: FinancialMovementKind.EXPENSE,
-      categoria: FinancialMovementCategory.REPLENISHMENT,
-      montoCentavos: 80_000_00,
-      pagado: false,
-    });
+    expect(movementModel.updateOne).toHaveBeenCalledTimes(1);
+    expect(movementModel.updateOne.mock.calls[0][1].$setOnInsert).toMatchObject(
+      {
+        tipo: FinancialMovementKind.INCOME,
+        categoria: FinancialMovementCategory.SALE,
+        montoCentavos: 100_000_00,
+        disponible: true,
+      },
+    );
   });
 
   it('congela el costo de cada reposición manual en su propio movimiento', async () => {
@@ -100,6 +114,7 @@ describe('FinanceService', () => {
       movementModel as never,
       {} as never,
       supplierModel as never,
+      {} as never,
       {} as never,
       {} as never,
       {} as never,

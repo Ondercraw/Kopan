@@ -36,6 +36,12 @@ export class StockMovement {
   @Prop({ min: 0 })
   currentMinimumStock?: number;
 
+  @Prop({ type: Number, min: 0, default: null })
+  previousAverageCostCents: number | null;
+
+  @Prop({ type: Number, min: 0, default: null })
+  currentAverageCostCents: number | null;
+
   @Prop({ required: true, trim: true, maxlength: 350 })
   reason: string;
 
