@@ -126,6 +126,7 @@
           ><span>Proveedor *</span
           ><app-searchable-select
             [(ngModel)]="supplierId"
+            (ngModelChange)="onSupplierChange($event)"
             [options]="supplierOptions()"
             placeholder="Buscar proveedor..."
             [clearable]="false"
@@ -182,7 +183,7 @@
           } @else {
             <app-searchable-select
               [(ngModel)]="line.productId"
-              (ngModelChange)="mode === 'STOCK_INICIAL' && selectOpeningProduct($event)"
+              (ngModelChange)="onProductChange(i, $event)"
               [options]="mode === 'STOCK_INICIAL' ? openingProductOptions() : productOptions()"
               placeholder="Buscar producto..."
               [clearable]="false"

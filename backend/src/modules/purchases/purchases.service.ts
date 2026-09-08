@@ -87,6 +87,7 @@ export class PurchasesService {
     const products = await this.productModel
       .find({ activo: true })
       .sort({ codigo: 1 })
+      .populate('proveedorId proveedorIds', 'codigo nombre activo')
       .lean()
       .exec();
     return Promise.all(
@@ -164,6 +165,17 @@ export class PurchasesService {
     if (products.length !== ids.length)
       throw new NotFoundException(
         'Uno o más productos no existen o están inactivos',
+      );
+    const unrelatedProducts = products.filter((product) => {
+      const supplierIds = new Set([
+        ...(product.proveedorIds ?? []).map(String),
+        ...(product.proveedorId ? [String(product.proveedorId)] : []),
+      ]);
+      return !supplierIds.has(supplier._id.toString());
+    });
+    if (unrelatedProducts.length)
+      throw new BadRequestException(
+        `El proveedor no está asociado a: ${unrelatedProducts.map((product) => product.nombre).join(', ')}`,
       );
     // Bloquea las filas de inventario incluso en valuaciones sin cambio de cantidad.
     for (const product of products)

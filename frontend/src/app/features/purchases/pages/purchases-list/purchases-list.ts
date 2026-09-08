@@ -56,7 +56,7 @@ export class PurchasesListPage implements OnInit {
   readonly accountToPay = signal<SupplierAccount | null>(null);
   readonly actionMode = signal<'PAY' | 'CANCEL' | null>(null);
   supplierId = '';
-  paymentMethod: PurchasePaymentMethod = 'EFECTIVO';
+  paymentMethod: PurchasePaymentMethod | '' = 'EFECTIVO';
   purchaseDate = argentinaToday();
   dueDate = '';
   documentNumber = '';
@@ -73,18 +73,20 @@ export class PurchasesListPage implements OnInit {
       meta: `#${s.codigo}${s.cuit ? ` · CUIT ${s.cuit}` : ''}`,
     })),
   );
-  readonly productOptions = computed<SearchableSelectOption[]>(() =>
-    this.inventory().map((p) => ({
-      value: p._id,
-      label: p.nombre,
-      meta: `#${p.codigo} · Stock ${p.cantidadStock}${p.unvaluedQuantity ? ` · ${p.unvaluedQuantity} sin valorar` : ''}`,
-    })),
-  );
-  readonly openingProductOptions = computed<SearchableSelectOption[]>(() =>
-    this.productOptions().filter(
+  productOptions(): SearchableSelectOption[] {
+    return this.inventory()
+      .filter((product) => !this.supplierId || this.productHasSupplier(product, this.supplierId))
+      .map((p) => ({
+        value: p._id,
+        label: p.nombre,
+        meta: `#${p.codigo} · Stock ${p.cantidadStock}${p.unvaluedQuantity ? ` · ${p.unvaluedQuantity} sin valorar` : ''}`,
+      }));
+  }
+  openingProductOptions(): SearchableSelectOption[] {
+    return this.productOptions().filter(
       (option) => this.inventory().find((p) => p._id === option.value)!.unvaluedQuantity > 0,
-    ),
-  );
+    );
+  }
   readonly standardPaymentOptions: SearchableSelectOption[] = [
     { value: 'EFECTIVO', label: 'Efectivo' },
     { value: 'TRANSFERENCIA', label: 'Transferencia / Mercado Pago' },
@@ -151,7 +153,7 @@ export class PurchasesListPage implements OnInit {
     this.error.set(null);
     this.modalMode.set(mode);
     this.supplierId = '';
-    this.paymentMethod = mode === 'STOCK_INICIAL' ? 'PAGADO_ANTES_SISTEMA' : 'EFECTIVO';
+    this.paymentMethod = mode === 'STOCK_INICIAL' ? '' : 'EFECTIVO';
     this.purchaseDate = argentinaToday();
     this.dueDate = '';
     this.documentNumber = '';
@@ -166,6 +168,68 @@ export class PurchasesListPage implements OnInit {
   }
   selectOpeningProduct(productId: string) {
     this.lines = [{ productId, quantity: 0, unitCostPesos: 0 }];
+    this.selectProductSupplier(productId);
+  }
+  onProductChange(index: number, productId: string) {
+    if (this.modalMode() === 'STOCK_INICIAL') {
+      this.selectOpeningProduct(productId);
+      return;
+    }
+    this.lines[index].productId = productId;
+    this.selectProductSupplier(productId);
+  }
+  onSupplierChange(supplierId: string) {
+    this.supplierId = supplierId;
+    if (!supplierId) return;
+    const incompatible = this.lines.some(
+      (line) =>
+        line.productId &&
+        !this.productHasSupplier(
+          this.inventory().find((product) => product._id === line.productId),
+          supplierId,
+        ),
+    );
+    if (incompatible) {
+      this.lines = this.lines.map((line) => ({
+        ...line,
+        productId: this.productHasSupplier(
+          this.inventory().find((product) => product._id === line.productId),
+          supplierId,
+        )
+          ? line.productId
+          : '',
+      }));
+      this.error.set('Se quitaron productos que no pertenecen al proveedor seleccionado');
+    }
+  }
+  private selectProductSupplier(productId: string) {
+    const product = this.inventory().find((item) => item._id === productId);
+    if (!product) return;
+    const supplierIds = this.productSupplierIds(product);
+    if (this.supplierId && supplierIds.includes(this.supplierId)) return;
+    const primaryId = this.supplierIdValue(product.proveedorId);
+    const selectedId =
+      (primaryId && this.suppliers().some((supplier) => supplier._id === primaryId)
+        ? primaryId
+        : supplierIds.find((id) => this.suppliers().some((supplier) => supplier._id === id))) ?? '';
+    this.supplierId = selectedId;
+    if (!selectedId) this.error.set('Este producto no tiene un proveedor activo asociado');
+  }
+  private productHasSupplier(product: InventoryProduct | undefined, supplierId: string) {
+    return !!product && this.productSupplierIds(product).includes(supplierId);
+  }
+  private productSupplierIds(product: InventoryProduct) {
+    return [
+      ...new Set(
+        [
+          ...(product.proveedorIds ?? []).map((supplier) => this.supplierIdValue(supplier)),
+          this.supplierIdValue(product.proveedorId),
+        ].filter((id): id is string => !!id),
+      ),
+    ];
+  }
+  private supplierIdValue(supplier: { _id: string } | string | null | undefined) {
+    return typeof supplier === 'string' ? supplier : (supplier?._id ?? '');
   }
   addLine() {
     const productId = this.modalMode() === 'STOCK_INICIAL' ? (this.lines[0]?.productId ?? '') : '';
@@ -177,6 +241,7 @@ export class PurchasesListPage implements OnInit {
   requestSave() {
     if (
       !this.supplierId ||
+      !this.paymentMethod ||
       this.lines.some(
         (x) =>
           !x.productId ||
@@ -187,7 +252,9 @@ export class PurchasesListPage implements OnInit {
           x.quantity > 1000000,
       )
     ) {
-      this.error.set('Completá proveedor, producto, cantidad y costo de cada renglón');
+      this.error.set(
+        'Completá proveedor, forma de pago, producto, cantidad y costo de cada renglón',
+      );
       return;
     }
     if (this.modalMode() === 'STOCK_INICIAL' && this.openingAssigned() !== this.openingTarget()) {
@@ -211,13 +278,14 @@ export class PurchasesListPage implements OnInit {
   }
   save() {
     const kind = this.modalMode();
-    if (!kind || this.saving()) return;
+    const paymentMethod = this.paymentMethod;
+    if (!kind || !paymentMethod || this.saving()) return;
     this.saving.set(true);
     this.service
       .create({
         supplierId: this.supplierId,
         kind,
-        paymentMethod: this.paymentMethod,
+        paymentMethod,
         items: this.lines.map((x) => ({
           productId: x.productId,
           quantity: Number(x.quantity),
@@ -225,7 +293,7 @@ export class PurchasesListPage implements OnInit {
         })),
         purchaseDate: this.purchaseDate || undefined,
         dueDate:
-          this.paymentMethod === 'CUENTA_CORRIENTE' && this.dueDate
+          paymentMethod === 'CUENTA_CORRIENTE' && this.dueDate
             ? `${this.dueDate}T12:00:00-03:00`
             : undefined,
         documentNumber: this.documentNumber.trim() || undefined,
