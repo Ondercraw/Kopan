@@ -16,4 +16,5 @@ export enum FinancialPaymentMethod {
   TRANSFER = 'TRANSFERENCIA',
   CREDIT = 'CREDITO',
   CHECK = 'CHEQUE',
+  HISTORICAL = 'PAGADO_ANTES_SISTEMA',
 }

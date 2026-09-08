@@ -1,7 +1,8 @@
 import { Product } from '../../stock/models/product.model';
 
 export type PurchaseKind = 'COMPRA' | 'STOCK_INICIAL';
-export type PurchasePaymentMethod = 'EFECTIVO' | 'TRANSFERENCIA' | 'CUENTA_CORRIENTE';
+export type PurchasePaymentMethod =
+  'EFECTIVO' | 'TRANSFERENCIA' | 'CUENTA_CORRIENTE' | 'PAGADO_ANTES_SISTEMA';
 export interface PurchaseItem {
   productId: string;
   productCode: number;

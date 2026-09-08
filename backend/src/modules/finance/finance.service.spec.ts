@@ -48,11 +48,9 @@ describe('FinanceService', () => {
   it('registra sólo el ingreso de venta sin duplicar el gasto de compra', async () => {
     const movementModel = {
       updateOne: jest.fn().mockResolvedValue({ acknowledged: true }),
-      deleteOne: jest
-        .fn()
-        .mockReturnValue({
-          exec: jest.fn().mockResolvedValue({ acknowledged: true }),
-        }),
+      deleteOne: jest.fn().mockReturnValue({
+        exec: jest.fn().mockResolvedValue({ acknowledged: true }),
+      }),
     };
     const service = new FinanceService(
       movementModel as never,
@@ -146,4 +144,61 @@ describe('FinanceService', () => {
       { upsert: true },
     );
   });
+
+  it.each([
+    ['pendiente', false],
+    ['pagado', true],
+  ])(
+    'cancela definitivamente un gasto manual %s y conserva el historial',
+    async (_, pagado) => {
+      const movement = {
+        _id: new Types.ObjectId(),
+        tipo: FinancialMovementKind.EXPENSE,
+        categoria: FinancialMovementCategory.MANUAL,
+        sourceKey: `manual:${new Types.ObjectId().toString()}`,
+        pagado,
+        cancelado: false,
+      };
+      const claimed = { ...movement, cancelado: true };
+      const movementModel = {
+        findById: jest.fn().mockReturnValue({
+          exec: jest.fn().mockResolvedValue(movement),
+        }),
+        findOneAndUpdate: jest.fn().mockReturnValue({
+          exec: jest.fn().mockResolvedValue(claimed),
+        }),
+      };
+      const productModel = {
+        db: { transaction: jest.fn((work: () => unknown) => work()) },
+      };
+      const service = new FinanceService(
+        movementModel as never,
+        {} as never,
+        {} as never,
+        {} as never,
+        productModel as never,
+        {} as never,
+        {} as never,
+      );
+
+      const result = await service.cancelExpense(
+        movement._id.toString(),
+        'Carga duplicada',
+        { id: 'owner-id', name: 'Dueño' },
+      );
+
+      expect(result.cancelado).toBe(true);
+      expect(movementModel.findOneAndUpdate).toHaveBeenCalledWith(
+        { _id: movement._id, cancelado: { $ne: true } },
+        expect.objectContaining({
+          $set: expect.objectContaining({
+            cancelado: true,
+            motivoCancelacion: 'Carga duplicada',
+            canceladoPorNombre: 'Dueño',
+          }),
+        }),
+        { new: true },
+      );
+    },
+  );
 });

@@ -3,7 +3,7 @@
 ## Circuito
 
 1. Crear los proveedores y productos. Un producto puede vincular varios proveedores existentes; cada compra pertenece a uno.
-2. Si ya existe mercadería física, usar **Valorar stock existente** antes de registrar nuevas compras. Distribuir exactamente las unidades sin valorar entre renglones con sus costos. No aumenta la cantidad física.
+2. Si ya existe mercadería física, usar **Valorar stock existente** antes de registrar nuevas compras. Distribuir exactamente las unidades sin valorar entre renglones con sus costos. No aumenta la cantidad física. Para mercadería comprada antes de implementar Kopan, elegir **Pagado antes de usar el sistema**: queda en el historial y en los resultados del período, pero no descuenta el efectivo ni las transferencias disponibles actuales.
 3. Registrar las compras nuevas: unidades, costo unitario final con IVA, proveedor y efectivo, transferencia o cuenta corriente. Comprobante, vencimiento y observaciones son opcionales.
 4. El stock aumenta, se conservan los lotes y se registra el gasto. La cuenta corriente queda pendiente hasta pagar; se puede pagar una compra completa o toda la deuda del proveedor.
 5. Las ventas consumen lotes FIFO. No generan un segundo gasto de reposición: el desembolso se registra desde Compras.
@@ -22,6 +22,7 @@ Los cambios nuevos de costo no modifican compras ni ventas anteriores. Los ajust
 - Requieren motivo. Solo se admiten si todos los lotes de la operación conservan sus unidades originales.
 - Compra cancelada: revierte stock y movimiento financiero; permanece visible en gris.
 - Valuación inicial cancelada: retira la valuación, conserva el stock físico y cancela su movimiento financiero.
+- En Ingresos y gastos, **Cancelar gasto** anula uno pendiente y **Cancelar pago** anula uno pagado. Ambos solicitan motivo, dejan el registro gris y bloqueado; si era una reposición manual heredada, también revierten sus unidades.
 - Precios y costos permite consultar **Desde / Hasta**, compras/valuaciones, movimientos con stock antes/después y cambios de precio de venta. Los lotes de la sección **Stock actual** son siempre actuales, no una reconstrucción a la fecha del filtro.
 - No se inventa el historial anterior: los costos y precios históricos que nunca se registraron no se pueden reconstruir con certeza.
 - La fecha de recepción ordena FIFO; la fecha de registro de movimientos conserva la auditoría. Los filtros de días usan Argentina (UTC−3).

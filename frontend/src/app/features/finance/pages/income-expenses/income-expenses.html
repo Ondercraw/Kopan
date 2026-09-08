@@ -155,11 +155,12 @@
             <button type="button" (click)="openCheckCollection(item)">Cobrar cheque</button>
           } @else if (item.categoria === 'COMPRA_PRODUCTOS') {
             <a routerLink="/compras">Gestionar compra</a>
-          } @else if (item.tipo === 'GASTO' && !item.pagado) {
-            <button type="button" (click)="openPay(item)">Pagar gasto</button>
-          } @else if (item.pagado && isManualReplenishment(item)) {
+          } @else if (item.tipo === 'GASTO') {
+            @if (!item.pagado) {
+              <button type="button" (click)="openPay(item)">Pagar gasto</button>
+            }
             <button class="cancel-payment" type="button" (click)="openCancellation(item)">
-              Cancelar pago
+              {{ item.pagado ? 'Cancelar pago' : 'Cancelar gasto' }}
             </button>
           } @else {
             <i class="ti ti-lock"></i>
@@ -271,18 +272,22 @@
 @if (cancelling(); as item) {
   <div class="overlay">
     <section class="modal pay" role="alertdialog" aria-modal="true">
-      <span>CANCELAR REPOSICIÓN</span>
-      <h2>Cancelar pago de {{ money(item.montoCentavos) }}</h2>
+      <span>{{ item.pagado ? 'CANCELAR PAGO' : 'CANCELAR GASTO' }}</span>
+      <h2>
+        {{ item.pagado ? 'Cancelar pago' : 'Cancelar gasto' }} de {{ money(item.montoCentavos) }}
+      </h2>
       <p>
-        Se restarán del stock las unidades de esta reposición. El movimiento quedará bloqueado y
-        visible como cancelado.
+        @if (isManualReplenishment(item)) {
+          Se restarán del stock las unidades de esta reposición.
+        }
+        El movimiento quedará gris, bloqueado y visible únicamente como historial.
       </p>
       <label>
         <span>Motivo de la cancelación *</span>
         <textarea
           [(ngModel)]="cancelReason"
           maxlength="300"
-          placeholder="Ej. La mercadería fue devuelta al proveedor"
+          placeholder="Ej. Registro duplicado o carga incorrecta"
           [class.field-invalid]="invalidCancelReason()"
         ></textarea>
         <small>{{ cancelReason.length }}/300</small>
@@ -293,7 +298,13 @@
       <footer>
         <button class="secondary" (click)="cancelling.set(null)">Volver</button>
         <button class="danger" (click)="confirmCancellation()" [disabled]="saving()">
-          {{ saving() ? 'Cancelando...' : 'Confirmar cancelación' }}
+          {{
+            saving()
+              ? 'Cancelando...'
+              : item.pagado
+                ? 'Confirmar cancelación del pago'
+                : 'Confirmar cancelación del gasto'
+          }}
         </button>
       </footer>
     </section>

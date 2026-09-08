@@ -24,16 +24,13 @@ export class FinanceService {
     return this.http.post(`${this.base}/expenses`, payload, { withCredentials: true });
   }
 
-  payExpense(
-    id: string,
-    medioPago: Extract<FinancialPaymentMethod, 'EFECTIVO' | 'TRANSFERENCIA'>,
-  ) {
+  payExpense(id: string, medioPago: Extract<FinancialPaymentMethod, 'EFECTIVO' | 'TRANSFERENCIA'>) {
     return this.http.patch(`${this.base}/${id}/pay`, { medioPago }, { withCredentials: true });
   }
 
-  cancelReplenishment(id: string, motivo: string) {
+  cancelExpense(id: string, motivo: string) {
     return this.http.patch<FinancialMovement>(
-      `${this.base}/${id}/cancel-replenishment`,
+      `${this.base}/${id}/cancel-expense`,
       { motivo },
       { withCredentials: true },
     );

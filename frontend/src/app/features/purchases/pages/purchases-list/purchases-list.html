@@ -89,7 +89,7 @@
           [class.cancelled-status]="purchase.estado === 'CANCELADA'"
           >{{
             purchase.estado === 'CANCELADA' ? 'Cancelada' : purchase.pagada ? 'Pagada' : 'A pagar'
-          }}</span
+          }}<small>{{ paymentLabel(purchase.medioPago) }}</small></span
         >
         <div class="row-actions">
           @if (purchase.estado === 'CONFIRMADA' && !purchase.pagada) {
@@ -137,7 +137,7 @@
           ><span>Forma de pago *</span
           ><app-searchable-select
             [(ngModel)]="paymentMethod"
-            [options]="paymentOptions"
+            [options]="paymentOptions()"
             [clearable]="false"
         /></label>
         @if (paymentMethod === 'CUENTA_CORRIENTE') {

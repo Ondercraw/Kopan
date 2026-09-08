@@ -177,6 +177,13 @@ export class PurchasesService {
     const byId = new Map(products.map((p) => [p._id.toString(), p]));
     const purchaseDate = purchaseDateTime(dto.purchaseDate);
     if (
+      dto.paymentMethod === PurchasePaymentMethod.HISTORICAL &&
+      dto.kind !== PurchaseKind.OPENING_STOCK
+    )
+      throw new BadRequestException(
+        'Pagado antes de usar el sistema solo se admite al valorar stock existente',
+      );
+    if (
       !Number.isSafeInteger(
         dto.items.reduce(
           (sum, item) => sum + item.quantity * item.unitCostCents,
@@ -190,7 +197,11 @@ export class PurchasesService {
     if (
       dto.dueDate &&
       new Date(dto.dueDate).getTime() <
-        new Date(new Date(purchaseDate.getTime() - 3 * 60 * 60 * 1000).toISOString().slice(0, 10)).getTime()
+        new Date(
+          new Date(purchaseDate.getTime() - 3 * 60 * 60 * 1000)
+            .toISOString()
+            .slice(0, 10),
+        ).getTime()
     )
       throw new BadRequestException(
         'El vencimiento no puede ser anterior a la compra',

@@ -131,6 +131,21 @@
   cursor: pointer;
 }
 
+/* Hay dos acciones posibles en gastos pendientes; esta columna evita que se corten. */
+@media (min-width: 1051px) {
+  .head,
+  .movement-list > article {
+    grid-template-columns: 145px minmax(220px, 1fr) 145px 135px 130px 170px;
+  }
+}
+
+.action {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 6px;
+}
+
 .danger:disabled {
   cursor: wait;
   opacity: 0.65;

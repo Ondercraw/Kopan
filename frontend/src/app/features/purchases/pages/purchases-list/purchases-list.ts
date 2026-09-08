@@ -85,7 +85,7 @@ export class PurchasesListPage implements OnInit {
       (option) => this.inventory().find((p) => p._id === option.value)!.unvaluedQuantity > 0,
     ),
   );
-  readonly paymentOptions: SearchableSelectOption[] = [
+  readonly standardPaymentOptions: SearchableSelectOption[] = [
     { value: 'EFECTIVO', label: 'Efectivo' },
     { value: 'TRANSFERENCIA', label: 'Transferencia / Mercado Pago' },
     {
@@ -94,7 +94,17 @@ export class PurchasesListPage implements OnInit {
       meta: 'Queda pendiente hasta pagar la deuda completa',
     },
   ];
-  readonly payOptions = this.paymentOptions.slice(0, 2);
+  readonly historicalPaymentOption: SearchableSelectOption = {
+    value: 'PAGADO_ANTES_SISTEMA',
+    label: 'Pagado antes de usar el sistema',
+    meta: 'Queda registrado sin descontar el saldo disponible actual',
+  };
+  readonly payOptions = this.standardPaymentOptions.slice(0, 2);
+  paymentOptions() {
+    return this.modalMode() === 'STOCK_INICIAL'
+      ? [...this.standardPaymentOptions, this.historicalPaymentOption]
+      : this.standardPaymentOptions;
+  }
   totalCents() {
     return this.lines.reduce(
       (sum, line) =>
@@ -141,7 +151,7 @@ export class PurchasesListPage implements OnInit {
     this.error.set(null);
     this.modalMode.set(mode);
     this.supplierId = '';
-    this.paymentMethod = 'EFECTIVO';
+    this.paymentMethod = mode === 'STOCK_INICIAL' ? 'PAGADO_ANTES_SISTEMA' : 'EFECTIVO';
     this.purchaseDate = argentinaToday();
     this.dueDate = '';
     this.documentNumber = '';
@@ -316,5 +326,11 @@ export class PurchasesListPage implements OnInit {
   }
   productName(id: string) {
     return this.inventory().find((product) => product._id === id)?.nombre ?? 'Producto';
+  }
+  paymentLabel(method: PurchasePaymentMethod) {
+    if (method === 'PAGADO_ANTES_SISTEMA') return 'Pagado antes del sistema';
+    if (method === 'CUENTA_CORRIENTE') return 'Cuenta corriente';
+    if (method === 'TRANSFERENCIA') return 'Transferencia / MP';
+    return 'Efectivo';
   }
 }

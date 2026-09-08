@@ -1,4 +1,13 @@
-import { Body, Controller, Get, Param, Patch, Post, Query, UseGuards } from '@nestjs/common';
+import {
+  Body,
+  Controller,
+  Get,
+  Param,
+  Patch,
+  Post,
+  Query,
+  UseGuards,
+} from '@nestjs/common';
 import { CurrentUser } from '../../common/decorators/current-user.decorator';
 import { Roles } from '../../common/decorators/roles.decorator';
 import { UserRole } from '../../common/enums/user-role.enum';
@@ -22,7 +31,10 @@ export class FinanceController {
   @Post('reconcile') reconcile() {
     return this.service.reconcile();
   }
-  @Post('expenses') createExpense(@Body() dto: CreateExpenseDto, @CurrentUser() user: JwtPayload) {
+  @Post('expenses') createExpense(
+    @Body() dto: CreateExpenseDto,
+    @CurrentUser() user: JwtPayload,
+  ) {
     return this.service.createExpense(dto, { id: user.sub, name: user.nombre });
   }
   @Patch(':id/pay') payExpense(
@@ -30,14 +42,29 @@ export class FinanceController {
     @Body() dto: PayExpenseDto,
     @CurrentUser() user: JwtPayload,
   ) {
-    return this.service.payExpense(id, dto.medioPago, { id: user.sub, name: user.nombre });
+    return this.service.payExpense(id, dto.medioPago, {
+      id: user.sub,
+      name: user.nombre,
+    });
   }
+  @Patch(':id/cancel-expense') cancelExpense(
+    @Param('id', MongoIdPipe) id: string,
+    @Body() dto: CancelReplenishmentDto,
+    @CurrentUser() user: JwtPayload,
+  ) {
+    return this.service.cancelExpense(id, dto.motivo, {
+      id: user.sub,
+      name: user.nombre,
+    });
+  }
+
+  // Compatibilidad con clientes del preview anterior.
   @Patch(':id/cancel-replenishment') cancelReplenishment(
     @Param('id', MongoIdPipe) id: string,
     @Body() dto: CancelReplenishmentDto,
     @CurrentUser() user: JwtPayload,
   ) {
-    return this.service.cancelReplenishment(id, dto.motivo, {
+    return this.service.cancelExpense(id, dto.motivo, {
       id: user.sub,
       name: user.nombre,
     });

@@ -12,4 +12,5 @@ export enum PurchasePaymentMethod {
   CASH = 'EFECTIVO',
   TRANSFER = 'TRANSFERENCIA',
   CREDIT = 'CUENTA_CORRIENTE',
+  HISTORICAL = 'PAGADO_ANTES_SISTEMA',
 }

@@ -251,11 +251,15 @@ export class IncomeExpensesPage implements OnInit {
     if (!item || this.cancelReason.trim().length < 3 || this.cancelReason.trim().length > 300)
       return;
     this.saving.set(true);
-    this.api.cancelReplenishment(item._id, this.cancelReason.trim()).subscribe({
+    this.api.cancelExpense(item._id, this.cancelReason.trim()).subscribe({
       next: () => {
         this.cancelling.set(null);
         this.saving.set(false);
-        this.success.set('Pago de reposición cancelado y stock actualizado');
+        this.success.set(
+          this.isManualReplenishment(item)
+            ? 'Movimiento cancelado y stock actualizado'
+            : 'Gasto cancelado correctamente',
+        );
         this.load();
       },
       error: (e) => {
@@ -308,6 +312,7 @@ export class IncomeExpensesPage implements OnInit {
     return 'Ingreso de venta';
   }
   method(v: FinancialPaymentMethod | null) {
+    if (v === 'PAGADO_ANTES_SISTEMA') return 'Pagado antes del sistema';
     if (v === 'TRANSFERENCIA') return 'Transferencia / MP';
     if (v === 'CREDITO') return 'Cuenta corriente';
     if (v === 'CHEQUE') return 'Cheque';

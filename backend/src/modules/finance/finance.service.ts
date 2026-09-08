@@ -267,33 +267,63 @@ export class FinanceService {
     );
   }
 
-  async cancelReplenishment(id: string, reason: string, actor: FinanceActor) {
-    return this.productModel.db.transaction(() => this.cancelReplenishmentInTransaction(id, reason, actor));
+  async cancelExpense(id: string, reason: string, actor: FinanceActor) {
+    return this.productModel.db.transaction(() =>
+      this.cancelExpenseInTransaction(id, reason, actor),
+    );
   }
 
-  private async cancelReplenishmentInTransaction(id: string, reason: string, actor: FinanceActor) {
+  private async cancelExpenseInTransaction(
+    id: string,
+    reason: string,
+    actor: FinanceActor,
+  ) {
     const movement = await this.movementModel.findById(id).exec();
-    if (!movement)
-      throw new NotFoundException('Gasto de reposición no encontrado');
+    if (!movement) throw new NotFoundException('Gasto no encontrado');
     if (
       movement.tipo !== FinancialMovementKind.EXPENSE ||
-      movement.categoria !== FinancialMovementCategory.REPLENISHMENT ||
-      !movement.sourceKey.startsWith('stock:')
+      ![
+        FinancialMovementCategory.REPLENISHMENT,
+        FinancialMovementCategory.MANUAL,
+      ].includes(movement.categoria)
     ) {
       throw new ConflictException(
-        'Solo se pueden cancelar reposiciones manuales de stock',
-      );
-    }
-    if (!movement.pagado) {
-      throw new ConflictException(
-        'La reposición todavía está pendiente de pago',
+        'Este gasto debe administrarse desde su módulo de origen',
       );
     }
     if (movement.cancelado) {
       throw new ConflictException(
-        'La reposición ya fue cancelada y no puede modificarse',
+        'El gasto ya fue cancelado y no puede modificarse',
       );
     }
+
+    const cancellationReason = reason.trim();
+    const cancelledAt = new Date();
+    const claimed = await this.movementModel
+      .findOneAndUpdate(
+        { _id: movement._id, cancelado: { $ne: true } },
+        {
+          $set: {
+            cancelado: true,
+            motivoCancelacion: cancellationReason,
+            canceladoAt: cancelledAt,
+            canceladoPorId: actor.id,
+            canceladoPorNombre: actor.name,
+          },
+        },
+        { new: true },
+      )
+      .exec();
+    if (!claimed) {
+      throw new ConflictException(
+        'El gasto ya fue cancelado y no puede modificarse',
+      );
+    }
+
+    const reversesStock =
+      movement.categoria === FinancialMovementCategory.REPLENISHMENT &&
+      movement.sourceKey.startsWith('stock:');
+    if (!reversesStock) return claimed;
 
     const legacyMovementId = movement.sourceKey.split(':')[1];
     const stockMovementId =
@@ -318,31 +348,10 @@ export class FinanceService {
       );
     }
 
-    const cancellationReason = reason.trim();
-    const cancelledAt = new Date();
-    const claimed = await this.movementModel
-      .findOneAndUpdate(
-        { _id: movement._id, pagado: true, cancelado: { $ne: true } },
-        {
-          $set: {
-            cancelado: true,
-            motivoCancelacion: cancellationReason,
-            canceladoAt: cancelledAt,
-            canceladoPorId: actor.id,
-            canceladoPorNombre: actor.name,
-            stockMovementId: stockMovement._id,
-            productoId: stockMovement.productId,
-            unidadesReposicion: units,
-          },
-        },
-        { new: true },
-      )
-      .exec();
-    if (!claimed) {
-      throw new ConflictException(
-        'La reposición ya fue cancelada y no puede modificarse',
-      );
-    }
+    claimed.stockMovementId = stockMovement._id;
+    claimed.productoId = stockMovement.productId;
+    claimed.unidadesReposicion = units;
+    await claimed.save();
 
     const product = await this.productModel
       .findOneAndUpdate(
@@ -376,7 +385,12 @@ export class FinanceService {
     }
 
     try {
-      product.costoCentavos = await this.inventoryLots.adjust(product._id, -units, product.cantidadStock + units, product.costoCentavos);
+      product.costoCentavos = await this.inventoryLots.adjust(
+        product._id,
+        -units,
+        product.cantidadStock + units,
+        product.costoCentavos,
+      );
       await product.save();
       await this.stockMovementModel.create({
         productId: product._id,
