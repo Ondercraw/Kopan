@@ -73,7 +73,7 @@
           /></label>
         </div>
         <div class="table-head">
-          <span>Producto</span><span>Costo</span><span>IVA</span><span>Precio s/IVA Y Final</span>
+          <span>Producto</span><span>Costo</span><span>IVA</span><span>Precio final y base</span>
         </div>
         @for (product of visibleProducts(); track product._id) {
           <article class="product-row">
@@ -92,20 +92,20 @@
             ><span>{{ product.alicuotaIva ?? 21 }}%</span>
             <div class="price-cell">
               @if (currentPrice(product._id) !== null) {
-                <small>Base {{ money(currentPrice(product._id)) }}</small>
                 <strong
-                  >Final (IVA) {{ money(finalPrice(product, currentPrice(product._id))) }}</strong
+                  >Final con IVA {{ money(finalPrice(product, currentPrice(product._id))) }}</strong
                 >
+                <small>Precio base sin IVA: {{ money(currentPrice(product._id)) }}</small>
               } @else {
                 <strong>Sin precio</strong>
               }
               @if (canEdit()) {
                 <div class="price-editor">
                   <app-currency-input
-                    [ngModel]="draftPrice(product._id)"
+                    [ngModel]="draftPrice(product)"
                     (ngModelChange)="updateDraftPrice(product._id, $event)"
                     [ngModelOptions]="{ standalone: true }"
-                    [ariaLabel]="'Precio de venta sin IVA de ' + product.nombre"
+                    [ariaLabel]="'Precio final con IVA de ' + product.nombre"
                   /><button type="button" class="save-price" (click)="requestPriceSave(product)">
                     Guardar
                   </button>
@@ -148,9 +148,32 @@
                 @if (history.closingSnapshot; as closing) {
                   <div class="layers">
                     <h3>Último registro al cierre del {{ closing.date }}</h3>
-                    <p>Stock: {{ closing.stock ? closing.stock.currentStock + ' unidades' : 'Sin registro histórico' }} ·
-                      Costo promedio: {{ closing.stock?.currentAverageCostCents != null ? money(closing.stock!.currentAverageCostCents) : 'Sin registro histórico' }} ·
-                      Precio de venta neto: {{ closing.price ? money(closing.price.precioCentavos) : 'Sin registro histórico' }}</p>
+                    <p>
+                      Stock:
+                      {{
+                        closing.stock
+                          ? closing.stock.currentStock + ' unidades'
+                          : 'Sin registro histórico'
+                      }}
+                      · Costo promedio:
+                      {{
+                        closing.stock?.currentAverageCostCents != null
+                          ? money(closing.stock!.currentAverageCostCents)
+                          : 'Sin registro histórico'
+                      }}
+                      · Precio base sin IVA:
+                      {{
+                        closing.price
+                          ? money(closing.price.precioCentavos)
+                          : 'Sin registro histórico'
+                      }}
+                      · Precio final:
+                      {{
+                        closing.price
+                          ? money(finalPrice(product, closing.price.precioCentavos))
+                          : 'Sin registro histórico'
+                      }}
+                    </p>
                   </div>
                 }
                 <div class="timeline">
@@ -206,9 +229,13 @@
                       <time>{{ price.vigenteDesde | date: 'dd/MM/yyyy HH:mm' }}</time>
                       <div>
                         <strong
-                          >{{ money(price.precioAnteriorCentavos) }} →
-                          {{ money(price.precioCentavos) }}</strong
-                        ><small>Modificado por {{ price.actorName }}</small>
+                          >Final {{ money(finalPrice(product, price.precioAnteriorCentavos)) }} →
+                          {{ money(finalPrice(product, price.precioCentavos)) }}</strong
+                        ><small
+                          >Base sin IVA: {{ money(price.precioAnteriorCentavos) }} →
+                          {{ money(price.precioCentavos) }} · Modificado por
+                          {{ price.actorName }}</small
+                        >
                       </div>
                     </article>
                   } @empty {
@@ -236,15 +263,19 @@
   <app-confirmation-modal
     title="Confirmar precio de venta"
     [message]="
-      '¿Guardar ' + money(pending.amount * 100) + ' sin IVA para ' + pending.product.nombre + '?'
+      '¿Guardar el precio final de ' +
+      money(pending.amount * 100) +
+      ' para ' +
+      pending.product.nombre +
+      '?'
     "
     [detail]="
       'Se actualizará únicamente en la lista ' +
       (selected()?.nombre ?? 'seleccionada') +
       '. Con IVA ' +
       pending.product.alicuotaIva +
-      '%, el precio final será ' +
-      money(finalPrice(pending.product, pending.amount * 100)) +
+      '%, el precio base sin IVA será ' +
+      money(basePrice(pending.product, pending.amount * 100)) +
       '.'
     "
     confirmLabel="Guardar precio"

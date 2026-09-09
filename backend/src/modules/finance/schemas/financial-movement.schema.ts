@@ -46,6 +46,11 @@ export class FinancialMovement {
     FinancialPaymentMethod.CASH | FinancialPaymentMethod.TRANSFER | null;
   @Prop({ required: true, default: false }) disponible: boolean;
   @Prop({ required: true, default: false }) pagado: boolean;
+  @Prop({ required: true, min: 0, default: 0 }) montoPagadoCentavos: number;
+  @Prop({ required: true, min: 0, default: 0 })
+  montoPagadoEfectivoCentavos: number;
+  @Prop({ required: true, min: 0, default: 0 })
+  montoPagadoTransferenciaCentavos: number;
   @Prop({ type: Date, default: null }) pagadoAt: Date | null;
   @Prop({ required: true, default: false, index: true }) cancelado: boolean;
   @Prop({ trim: true, maxlength: 300, default: '' }) motivoCancelacion: string;

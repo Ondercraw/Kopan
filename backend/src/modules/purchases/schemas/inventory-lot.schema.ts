@@ -22,6 +22,13 @@ export class InventoryLot {
   })
   purchaseId: Types.ObjectId;
   @Prop({ type: Number, default: null }) purchaseCode: number | null;
+  @Prop({
+    default: null,
+    type: MongooseSchema.Types.ObjectId,
+    ref: 'StockMovement',
+    index: true,
+  })
+  stockMovementId: Types.ObjectId | null;
   @Prop({ min: 1, default: 1 }) lineNumber: number;
   @Prop({
     default: null,

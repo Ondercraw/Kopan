@@ -16,6 +16,7 @@ describe('StockService', () => {
   let findOneAndUpdate: jest.Mock;
   let findById: jest.Mock;
   let createMovement: jest.Mock;
+  let adjustInventory: jest.Mock;
   let service: StockService;
   let recordStockReplenishment: jest.Mock;
   const actor = { id: new Types.ObjectId().toString(), name: 'Administrador' };
@@ -28,15 +29,13 @@ describe('StockService', () => {
       findById,
     } as unknown as Model<ProductDocument>;
     const counterModel = {} as Model<CounterDocument>;
-    createMovement = jest
-      .fn()
-      .mockImplementation((data) =>
-        Promise.resolve({
-          _id: new Types.ObjectId(),
-          createdAt: new Date(),
-          ...data,
-        }),
-      );
+    createMovement = jest.fn().mockImplementation((data) =>
+      Promise.resolve({
+        _id: new Types.ObjectId(),
+        createdAt: new Date(),
+        ...data,
+      }),
+    );
     const movementModel = {
       create: createMovement,
     } as unknown as Model<StockMovementDocument>;
@@ -47,12 +46,14 @@ describe('StockService', () => {
     const financeService = {
       recordStockReplenishment,
     } as unknown as FinanceService;
+    adjustInventory = jest.fn().mockResolvedValue(1500);
     service = new StockService(
       productModel,
       counterModel,
       movementModel,
       suppliersService,
-      { adjust: jest.fn().mockResolvedValue(1500) } as never,
+      { adjust: adjustInventory } as never,
+      financeService,
       { transaction: (callback: () => unknown) => callback() } as never,
     );
   });
@@ -115,7 +116,22 @@ describe('StockService', () => {
     );
     expect(result.previousStock).toBe(0);
     expect(result.product.cantidadStock).toBe(1);
-    expect(recordStockReplenishment).not.toHaveBeenCalled();
+    const createdMovement = createMovement.mock.calls[0][0];
+    expect(createdMovement._id).toBeInstanceOf(Types.ObjectId);
+    expect(adjustInventory).toHaveBeenCalledWith(
+      product._id,
+      1,
+      0,
+      product.costoCentavos,
+      createdMovement._id,
+    );
+    expect(recordStockReplenishment).toHaveBeenCalledWith(
+      expect.objectContaining({
+        stockMovementId: createdMovement._id,
+        productId: product._id,
+        units: 1,
+      }),
+    );
   });
 
   it('registra el cambio de stock mínimo sin modificar la cantidad actual', async () => {
@@ -208,7 +224,12 @@ describe('StockService', () => {
         reason: 'Corrección de inventario: ingreso de 15 unidades - Remito 145',
       }),
     );
-    expect(recordStockReplenishment).not.toHaveBeenCalled();
+    expect(recordStockReplenishment).toHaveBeenCalledWith(
+      expect.objectContaining({
+        productId: product._id,
+        units: 15,
+      }),
+    );
   });
 
   it('rechaza una resta masiva mayor al stock disponible', async () => {

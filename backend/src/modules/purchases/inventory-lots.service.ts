@@ -92,13 +92,19 @@ export class InventoryLotsService {
     delta: number,
     previousStock: number,
     cost: number,
+    stockMovementId?: Types.ObjectId,
   ) {
     if (delta < 0)
-      return (await this.consumeFifo(productId, -delta, cost, previousStock))
-        .remainingAverageCostCents;
+      return this.consumeManualAdjustment(
+        productId,
+        -delta,
+        cost,
+        previousStock,
+      );
     if (delta > 0)
       await this.lotModel.create({
         productId,
+        stockMovementId: stockMovementId ?? null,
         initialQuantity: delta,
         remainingQuantity: delta,
         unitCostCents: cost,
@@ -108,5 +114,91 @@ export class InventoryLotsService {
       });
     const summary = await this.summary(productId);
     return summary.quantity ? summary.averageCostCents : cost;
+  }
+
+  /**
+   * Una corrección manual consume primero los últimos ingresos manuales. Así,
+   * una unidad agregada por error queda enlazada con su posterior resta y no
+   * provoca un segundo descuento al cancelar el gasto asociado.
+   */
+  private async consumeManualAdjustment(
+    productId: Types.ObjectId,
+    quantity: number,
+    fallbackCostCents: number,
+    physicalStockBefore: number,
+  ): Promise<number> {
+    const adjustmentLots = await this.lotModel
+      .find({
+        productId,
+        kind: 'AJUSTE',
+        cancelled: false,
+        remainingQuantity: { $gt: 0 },
+      })
+      .sort({ receivedAt: -1, createdAt: -1 })
+      .exec();
+    let remaining = quantity;
+    for (const lot of adjustmentLots) {
+      if (!remaining) break;
+      const used = Math.min(remaining, lot.remainingQuantity);
+      lot.remainingQuantity -= used;
+      remaining -= used;
+      await lot.save();
+    }
+    if (remaining) {
+      await this.consumeFifo(
+        productId,
+        remaining,
+        fallbackCostCents,
+        physicalStockBefore - (quantity - remaining),
+      );
+    }
+    return this.averageIncludingUnvalued(
+      productId,
+      physicalStockBefore - quantity,
+      fallbackCostCents,
+    );
+  }
+
+  async linkedAdjustmentRemaining(
+    stockMovementId: Types.ObjectId,
+  ): Promise<number | null> {
+    const lot = await this.lotModel
+      .findOne({ stockMovementId, kind: 'AJUSTE', cancelled: false })
+      .exec();
+    return lot ? lot.remainingQuantity : null;
+  }
+
+  async cancelLinkedAdjustment(
+    stockMovementId: Types.ObjectId,
+    productId: Types.ObjectId,
+    physicalStockAfter: number,
+    fallbackCostCents: number,
+  ): Promise<number> {
+    const lot = await this.lotModel
+      .findOne({ stockMovementId, kind: 'AJUSTE', cancelled: false })
+      .exec();
+    if (lot) {
+      lot.remainingQuantity = 0;
+      lot.cancelled = true;
+      await lot.save();
+    }
+    return this.averageIncludingUnvalued(
+      productId,
+      physicalStockAfter,
+      fallbackCostCents,
+    );
+  }
+
+  private async averageIncludingUnvalued(
+    productId: Types.ObjectId,
+    physicalStock: number,
+    fallbackCostCents: number,
+  ): Promise<number> {
+    if (physicalStock <= 0) return 0;
+    const summary = await this.summary(productId);
+    const unvaluedQuantity = Math.max(0, physicalStock - summary.quantity);
+    return Math.round(
+      (summary.value + unvaluedQuantity * fallbackCostCents) / physicalStock,
+    );
   }
 }

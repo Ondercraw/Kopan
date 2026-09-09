@@ -1,5 +1,5 @@
-import { IsString, MaxLength, MinLength } from 'class-validator';
+import { IsOptional, IsString, MaxLength } from 'class-validator';
 
 export class CancelPurchaseDto {
-  @IsString() @MinLength(3) @MaxLength(300) reason: string;
+  @IsOptional() @IsString() @MaxLength(300) reason?: string;
 }

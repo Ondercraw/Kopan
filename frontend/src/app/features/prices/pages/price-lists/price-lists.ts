@@ -79,6 +79,7 @@ export class PriceListsPage implements OnInit {
   open(list: PriceList) {
     this.historyProductId.set(null);
     this.historyData.set(null);
+    this.draftPrices.set({});
     this.prices.findOne(list._id).subscribe({
       next: (d) => this.selected.set(d),
       error: () => this.error.set('No se pudo abrir la lista'),
@@ -109,14 +110,17 @@ export class PriceListsPage implements OnInit {
       null
     );
   }
-  draftPrice(productId: string) {
-    return this.draftPrices()[productId] ?? (this.currentPrice(productId) ?? 0) / 100;
+  draftPrice(product: Product) {
+    return (
+      this.draftPrices()[product._id] ??
+      (this.finalPrice(product, this.currentPrice(product._id)) ?? 0) / 100
+    );
   }
   updateDraftPrice(productId: string, value: number) {
     this.draftPrices.update((current) => ({ ...current, [productId]: value }));
   }
   requestPriceSave(product: Product) {
-    const amount = this.draftPrice(product._id);
+    const amount = this.draftPrice(product);
     if (!Number.isFinite(amount) || amount < 0) {
       this.error.set('Ingresá un precio válido');
       return;
@@ -129,21 +133,21 @@ export class PriceListsPage implements OnInit {
       pending = this.pendingPrice();
     if (!list || !pending || this.savingPrice()) return;
     this.savingPrice.set(true);
-    this.prices
-      .setPrice(list._id, pending.product._id, Math.round(pending.amount * 100))
-      .subscribe({
-        next: () => {
-          this.success.set(`Precio de ${pending.product.nombre} actualizado`);
-          this.pendingPrice.set(null);
-          this.savingPrice.set(false);
-          this.open(list);
-        },
-        error: (e) => {
-          this.error.set(e.error?.message ?? 'No se pudo guardar el precio');
-          this.savingPrice.set(false);
-          this.pendingPrice.set(null);
-        },
-      });
+    const finalCents = Math.round(pending.amount * 100);
+    const baseCents = this.basePrice(pending.product, finalCents);
+    this.prices.setPrice(list._id, pending.product._id, baseCents).subscribe({
+      next: () => {
+        this.success.set(`Precio de ${pending.product.nombre} actualizado`);
+        this.pendingPrice.set(null);
+        this.savingPrice.set(false);
+        this.open(list);
+      },
+      error: (e) => {
+        this.error.set(e.error?.message ?? 'No se pudo guardar el precio');
+        this.savingPrice.set(false);
+        this.pendingPrice.set(null);
+      },
+    });
   }
   money(cents: number | null) {
     return cents === null
@@ -154,6 +158,9 @@ export class PriceListsPage implements OnInit {
     return netCents === null
       ? null
       : Math.round(netCents * (1 + Number(product.alicuotaIva ?? 21) / 100));
+  }
+  basePrice(product: Product, finalCents: number): number {
+    return Math.round(finalCents / (1 + Number(product.alicuotaIva ?? 21) / 100));
   }
   toggleHistory(product: Product) {
     if (this.historyProductId() === product._id) {

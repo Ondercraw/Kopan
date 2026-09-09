@@ -54,6 +54,11 @@ export class Purchase {
   })
   medioPago: PurchasePaymentMethod;
   @Prop({ required: true, default: false, index: true }) pagada: boolean;
+  @Prop({ required: true, min: 0, default: 0 }) montoPagadoCentavos: number;
+  @Prop({ required: true, min: 0, default: 0 })
+  montoPagadoEfectivoCentavos: number;
+  @Prop({ required: true, min: 0, default: 0 })
+  montoPagadoTransferenciaCentavos: number;
   @Prop({ type: Date, default: null }) pagadaAt: Date | null;
   @Prop({ type: Date, default: null, index: true }) vencimiento: Date | null;
   @Prop({ trim: true, maxlength: 80, default: '' }) numeroComprobante: string;

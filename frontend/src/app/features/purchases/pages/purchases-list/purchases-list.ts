@@ -64,6 +64,7 @@ export class PurchasesListPage implements OnInit {
   lines: DraftLine[] = [];
   actionPayment: 'EFECTIVO' | 'TRANSFERENCIA' = 'EFECTIVO';
   cancellationReason = '';
+  actionPaymentAmount = 0;
   from = '';
   to = '';
   readonly supplierOptions = computed<SearchableSelectOption[]>(() =>
@@ -317,6 +318,7 @@ export class PurchasesListPage implements OnInit {
     this.actionPurchase.set(purchase);
     this.actionMode.set(mode);
     this.actionPayment = 'EFECTIVO';
+    this.actionPaymentAmount = this.purchaseRemainingCents(purchase) / 100;
     this.cancellationReason = '';
   }
   openAccountPayment(account: SupplierAccount) {
@@ -355,19 +357,33 @@ export class PurchasesListPage implements OnInit {
     const p = this.actionPurchase();
     const mode = this.actionMode();
     if (!p || !mode || this.saving()) return;
-    if (mode === 'CANCEL' && this.cancellationReason.trim().length < 3) {
-      this.error.set('Ingresá un motivo de al menos 3 caracteres');
+    if (mode === 'CANCEL' && this.cancellationReason.trim().length > 300) {
+      this.error.set('El motivo no puede superar los 300 caracteres');
+      return;
+    }
+    const amountCents = Math.round(this.actionPaymentAmount * 100);
+    if (
+      mode === 'PAY' &&
+      (!Number.isSafeInteger(amountCents) ||
+        amountCents <= 0 ||
+        amountCents > this.purchaseRemainingCents(p))
+    ) {
+      this.error.set('Ingresá un importe mayor a cero y menor o igual al saldo pendiente');
       return;
     }
     this.saving.set(true);
     const request =
       mode === 'PAY'
-        ? this.service.pay(p._id, this.actionPayment)
+        ? this.service.pay(p._id, this.actionPayment, amountCents)
         : this.service.cancel(p._id, this.cancellationReason.trim());
     request.subscribe({
       next: () => {
         this.success.set(
-          mode === 'PAY' ? 'Deuda pagada completamente' : 'Compra cancelada y stock revertido',
+          mode === 'PAY'
+            ? amountCents === this.purchaseRemainingCents(p)
+              ? 'Deuda pagada completamente'
+              : 'Pago parcial registrado correctamente'
+            : 'Compra cancelada y stock revertido',
         );
         this.saving.set(false);
         this.closeAction();
@@ -400,5 +416,13 @@ export class PurchasesListPage implements OnInit {
     if (method === 'CUENTA_CORRIENTE') return 'Cuenta corriente';
     if (method === 'TRANSFERENCIA') return 'Transferencia / MP';
     return 'Efectivo';
+  }
+
+  purchasePaidCents(purchase: Purchase) {
+    return purchase.montoPagadoCentavos ?? (purchase.pagada ? purchase.totalCentavos : 0);
+  }
+
+  purchaseRemainingCents(purchase: Purchase) {
+    return Math.max(0, purchase.totalCentavos - this.purchasePaidCents(purchase));
   }
 }

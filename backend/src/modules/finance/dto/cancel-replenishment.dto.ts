@@ -1,8 +1,8 @@
-import { IsString, MaxLength, MinLength } from 'class-validator';
+import { IsOptional, IsString, MaxLength } from 'class-validator';
 
 export class CancelReplenishmentDto {
+  @IsOptional()
   @IsString()
-  @MinLength(3)
   @MaxLength(300)
-  motivo: string;
+  motivo?: string;
 }

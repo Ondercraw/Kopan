@@ -88,9 +88,21 @@
           [class.pending]="!purchase.pagada"
           [class.cancelled-status]="purchase.estado === 'CANCELADA'"
           >{{
-            purchase.estado === 'CANCELADA' ? 'Cancelada' : purchase.pagada ? 'Pagada' : 'A pagar'
-          }}<small>{{ paymentLabel(purchase.medioPago) }}</small></span
-        >
+            purchase.estado === 'CANCELADA'
+              ? 'Cancelada'
+              : purchase.pagada
+                ? 'Pagada'
+                : purchasePaidCents(purchase) > 0
+                  ? 'Pago parcial'
+                  : 'A pagar'
+          }}<small>{{ paymentLabel(purchase.medioPago) }}</small>
+          @if (purchase.estado !== 'CANCELADA' && purchasePaidCents(purchase) > 0) {
+            <small
+              >Pagado: {{ money(purchasePaidCents(purchase)) }} · Resta:
+              {{ money(purchaseRemainingCents(purchase)) }}</small
+            >
+          }
+        </span>
         <div class="row-actions">
           @if (purchase.estado === 'CONFIRMADA' && !purchase.pagada) {
             <button type="button" (click)="openAction(purchase, 'PAY')">Pagar</button>
@@ -102,7 +114,9 @@
           }
         </div>
         @if (purchase.estado === 'CANCELADA') {
-          <p class="cancel-reason">Motivo: {{ purchase.motivoCancelacion }}</p>
+          <p class="cancel-reason">
+            Motivo: {{ purchase.motivoCancelacion || 'Sin motivo informado' }}
+          </p>
         }
       </article>
     } @empty {
@@ -243,12 +257,23 @@
       <header>
         <div>
           <span>COMPRA #{{ purchase.codigo }}</span>
-          <h2>{{ actionMode() === 'PAY' ? 'Pagar deuda completa' : 'Cancelar compra' }}</h2>
+          <h2>{{ actionMode() === 'PAY' ? 'Registrar pago' : 'Cancelar compra' }}</h2>
         </div>
         <button type="button" class="icon" (click)="closeAction()"><i class="ti ti-x"></i></button>
       </header>
       @if (actionMode() === 'PAY') {
-        <p>Se pagarán {{ money(purchase.totalCentavos) }} a {{ purchase.proveedorNombre }}.</p>
+        <p>
+          Saldo pendiente: {{ money(purchaseRemainingCents(purchase)) }} a
+          {{ purchase.proveedorNombre }}.
+        </p>
+        <label class="field"
+          ><span>Importe a pagar</span
+          ><app-currency-input
+            [(ngModel)]="actionPaymentAmount"
+            [ngModelOptions]="{ standalone: true }"
+            ariaLabel="Importe a pagar"
+          /><small>Máximo: {{ money(purchaseRemainingCents(purchase)) }}</small></label
+        >
         <label class="field"
           ><span>Medio de pago</span
           ><app-searchable-select
@@ -266,7 +291,7 @@
           Sólo es posible si los lotes siguen completos.
         </p>
         <label class="field"
-          ><span>Motivo *</span
+          ><span>Motivo <small>(opcional)</small></span
           ><textarea rows="3" maxlength="300" [(ngModel)]="cancellationReason"></textarea
           ><small>{{ cancellationReason.length }} / 300</small></label
         >

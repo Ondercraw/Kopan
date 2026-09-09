@@ -15,6 +15,9 @@ export interface FinancialMovement {
   acreditadoEn: Extract<FinancialPaymentMethod, 'EFECTIVO' | 'TRANSFERENCIA'> | null;
   disponible: boolean;
   pagado: boolean;
+  montoPagadoCentavos?: number;
+  montoPagadoEfectivoCentavos?: number;
+  montoPagadoTransferenciaCentavos?: number;
   pagadoAt: string | null;
   cancelado: boolean;
   motivoCancelacion: string;

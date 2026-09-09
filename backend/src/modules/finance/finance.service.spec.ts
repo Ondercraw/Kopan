@@ -201,4 +201,93 @@ describe('FinanceService', () => {
       );
     },
   );
+
+  it('no descuenta otro stock aunque el total sea 1201 si la unidad vinculada ya salió', async () => {
+    const productId = new Types.ObjectId();
+    const stockMovementId = new Types.ObjectId();
+    const movement = {
+      _id: new Types.ObjectId(),
+      tipo: FinancialMovementKind.EXPENSE,
+      categoria: FinancialMovementCategory.REPLENISHMENT,
+      sourceKey: `stock:${stockMovementId.toString()}:replenishment`,
+      stockMovementId,
+      unidadesReposicion: 1,
+      pagado: false,
+      cancelado: false,
+    };
+    const claimed = {
+      ...movement,
+      cancelado: true,
+      save: jest.fn().mockResolvedValue(undefined),
+    };
+    const movementModel = {
+      findById: jest.fn().mockReturnValue({
+        exec: jest.fn().mockResolvedValue(movement),
+      }),
+      findOneAndUpdate: jest.fn().mockReturnValue({
+        exec: jest.fn().mockResolvedValue(claimed),
+      }),
+      updateOne: jest.fn(),
+    };
+    const product = {
+      _id: productId,
+      codigo: 15,
+      nombre: 'Harina 0000 Cánepa',
+      activo: true,
+      cantidadStock: 1_201,
+      costoCentavos: 10_000,
+      save: jest.fn(),
+    };
+    const productModel = {
+      db: { transaction: jest.fn((work: () => unknown) => work()) },
+      findOne: jest.fn().mockReturnValue({
+        exec: jest.fn().mockResolvedValue(product),
+      }),
+      findOneAndUpdate: jest.fn(),
+      updateOne: jest.fn(),
+    };
+    const stockMovementModel = {
+      findById: jest.fn().mockReturnValue({
+        exec: jest.fn().mockResolvedValue({
+          _id: stockMovementId,
+          productId,
+          type: 'INCREMENT',
+          previousStock: 1_200,
+          currentStock: 1_201,
+        }),
+      }),
+      create: jest.fn(),
+    };
+    const inventoryLots = {
+      adjust: jest.fn(),
+      linkedAdjustmentRemaining: jest.fn().mockResolvedValue(0),
+      cancelLinkedAdjustment: jest.fn().mockResolvedValue(10_000),
+    };
+    const service = new FinanceService(
+      movementModel as never,
+      {} as never,
+      {} as never,
+      {} as never,
+      productModel as never,
+      stockMovementModel as never,
+      inventoryLots as never,
+    );
+
+    const result = await service.cancelExpense(movement._id.toString(), '', {
+      id: 'owner-id',
+      name: 'Dueño',
+    });
+
+    expect(result.cancelado).toBe(true);
+    expect(productModel.findOneAndUpdate).not.toHaveBeenCalled();
+    expect(inventoryLots.adjust).not.toHaveBeenCalled();
+    expect(inventoryLots.cancelLinkedAdjustment).toHaveBeenCalledWith(
+      stockMovementId,
+      productId,
+      1_201,
+      10_000,
+    );
+    expect(stockMovementModel.create).not.toHaveBeenCalled();
+    expect(product.cantidadStock).toBe(1_201);
+  });
 });

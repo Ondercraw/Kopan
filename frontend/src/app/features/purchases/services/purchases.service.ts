@@ -39,8 +39,12 @@ export class PurchasesService {
   }) {
     return this.http.post<Purchase>(this.base, payload, this.options);
   }
-  pay(id: string, paymentMethod: 'EFECTIVO' | 'TRANSFERENCIA') {
-    return this.http.patch<Purchase>(`${this.base}/${id}/pay`, { paymentMethod }, this.options);
+  pay(id: string, paymentMethod: 'EFECTIVO' | 'TRANSFERENCIA', amountCents: number) {
+    return this.http.patch<Purchase>(
+      `${this.base}/${id}/pay`,
+      { paymentMethod, amountCents },
+      this.options,
+    );
   }
   paySupplierAccount(id: string, paymentMethod: 'EFECTIVO' | 'TRANSFERENCIA') {
     return this.http.patch<{ paidPurchases: number; totalCents: number }>(

@@ -132,7 +132,14 @@ export class PurchasesService {
           $group: {
             _id: '$proveedorId',
             proveedorNombre: { $first: '$proveedorNombre' },
-            deudaCentavos: { $sum: '$totalCentavos' },
+            deudaCentavos: {
+              $sum: {
+                $subtract: [
+                  '$totalCentavos',
+                  { $ifNull: ['$montoPagadoCentavos', 0] },
+                ],
+              },
+            },
             compras: { $sum: 1 },
             proximoVencimiento: { $min: '$vencimiento' },
           },
@@ -327,6 +334,13 @@ export class PurchasesService {
         totalCentavos,
         medioPago: dto.paymentMethod,
         pagada: paid,
+        montoPagadoCentavos: paid ? totalCentavos : 0,
+        montoPagadoEfectivoCentavos:
+          dto.paymentMethod === PurchasePaymentMethod.CASH ? totalCentavos : 0,
+        montoPagadoTransferenciaCentavos:
+          dto.paymentMethod === PurchasePaymentMethod.TRANSFER
+            ? totalCentavos
+            : 0,
         pagadaAt: paid ? purchaseDate : null,
         vencimiento: dto.dueDate ? new Date(dto.dueDate) : null,
         numeroComprobante: dto.documentNumber?.trim() ?? '',
@@ -386,6 +400,13 @@ export class PurchasesService {
           : null,
         disponible: false,
         pagado: paid,
+        montoPagadoCentavos: paid ? totalCentavos : 0,
+        montoPagadoEfectivoCentavos:
+          dto.paymentMethod === PurchasePaymentMethod.CASH ? totalCentavos : 0,
+        montoPagadoTransferenciaCentavos:
+          dto.paymentMethod === PurchasePaymentMethod.TRANSFER
+            ? totalCentavos
+            : 0,
         pagadoAt: paid ? purchaseDate : null,
         fechaMovimiento: purchaseDate,
         proveedorId: supplier._id,
@@ -399,9 +420,14 @@ export class PurchasesService {
     }
   }
 
-  pay(id: string, method: PurchasePaymentMethod, actor: PurchaseActor) {
+  pay(
+    id: string,
+    method: PurchasePaymentMethod,
+    actor: PurchaseActor,
+    amountCents?: number,
+  ) {
     return this.connection.transaction(() =>
-      this.payInTransaction(id, method, actor),
+      this.payInTransaction(id, method, actor, amountCents),
     );
   }
 
@@ -409,33 +435,60 @@ export class PurchasesService {
     id: string,
     method: PurchasePaymentMethod,
     actor: PurchaseActor,
+    requestedAmountCents?: number,
   ) {
-    if (method === PurchasePaymentMethod.CREDIT)
+    if (
+      ![PurchasePaymentMethod.CASH, PurchasePaymentMethod.TRANSFER].includes(
+        method,
+      )
+    )
       throw new BadRequestException('Elegí efectivo o transferencia');
     const now = new Date();
     const purchase = await this.purchaseModel
-      .findOneAndUpdate(
-        {
-          _id: id,
-          estado: PurchaseStatus.CONFIRMED,
-          medioPago: PurchasePaymentMethod.CREDIT,
-          pagada: false,
-        },
-        { $set: { pagada: true, pagadaAt: now, medioPago: method } },
-        { new: true },
-      )
+      .findOne({
+        _id: id,
+        estado: PurchaseStatus.CONFIRMED,
+        medioPago: PurchasePaymentMethod.CREDIT,
+        pagada: false,
+      })
       .exec();
     if (!purchase)
       throw new ConflictException(
         'La compra no está pendiente o ya fue pagada',
       );
+    const paidCents = purchase.montoPagadoCentavos ?? 0;
+    const remainingCents = purchase.totalCentavos - paidCents;
+    const amountCents = requestedAmountCents ?? remainingCents;
+    if (!Number.isSafeInteger(amountCents) || amountCents <= 0)
+      throw new BadRequestException('Ingresá un importe válido');
+    if (amountCents > remainingCents)
+      throw new BadRequestException(
+        'El importe no puede superar el saldo pendiente',
+      );
+    const fullyPaid = amountCents === remainingCents;
+    purchase.montoPagadoCentavos = paidCents + amountCents;
+    if (method === PurchasePaymentMethod.CASH)
+      purchase.montoPagadoEfectivoCentavos =
+        (purchase.montoPagadoEfectivoCentavos ?? 0) + amountCents;
+    else
+      purchase.montoPagadoTransferenciaCentavos =
+        (purchase.montoPagadoTransferenciaCentavos ?? 0) + amountCents;
+    purchase.pagada = fullyPaid;
+    purchase.pagadaAt = fullyPaid ? now : null;
+    await purchase.save();
     await this.financeModel
       .updateOne(
         { compraId: purchase._id },
         {
+          $inc: {
+            montoPagadoCentavos: amountCents,
+            ...(method === PurchasePaymentMethod.CASH
+              ? { montoPagadoEfectivoCentavos: amountCents }
+              : { montoPagadoTransferenciaCentavos: amountCents }),
+          },
           $set: {
-            pagado: true,
-            pagadoAt: now,
+            pagado: fullyPaid,
+            pagadoAt: fullyPaid ? now : null,
             medioPago: method,
             actorId: actor.id,
             actorName: actor.name,
@@ -461,7 +514,11 @@ export class PurchasesService {
     method: PurchasePaymentMethod,
     actor: PurchaseActor,
   ) {
-    if (method === PurchasePaymentMethod.CREDIT)
+    if (
+      ![PurchasePaymentMethod.CASH, PurchasePaymentMethod.TRANSFER].includes(
+        method,
+      )
+    )
       throw new BadRequestException('Elegí efectivo o transferencia');
     const purchases = await this.purchaseModel
       .find({
@@ -473,34 +530,22 @@ export class PurchasesService {
       .exec();
     if (!purchases.length)
       throw new ConflictException('El proveedor no tiene deuda pendiente');
-    const now = new Date();
-    const ids = purchases.map((purchase) => purchase._id);
-    await this.purchaseModel
-      .updateMany(
-        { _id: { $in: ids }, pagada: false },
-        { $set: { pagada: true, pagadaAt: now, medioPago: method } },
-      )
-      .exec();
-    await this.financeModel
-      .updateMany(
-        { compraId: { $in: ids }, cancelado: { $ne: true } },
-        {
-          $set: {
-            pagado: true,
-            pagadoAt: now,
-            medioPago: method,
-            actorId: actor.id,
-            actorName: actor.name,
-          },
-        },
-      )
-      .exec();
+    let totalCents = 0;
+    for (const purchase of purchases) {
+      const paidCents = purchase.montoPagadoCentavos ?? 0;
+      const remainingCents = purchase.totalCentavos - paidCents;
+      if (remainingCents <= 0) continue;
+      await this.payInTransaction(
+        purchase._id.toString(),
+        method,
+        actor,
+        remainingCents,
+      );
+      totalCents += remainingCents;
+    }
     return {
-      paidPurchases: ids.length,
-      totalCents: purchases.reduce(
-        (sum, purchase) => sum + purchase.totalCentavos,
-        0,
-      ),
+      paidPurchases: purchases.length,
+      totalCents,
     };
   }
 

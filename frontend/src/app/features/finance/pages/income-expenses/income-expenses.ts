@@ -242,14 +242,13 @@ export class IncomeExpensesPage implements OnInit {
 
   invalidCancelReason() {
     const length = this.cancelReason.trim().length;
-    return this.cancelAttempted() && (length < 3 || length > 300);
+    return this.cancelAttempted() && length > 300;
   }
 
   confirmCancellation() {
     const item = this.cancelling();
     this.cancelAttempted.set(true);
-    if (!item || this.cancelReason.trim().length < 3 || this.cancelReason.trim().length > 300)
-      return;
+    if (!item || this.cancelReason.trim().length > 300) return;
     this.saving.set(true);
     this.api.cancelExpense(item._id, this.cancelReason.trim()).subscribe({
       next: () => {
@@ -264,6 +263,7 @@ export class IncomeExpensesPage implements OnInit {
       },
       error: (e) => {
         this.error.set(e.error?.message ?? 'No se pudo cancelar la reposición');
+        this.cancelling.set(null);
         this.saving.set(false);
       },
     });
@@ -318,6 +318,12 @@ export class IncomeExpensesPage implements OnInit {
     if (v === 'CHEQUE') return 'Cheque';
     if (v === 'EFECTIVO') return 'Efectivo';
     return 'Sin pagar';
+  }
+  movementPaidCents(item: FinancialMovement) {
+    return item.montoPagadoCentavos ?? (item.pagado ? item.montoCentavos : 0);
+  }
+  movementRemainingCents(item: FinancialMovement) {
+    return Math.max(0, item.montoCentavos - this.movementPaidCents(item));
   }
   private normalize(v: string) {
     return v

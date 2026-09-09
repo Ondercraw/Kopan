@@ -52,7 +52,7 @@ export class FinanceController {
     @Body() dto: CancelReplenishmentDto,
     @CurrentUser() user: JwtPayload,
   ) {
-    return this.service.cancelExpense(id, dto.motivo, {
+    return this.service.cancelExpense(id, dto.motivo ?? '', {
       id: user.sub,
       name: user.nombre,
     });
@@ -64,7 +64,7 @@ export class FinanceController {
     @Body() dto: CancelReplenishmentDto,
     @CurrentUser() user: JwtPayload,
   ) {
-    return this.service.cancelExpense(id, dto.motivo, {
+    return this.service.cancelExpense(id, dto.motivo ?? '', {
       id: user.sub,
       name: user.nombre,
     });

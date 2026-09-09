@@ -59,17 +59,22 @@ export class PurchasesController {
     @Body() dto: PayPurchaseDto,
     @CurrentUser() user: JwtPayload,
   ) {
-    return this.service.pay(id, dto.paymentMethod, {
-      id: user.sub,
-      name: user.nombre,
-    });
+    return this.service.pay(
+      id,
+      dto.paymentMethod,
+      {
+        id: user.sub,
+        name: user.nombre,
+      },
+      dto.amountCents,
+    );
   }
   @Patch(':id/cancel') cancel(
     @Param('id', MongoIdPipe) id: string,
     @Body() dto: CancelPurchaseDto,
     @CurrentUser() user: JwtPayload,
   ) {
-    return this.service.cancel(id, dto.reason, {
+    return this.service.cancel(id, dto.reason ?? '', {
       id: user.sub,
       name: user.nombre,
     });

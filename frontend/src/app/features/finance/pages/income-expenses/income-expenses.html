@@ -125,7 +125,7 @@
           }
           @if (item.cancelado) {
             <small class="cancellation-reason"
-              >Motivo de cancelación: {{ item.motivoCancelacion }}</small
+              >Motivo de cancelación: {{ item.motivoCancelacion || 'Sin motivo informado' }}</small
             >
             <small>Cancelado por: {{ item.canceladoPorNombre || 'Sistema' }}</small>
           }
@@ -145,7 +145,15 @@
             } @else {
               {{ item.cancelado ? 'Cancelado' : item.pagado ? 'Pagado' : 'A pagar' }}
             }
-          </small></span
+          </small>
+          @if (
+            item.categoria === 'COMPRA_PRODUCTOS' && !item.cancelado && movementPaidCents(item) > 0
+          ) {
+            <small
+              >Pagado: {{ money(movementPaidCents(item)) }} · Resta:
+              {{ money(movementRemainingCents(item)) }}</small
+            >
+          }</span
         ><strong data-label="Importe"
           >{{ item.tipo === 'GASTO' ? '− ' : '+ ' }}{{ money(item.montoCentavos) }}</strong
         ><span class="action">
@@ -278,12 +286,13 @@
       </h2>
       <p>
         @if (isManualReplenishment(item)) {
-          Se restarán del stock las unidades de esta reposición.
+          Se descontarán únicamente las unidades de esta reposición que todavía permanezcan en
+          stock.
         }
         El movimiento quedará gris, bloqueado y visible únicamente como historial.
       </p>
       <label>
-        <span>Motivo de la cancelación *</span>
+        <span>Motivo de la cancelación <small>(opcional)</small></span>
         <textarea
           [(ngModel)]="cancelReason"
           maxlength="300"
@@ -292,7 +301,7 @@
         ></textarea>
         <small>{{ cancelReason.length }}/300</small>
         @if (invalidCancelReason()) {
-          <small class="field-error">Ingresá un motivo de entre 3 y 300 caracteres.</small>
+          <small class="field-error">El motivo no puede superar los 300 caracteres.</small>
         }
       </label>
       <footer>

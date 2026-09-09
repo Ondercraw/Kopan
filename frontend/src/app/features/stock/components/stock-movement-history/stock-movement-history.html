@@ -1,5 +1,11 @@
 <section class="movement-history" aria-label="Historial de movimientos">
-  <header class="history-heading"><h3>Historial de movimientos</h3><strong>{{ movements.length }} movimiento{{ movements.length === 1 ? '' : 's' }}</strong>@if(movements.length){<button type="button" (click)="exportCsv()"><i class="ti ti-download"></i>CSV</button>}</header>
+  <header class="history-heading">
+    <h3>Historial de movimientos</h3>
+    <strong>{{ movements.length }} movimiento{{ movements.length === 1 ? '' : 's' }}</strong>
+    @if (movements.length) {
+      <button type="button" (click)="exportCsv()"><i class="ti ti-download"></i>CSV</button>
+    }
+  </header>
   @if (loading) {
     <div class="history-state"><span class="spinner"></span>Cargando historial…</div>
   } @else {
@@ -15,6 +21,10 @@
               [class.ti-package]="movement.type === 'INITIAL'"
               [class.ti-package-off]="movement.type === 'DEACTIVATION'"
               [class.ti-restore]="movement.type === 'REACTIVATION'"
+              [class.ti-shopping-cart]="movement.type === 'PURCHASE'"
+              [class.ti-building-warehouse]="movement.type === 'OPENING_VALUATION'"
+              [class.ti-shopping-cart-off]="movement.type === 'PURCHASE_CANCELLATION'"
+              [class.ti-file-x]="movement.type === 'VALUATION_CANCELLATION'"
             ></i>
           </span>
           <div>
@@ -35,7 +45,11 @@
       }
     </ol>
     @if (movements.length > pageSize) {
-      <app-pagination-controls [page]="page()" [totalPages]="totalPages" (pageChange)="changePage($event)" />
+      <app-pagination-controls
+        [page]="page()"
+        [totalPages]="totalPages"
+        (pageChange)="changePage($event)"
+      />
     }
   }
 </section>

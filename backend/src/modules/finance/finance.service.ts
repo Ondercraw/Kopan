@@ -353,17 +353,55 @@ export class FinanceService {
     claimed.unidadesReposicion = units;
     await claimed.save();
 
-    const product = await this.productModel
-      .findOneAndUpdate(
-        {
-          _id: stockMovement.productId,
-          activo: true,
-          cantidadStock: { $gte: units },
-        },
-        { $inc: { cantidadStock: -units } },
-        { new: true },
-      )
+    const existingProduct = await this.productModel
+      .findOne({ _id: stockMovement.productId, activo: true })
       .exec();
+    if (!existingProduct) {
+      await this.movementModel
+        .updateOne(
+          { _id: movement._id, canceladoAt: cancelledAt },
+          {
+            $set: {
+              cancelado: false,
+              motivoCancelacion: '',
+              canceladoAt: null,
+              canceladoPorId: '',
+              canceladoPorNombre: '',
+            },
+          },
+        )
+        .exec();
+      throw new ConflictException('El producto ya no existe o está inactivo');
+    }
+
+    const linkedRemaining = await this.inventoryLots.linkedAdjustmentRemaining(
+      stockMovement._id,
+    );
+    // Los movimientos nuevos usan el lote vinculado. El cálculo por diferencia
+    // queda sólo como compatibilidad para reposiciones creadas antes del vínculo.
+    const unitsToReverse =
+      linkedRemaining === null
+        ? Math.min(
+            units,
+            Math.max(
+              0,
+              existingProduct.cantidadStock - stockMovement.previousStock,
+            ),
+          )
+        : Math.min(units, linkedRemaining);
+    const product = unitsToReverse
+      ? await this.productModel
+          .findOneAndUpdate(
+            {
+              _id: stockMovement.productId,
+              activo: true,
+              cantidadStock: { $gte: unitsToReverse },
+            },
+            { $inc: { cantidadStock: -unitsToReverse } },
+            { new: true },
+          )
+          .exec()
+      : existingProduct;
     if (!product) {
       await this.movementModel
         .updateOne(
@@ -380,36 +418,50 @@ export class FinanceService {
         )
         .exec();
       throw new ConflictException(
-        'No hay stock suficiente para cancelar esta reposición sin dejar existencias negativas',
+        'El stock cambió durante la cancelación. Intentá nuevamente',
       );
     }
 
     try {
-      product.costoCentavos = await this.inventoryLots.adjust(
-        product._id,
-        -units,
-        product.cantidadStock + units,
-        product.costoCentavos,
-      );
-      await product.save();
-      await this.stockMovementModel.create({
-        productId: product._id,
-        productCode: product.codigo,
-        productName: product.nombre,
-        type: StockMovementType.DECREMENT,
-        previousStock: product.cantidadStock + units,
-        currentStock: product.cantidadStock,
-        reason: `Cancelación de reposición manual: ${cancellationReason}`,
-        referenceType: 'FINANCIAL_MOVEMENT',
-        referenceId: movement._id,
-        referenceCode: null,
-        actorId: actor.id,
-        actorName: actor.name,
-      });
+      if (linkedRemaining !== null) {
+        product.costoCentavos = await this.inventoryLots.cancelLinkedAdjustment(
+          stockMovement._id,
+          product._id,
+          product.cantidadStock,
+          product.costoCentavos,
+        );
+        await product.save();
+      } else if (unitsToReverse) {
+        product.costoCentavos = await this.inventoryLots.adjust(
+          product._id,
+          -unitsToReverse,
+          product.cantidadStock + unitsToReverse,
+          product.costoCentavos,
+        );
+        await product.save();
+        await this.stockMovementModel.create({
+          productId: product._id,
+          productCode: product.codigo,
+          productName: product.nombre,
+          type: StockMovementType.DECREMENT,
+          previousStock: product.cantidadStock + unitsToReverse,
+          currentStock: product.cantidadStock,
+          reason: `Cancelación de reposición manual${cancellationReason ? `: ${cancellationReason}` : ''}`,
+          referenceType: 'FINANCIAL_MOVEMENT',
+          referenceId: movement._id,
+          referenceCode: null,
+          actorId: actor.id,
+          actorName: actor.name,
+        });
+      }
     } catch (error) {
-      await this.productModel
-        .updateOne({ _id: product._id }, { $inc: { cantidadStock: units } })
-        .exec();
+      if (unitsToReverse)
+        await this.productModel
+          .updateOne(
+            { _id: product._id },
+            { $inc: { cantidadStock: unitsToReverse } },
+          )
+          .exec();
       await this.movementModel
         .updateOne(
           { _id: movement._id, canceladoAt: cancelledAt },
@@ -558,6 +610,12 @@ export class FinanceService {
         $cond: [{ $and: conditions }, { $ifNull: ['$montoCentavos', 0] }, 0],
       },
     });
+    const amountWhenValue = (
+      amount: Record<string, unknown> | string,
+      ...conditions: Record<string, unknown>[]
+    ) => ({
+      $sum: { $cond: [{ $and: conditions }, amount, 0] },
+    });
     const income = eq('tipo', FinancialMovementKind.INCOME);
     const activeExpense = [
       eq('tipo', FinancialMovementKind.EXPENSE),
@@ -566,6 +624,48 @@ export class FinanceService {
     const available = eq('disponible', true);
     const paid = eq('pagado', true);
     const unpaid = { $ne: ['$pagado', true] };
+    const purchaseCategory = eq(
+      'categoria',
+      FinancialMovementCategory.PURCHASE,
+    );
+    const purchasePaidAmount = {
+      $ifNull: [
+        '$montoPagadoCentavos',
+        { $cond: [paid, { $ifNull: ['$montoCentavos', 0] }, 0] },
+      ],
+    };
+    const purchasePendingAmount = {
+      $max: [
+        {
+          $subtract: [{ $ifNull: ['$montoCentavos', 0] }, purchasePaidAmount],
+        },
+        0,
+      ],
+    };
+    const paidByMethod = (field: string, method: FinancialPaymentMethod) => ({
+      $cond: [
+        purchaseCategory,
+        {
+          $ifNull: [
+            `$${field}`,
+            {
+              $cond: [
+                { $and: [paid, eq('medioPago', method)] },
+                { $ifNull: ['$montoCentavos', 0] },
+                0,
+              ],
+            },
+          ],
+        },
+        {
+          $cond: [
+            { $and: [paid, eq('medioPago', method)] },
+            { $ifNull: ['$montoCentavos', 0] },
+            0,
+          ],
+        },
+      ],
+    });
 
     const [totals] = await this.movementModel
       .aggregate<{
@@ -612,15 +712,15 @@ export class FinanceService {
               eq('categoria', FinancialMovementCategory.MANUAL),
               unpaid,
             ),
-            paidPurchases: amountWhen(
+            paidPurchases: amountWhenValue(
+              purchasePaidAmount,
               ...activeExpense,
-              eq('categoria', FinancialMovementCategory.PURCHASE),
-              paid,
+              purchaseCategory,
             ),
-            pendingPurchases: amountWhen(
+            pendingPurchases: amountWhenValue(
+              purchasePendingAmount,
               ...activeExpense,
-              eq('categoria', FinancialMovementCategory.PURCHASE),
-              unpaid,
+              purchaseCategory,
             ),
             cashIncome: amountWhen(income, available, {
               $or: [
@@ -651,15 +751,19 @@ export class FinanceService {
               eq('medioPago', FinancialPaymentMethod.CHECK),
               eq('acreditadoEn', FinancialPaymentMethod.TRANSFER),
             ),
-            cashExpenses: amountWhen(
+            cashExpenses: amountWhenValue(
+              paidByMethod(
+                'montoPagadoEfectivoCentavos',
+                FinancialPaymentMethod.CASH,
+              ),
               ...activeExpense,
-              paid,
-              eq('medioPago', FinancialPaymentMethod.CASH),
             ),
-            transferExpenses: amountWhen(
+            transferExpenses: amountWhenValue(
+              paidByMethod(
+                'montoPagadoTransferenciaCentavos',
+                FinancialPaymentMethod.TRANSFER,
+              ),
               ...activeExpense,
-              paid,
-              eq('medioPago', FinancialPaymentMethod.TRANSFER),
             ),
             pendingChecks: amountWhen(
               income,
@@ -671,7 +775,18 @@ export class FinanceService {
               { $ne: ['$disponible', true] },
               eq('medioPago', FinancialPaymentMethod.CREDIT),
             ),
-            pendingExpenses: amountWhen(...activeExpense, unpaid),
+            pendingExpenses: amountWhenValue(
+              {
+                $cond: [
+                  purchaseCategory,
+                  purchasePendingAmount,
+                  {
+                    $cond: [unpaid, { $ifNull: ['$montoCentavos', 0] }, 0],
+                  },
+                ],
+              },
+              ...activeExpense,
+            ),
           },
         },
       ])

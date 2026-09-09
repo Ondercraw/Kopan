@@ -26,6 +26,9 @@ export interface Purchase {
   totalCentavos: number;
   medioPago: PurchasePaymentMethod;
   pagada: boolean;
+  montoPagadoCentavos?: number;
+  montoPagadoEfectivoCentavos?: number;
+  montoPagadoTransferenciaCentavos?: number;
   pagadaAt: string | null;
   vencimiento: string | null;
   numeroComprobante: string;
