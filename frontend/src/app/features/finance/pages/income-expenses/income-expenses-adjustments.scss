@@ -132,7 +132,7 @@
 }
 
 /* Hay dos acciones posibles en gastos pendientes; esta columna evita que se corten. */
-@media (min-width: 1051px) {
+@media (min-width: 1401px) {
   .head,
   .movement-list > article {
     grid-template-columns: 145px minmax(220px, 1fr) 145px 135px 130px 170px;
@@ -162,5 +162,18 @@
   .totals article {
     border-top: 1px solid #eadfd6;
     border-left: 0 !important;
+  }
+}
+
+@media (max-width: 600px) {
+  .action {
+    display: grid;
+    grid-template-columns: 1fr;
+    width: 100%;
+  }
+
+  .action a,
+  .action button {
+    width: 100%;
   }
 }

@@ -12,7 +12,7 @@
   font-size: 0.72rem;
 }
 
-@media (max-width: 1250px) and (min-width: 1051px) {
+@media (max-width: 1400px) and (min-width: 1051px) {
   .head {
     display: none;
   }
@@ -31,9 +31,19 @@
     color: #7e6b5d;
     font-size: 0.68rem;
   }
+}
 
-  .action {
-    justify-self: end;
-    width: min(100%, 130px);
+@media (max-width: 1400px) {
+  .movement-list > article > .action {
+    grid-column: 1 / -1;
+    justify-self: stretch;
+    width: 100%;
+    justify-content: flex-end;
+  }
+
+  .action a,
+  .action button {
+    width: auto;
+    min-width: 130px;
   }
 }
