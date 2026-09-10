@@ -121,7 +121,6 @@ export class InventoryLotsService implements OnModuleInit {
     delta: number,
     previousStock: number,
     cost: number,
-    stockMovementId?: Types.ObjectId,
   ) {
     if (delta < 0)
       return this.consumeManualAdjustment(
@@ -130,17 +129,10 @@ export class InventoryLotsService implements OnModuleInit {
         cost,
         previousStock,
       );
-    if (delta > 0)
-      await this.lotModel.create({
-        productId,
-        stockMovementId: stockMovementId ?? null,
-        initialQuantity: delta,
-        remainingQuantity: delta,
-        unitCostCents: cost,
-        kind: 'AJUSTE',
-        receivedAt: new Date(),
-        cancelled: false,
-      });
+    // Una suma manual modifica la existencia física, pero no supone un precio
+    // de compra. La diferencia con los lotes queda como stock sin valorar y se
+    // completa luego desde Compras > Valorizar existencias.
+    if (delta > 0) return cost;
     const summary = await this.summary(productId);
     return summary.quantity ? summary.averageCostCents : cost;
   }

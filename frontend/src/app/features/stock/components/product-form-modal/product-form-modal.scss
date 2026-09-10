@@ -164,6 +164,12 @@ select:focus {
 .stock-projection.low-stock {
   color: #8a590b;
 }
+
+.stock-valuation-note {
+  color: #76512f;
+  font-size: 0.82rem;
+  line-height: 1.35;
+}
 .field-error,
 .form-error {
   margin: 0;

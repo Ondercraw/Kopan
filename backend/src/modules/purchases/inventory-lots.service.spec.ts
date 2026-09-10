@@ -64,4 +64,15 @@ describe('InventoryLotsService', () => {
       expect.objectContaining({ productId, kind: 'AJUSTE' }),
     );
   });
+
+  it('deja una suma manual sin valorar y conserva el costo promedio vigente', async () => {
+    const create = jest.fn();
+    const service = new InventoryLotsService({ create } as never);
+
+    await expect(
+      service.adjust(new Types.ObjectId(), 500, 1200, 16_500_00),
+    ).resolves.toBe(16_500_00);
+
+    expect(create).not.toHaveBeenCalled();
+  });
 });

@@ -10,7 +10,6 @@ import {
 import { StockService } from './stock.service';
 import { SuppliersService } from '../suppliers/suppliers.service';
 import { StockAdjustmentReason } from './enums/stock-adjustment-reason.enum';
-import { FinanceService } from '../finance/finance.service';
 
 describe('StockService', () => {
   let findOneAndUpdate: jest.Mock;
@@ -18,7 +17,6 @@ describe('StockService', () => {
   let createMovement: jest.Mock;
   let adjustInventory: jest.Mock;
   let service: StockService;
-  let recordStockReplenishment: jest.Mock;
   const actor = { id: new Types.ObjectId().toString(), name: 'Administrador' };
 
   beforeEach(() => {
@@ -42,10 +40,6 @@ describe('StockService', () => {
     const suppliersService = {
       assertActive: jest.fn().mockResolvedValue(null),
     } as unknown as SuppliersService;
-    recordStockReplenishment = jest.fn().mockResolvedValue(undefined);
-    const financeService = {
-      recordStockReplenishment,
-    } as unknown as FinanceService;
     adjustInventory = jest.fn().mockResolvedValue(1500);
     service = new StockService(
       productModel,
@@ -53,7 +47,6 @@ describe('StockService', () => {
       movementModel,
       suppliersService,
       { adjust: adjustInventory } as never,
-      financeService,
       { transaction: (callback: () => unknown) => callback() } as never,
     );
   });
@@ -116,21 +109,11 @@ describe('StockService', () => {
     );
     expect(result.previousStock).toBe(0);
     expect(result.product.cantidadStock).toBe(1);
-    const createdMovement = createMovement.mock.calls[0][0];
-    expect(createdMovement._id).toBeInstanceOf(Types.ObjectId);
     expect(adjustInventory).toHaveBeenCalledWith(
       product._id,
       1,
       0,
       product.costoCentavos,
-      createdMovement._id,
-    );
-    expect(recordStockReplenishment).toHaveBeenCalledWith(
-      expect.objectContaining({
-        stockMovementId: createdMovement._id,
-        productId: product._id,
-        units: 1,
-      }),
     );
   });
 
@@ -224,11 +207,11 @@ describe('StockService', () => {
         reason: 'Corrección de inventario: ingreso de 15 unidades - Remito 145',
       }),
     );
-    expect(recordStockReplenishment).toHaveBeenCalledWith(
-      expect.objectContaining({
-        productId: product._id,
-        units: 15,
-      }),
+    expect(adjustInventory).toHaveBeenCalledWith(
+      product._id,
+      15,
+      1,
+      product.costoCentavos,
     );
   });
 

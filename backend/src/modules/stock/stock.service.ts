@@ -20,7 +20,6 @@ import {
 } from './schemas/stock-movement.schema';
 import { SuppliersService } from '../suppliers/suppliers.service';
 import { InventoryLotsService } from '../purchases/inventory-lots.service';
-import { FinanceService } from '../finance/finance.service';
 
 export interface StockActor {
   id: string;
@@ -40,7 +39,6 @@ export class StockService {
     private readonly movementModel: Model<StockMovementDocument>,
     private readonly suppliersService: SuppliersService,
     private readonly inventoryLots: InventoryLotsService,
-    private readonly financeService: FinanceService,
     @InjectConnection() private readonly connection: Connection,
   ) {}
 
@@ -197,13 +195,11 @@ export class StockService {
 
     const oldAverage = product.costoCentavos;
     if (stockDelta !== 0) {
-      const stockMovementId = new Types.ObjectId();
       product.costoCentavos = await this.inventoryLots.adjust(
         product._id,
         stockDelta,
         product.cantidadStock - stockDelta,
         oldAverage,
-        stockDelta > 0 ? stockMovementId : undefined,
       );
       await product.save();
       const units = Math.abs(stockDelta);
@@ -211,8 +207,7 @@ export class StockService {
         ? STOCK_ADJUSTMENT_REASON_LABELS[dto.motivoAjuste]
         : 'Ajuste manual';
       const observation = dto.observacionAjuste?.trim();
-      const movement = await this.recordMovement(product, {
-        movementId: stockMovementId,
+      await this.recordMovement(product, {
         actor,
         type:
           stockDelta > 0
@@ -224,15 +219,6 @@ export class StockService {
         currentStock: product.cantidadStock,
         reason: `${reasonLabel}: ${stockDelta > 0 ? 'ingreso' : 'egreso'} de ${units} ${units === 1 ? 'unidad' : 'unidades'}${observation ? ` - ${observation}` : ''}`,
       });
-      if (stockDelta > 0) {
-        await this.recordReplenishmentExpense(
-          product,
-          movement,
-          units,
-          oldAverage,
-          actor,
-        );
-      }
     }
     if (previousProduct.stockMinimo !== product.stockMinimo) {
       await this.recordMovement(product, {
@@ -275,17 +261,14 @@ export class StockService {
     if (product) {
       const previousStock = product.cantidadStock - dto.delta;
       const oldAverage = product.costoCentavos;
-      const stockMovementId = new Types.ObjectId();
       product.costoCentavos = await this.inventoryLots.adjust(
         product._id,
         dto.delta,
         previousStock,
         oldAverage,
-        dto.delta > 0 ? stockMovementId : undefined,
       );
       await product.save();
-      const movement = await this.recordMovement(product, {
-        movementId: stockMovementId,
+      await this.recordMovement(product, {
         actor,
         type:
           dto.delta > 0
@@ -300,15 +283,6 @@ export class StockService {
             ? 'Ingreso manual de una unidad'
             : 'Egreso manual de una unidad',
       });
-      if (dto.delta > 0) {
-        await this.recordReplenishmentExpense(
-          product,
-          movement,
-          dto.delta,
-          oldAverage,
-          actor,
-        );
-      }
       const populatedProduct = await product.populate(
         'proveedorId proveedorIds',
         'codigo nombre activo',
@@ -442,26 +416,6 @@ export class StockService {
       );
       throw error;
     }
-  }
-
-  private async recordReplenishmentExpense(
-    product: ProductDocument,
-    movement: StockMovementDocument,
-    units: number,
-    unitCostCents: number,
-    actor: StockActor,
-  ): Promise<void> {
-    await this.financeService.recordStockReplenishment({
-      stockMovementId: movement._id,
-      productId: product._id,
-      productCode: product.codigo,
-      productName: product.nombre,
-      units,
-      unitCostCents,
-      supplierId: product.proveedorId,
-      actor,
-      date: movement.createdAt ?? new Date(),
-    });
   }
 
   private async nextProductCode(): Promise<number> {

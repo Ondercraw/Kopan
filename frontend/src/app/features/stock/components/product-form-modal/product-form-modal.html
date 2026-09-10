@@ -108,6 +108,14 @@
                 }
               </span>
             }
+            @if (
+              hasStockAdjustment() && form.controls.operacionStock.value === 'ADD'
+            ) {
+              <span class="stock-valuation-note">
+                Estas unidades quedarán sin valorar. Podrás asignarles su costo desde Compras →
+                Valorizar existencias.
+              </span>
+            }
           </div>
 
           @if (hasStockAdjustment()) {

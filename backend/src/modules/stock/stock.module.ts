@@ -11,14 +11,12 @@ import { StockController } from './stock.controller';
 import { StockService } from './stock.service';
 import { SuppliersModule } from '../suppliers/suppliers.module';
 import { PurchasesModule } from '../purchases/purchases.module';
-import { FinanceModule } from '../finance/finance.module';
 
 @Module({
   imports: [
     AuditModule,
     SuppliersModule,
     PurchasesModule,
-    FinanceModule,
     MongooseModule.forFeature([
       { name: Product.name, schema: ProductSchema },
       { name: Counter.name, schema: CounterSchema },
