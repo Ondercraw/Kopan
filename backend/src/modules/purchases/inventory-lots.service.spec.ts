@@ -2,6 +2,35 @@ import { Types } from 'mongoose';
 import { InventoryLotsService } from './inventory-lots.service';
 
 describe('InventoryLotsService', () => {
+  it('reemplaza el índice antiguo que bloqueaba múltiples ajustes manuales', async () => {
+    const createIndex = jest
+      .fn()
+      .mockResolvedValue('purchase_lot_unique_partial');
+    const indexes = jest.fn().mockResolvedValue([
+      {
+        name: 'purchaseId_1_lineNumber_1',
+        key: { purchaseId: 1, lineNumber: 1 },
+        unique: true,
+      },
+    ]);
+    const dropIndex = jest.fn().mockResolvedValue(undefined);
+    const service = new InventoryLotsService({
+      collection: { createIndex, indexes, dropIndex },
+    } as never);
+
+    await service.onModuleInit();
+
+    expect(createIndex).toHaveBeenCalledWith(
+      { purchaseId: 1, lineNumber: 1 },
+      expect.objectContaining({
+        name: 'purchase_lot_unique_partial',
+        unique: true,
+        partialFilterExpression: { purchaseId: { $type: 'objectId' } },
+      }),
+    );
+    expect(dropIndex).toHaveBeenCalledWith('purchaseId_1_lineNumber_1');
+  });
+
   it('vincula una resta manual con el último lote de ajuste antes de tocar otras existencias', async () => {
     const productId = new Types.ObjectId();
     const linkedLot = {

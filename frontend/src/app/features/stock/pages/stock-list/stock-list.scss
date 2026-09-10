@@ -369,12 +369,8 @@ button:disabled {
   border-left: 1px solid #e7ddd4;
 }
 .triangle-actions {
-  display: grid;
-  grid-template-columns: repeat(2, 27px);
-  grid-template-rows: repeat(2, 27px);
-  gap: 0.2rem;
+  display: flex;
 }
-.quantity-btn,
 .edit-btn,
 .expand-indicator {
   display: grid;
@@ -386,27 +382,9 @@ button:disabled {
   cursor: pointer;
 }
 .edit-btn {
-  grid-column: 1 / -1;
-  justify-self: center;
   border: 1px solid #d6c3ad;
   background: #f8efe5;
   color: #754315;
-}
-.quantity-btn {
-  border: 1px solid #d9ccbf;
-  background: #fff;
-  color: #5b3714;
-  font-size: 1.15rem;
-}
-.quantity-btn.plus {
-  border-color: #b9d8c2;
-  background: #edf8f0;
-  color: #24733e;
-}
-.quantity-btn.minus {
-  border-color: #e2c3bf;
-  background: #fff4f2;
-  color: #a1362d;
 }
 .expand-indicator {
   border: 0;

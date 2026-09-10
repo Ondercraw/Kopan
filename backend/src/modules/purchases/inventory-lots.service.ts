@@ -1,4 +1,4 @@
-import { Injectable } from '@nestjs/common';
+import { Injectable, Logger, OnModuleInit } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
 import { Model, Types } from 'mongoose';
 import {
@@ -12,11 +12,40 @@ export interface LotConsumption {
 }
 
 @Injectable()
-export class InventoryLotsService {
+export class InventoryLotsService implements OnModuleInit {
+  private readonly logger = new Logger(InventoryLotsService.name);
+
   constructor(
     @InjectModel(InventoryLot.name)
     private readonly lotModel: Model<InventoryLotDocument>,
   ) {}
+
+  /**
+   * Sustituye el índice creado por la primera versión del módulo de Compras.
+   * Aquel índice también consideraba los lotes manuales (purchaseId null), por
+   * lo que una segunda corrección de inventario fallaba con E11000.
+   */
+  async onModuleInit(): Promise<void> {
+    const collection = this.lotModel.collection;
+    await collection.createIndex(
+      { purchaseId: 1, lineNumber: 1 },
+      {
+        name: 'purchase_lot_unique_partial',
+        unique: true,
+        partialFilterExpression: { purchaseId: { $type: 'objectId' } },
+      },
+    );
+
+    const legacyIndex = (await collection.indexes()).find(
+      (index) => index.name === 'purchaseId_1_lineNumber_1',
+    );
+    if (legacyIndex && !legacyIndex.partialFilterExpression) {
+      await collection.dropIndex('purchaseId_1_lineNumber_1');
+      this.logger.log(
+        'Índice antiguo de lotes reemplazado; los ajustes manuales múltiples quedaron habilitados',
+      );
+    }
+  }
 
   async activeLots(productId: Types.ObjectId | string) {
     return this.lotModel

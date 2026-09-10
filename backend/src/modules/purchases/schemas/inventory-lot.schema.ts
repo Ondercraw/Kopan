@@ -58,6 +58,7 @@ InventoryLotSchema.index({ productId: 1, receivedAt: 1, createdAt: 1 });
 InventoryLotSchema.index(
   { purchaseId: 1, lineNumber: 1 },
   {
+    name: 'purchase_lot_unique_partial',
     unique: true,
     partialFilterExpression: { purchaseId: { $type: 'objectId' } },
   },

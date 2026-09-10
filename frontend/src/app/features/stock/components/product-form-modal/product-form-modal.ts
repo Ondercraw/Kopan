@@ -239,12 +239,17 @@ export class ProductFormModal implements OnInit {
     request.subscribe({
       next: () => this.guardado.emit(),
       error: (error) => {
+        const backendMessage = Array.isArray(error.error?.message)
+          ? error.error.message.join('. ')
+          : error.error?.message;
         this.errorMensaje.set(
           error.error?.code === 'INSUFFICIENT_STOCK'
             ? 'No se pueden restar más unidades que las disponibles'
-            : this.product
-              ? 'No se pudo actualizar el producto'
-              : 'No se pudo agregar el producto',
+            : typeof backendMessage === 'string' && backendMessage.trim()
+              ? backendMessage
+              : this.product
+                ? 'No se pudo actualizar el producto'
+                : 'No se pudo agregar el producto',
         );
         this.guardando.set(false);
       },

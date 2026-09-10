@@ -39,14 +39,6 @@ export class StockService {
     });
   }
 
-  adjustQuantity(id: string, delta: -1 | 1) {
-    return this.http.patch<Product>(
-      `${this.baseUrl}/${id}/quantity`,
-      { delta },
-      { withCredentials: true },
-    );
-  }
-
   deactivateMany(productIds: string[]) {
     return this.http.patch<{ deactivated: number }>(
       `${this.baseUrl}/deactivate`,

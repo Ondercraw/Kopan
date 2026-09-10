@@ -77,7 +77,6 @@ export class StockList implements OnInit {
   readonly weightFilter = signal('');
   readonly sortOrder = signal<ProductSort>('STOCK_ASC');
   readonly expandedProductId = signal<string | null>(null);
-  readonly pendingProductIds = signal<Set<string>>(new Set());
   readonly movementsByProduct = signal<Record<string, StockMovement[]>>({});
   readonly loadingMovementIds = signal<Set<string>>(new Set());
   readonly addModalOpen = signal(false);
@@ -173,12 +172,7 @@ export class StockList implements OnInit {
     this.loadProducts();
     interval(10_000)
       .pipe(
-        filter(
-          () =>
-            document.visibilityState === 'visible' &&
-            this.pendingProductIds().size === 0 &&
-            !this.backgroundRefreshInFlight,
-        ),
+        filter(() => document.visibilityState === 'visible' && !this.backgroundRefreshInFlight),
         takeUntilDestroyed(this.destroyRef),
       )
       .subscribe(() => this.refreshProductsInBackground());
@@ -286,37 +280,6 @@ export class StockList implements OnInit {
     if (opening) {
       this.loadMovements(productId);
     }
-  }
-
-  adjustQuantity(product: Product, delta: -1 | 1): void {
-    if (!this.canManageStock() || this.pendingProductIds().has(product._id)) {
-      return;
-    }
-    if (delta < 0 && product.cantidadStock === 0) {
-      this.error.set('No se puede restar: el producto ya no tiene stock');
-      return;
-    }
-
-    this.dataRevision += 1;
-    this.setPending(product._id, true);
-    this.error.set(null);
-    this.stockService.adjustQuantity(product._id, delta).subscribe({
-      next: (updated) => {
-        this.products.update((products) =>
-          products.map((current) => (current._id === updated._id ? updated : current)),
-        );
-        this.loadMovements(product._id, true);
-        this.setPending(product._id, false);
-      },
-      error: (error) => {
-        this.error.set(
-          error.error?.code === 'STOCK_ALREADY_ZERO'
-            ? 'No se puede restar: el producto ya no tiene stock'
-            : 'No se pudo actualizar la cantidad',
-        );
-        this.setPending(product._id, false);
-      },
-    });
   }
 
   onProductSaved(): void {
@@ -465,16 +428,6 @@ export class StockList implements OnInit {
     const next = new Set(this.loadingMovementIds());
     loading ? next.add(productId) : next.delete(productId);
     this.loadingMovementIds.set(next);
-  }
-
-  private setPending(productId: string, pending: boolean): void {
-    const next = new Set(this.pendingProductIds());
-    if (pending) {
-      next.add(productId);
-    } else {
-      next.delete(productId);
-    }
-    this.pendingProductIds.set(next);
   }
 
   private normalize(value: string): string {
