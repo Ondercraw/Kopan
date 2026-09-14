@@ -13,8 +13,10 @@ import {
   SearchableSelect,
   SearchableSelectOption,
 } from '../../../../shared/components/searchable-select/searchable-select';
-import { Client } from '../../../clients/models/client.model';
+import { Client, ClientOptions } from '../../../clients/models/client.model';
 import { ClientsService } from '../../../clients/services/clients.service';
+import { ClientFormModal } from '../../../clients/components/client-form-modal/client-form-modal';
+import { ProductFormModal } from '../../../stock/components/product-form-modal/product-form-modal';
 import { PriceListDetail } from '../../../prices/models/price-list.model';
 import { PricesService } from '../../../prices/services/prices.service';
 import { Product } from '../../../stock/models/product.model';
@@ -33,7 +35,7 @@ interface DraftLine {
 @Component({
   selector: 'app-sales-entry',
   standalone: true,
-  imports: [FormsModule, SearchableSelect, CurrencyInput],
+  imports: [FormsModule, SearchableSelect, CurrencyInput, ClientFormModal, ProductFormModal],
   templateUrl: './sales-entry.html',
   styleUrls: ['./sales-entry.scss', './sales-entry-adjustments.scss'],
   changeDetection: ChangeDetectionStrategy.OnPush,
@@ -50,6 +52,10 @@ export class SalesEntryPage implements OnInit {
   readonly lines = signal<DraftLine[]>([]);
   readonly saving = signal(false);
   readonly reviewing = signal(false);
+  readonly clientModalOpen = signal(false);
+  readonly clientFormOptions = signal<ClientOptions>({groups:[],locations:[],sellers:[],priceLists:[]});
+  readonly productModalOpen = signal(false);
+  readonly editingProduct = signal<Product | null>(null);
   readonly error = signal<string | null>(null);
   readonly success = signal<string | null>(null);
   readonly reviewAttempted = signal(false);
@@ -74,6 +80,7 @@ export class SalesEntryPage implements OnInit {
   readonly clientOptions = computed<SearchableSelectOption[]>(() =>
     this.clients()
       .filter((c) => c.activo)
+      .sort((a,b)=>a.nombre.localeCompare(b.nombre,'es',{sensitivity:'base',numeric:true}))
       .map((c) => ({
         value: c._id,
         label: c.nombre,
@@ -83,15 +90,17 @@ export class SalesEntryPage implements OnInit {
   readonly productOptions = computed<SearchableSelectOption[]>(() =>
     this.products()
       .filter((p) => p.activo && p.cantidadStock > 0)
+      .sort((a,b)=>a.nombre.localeCompare(b.nombre,'es',{sensitivity:'base',numeric:true}))
       .map((p) => ({
         value: p._id,
         label: p.nombre,
-        meta: `#${p.codigo} · Stock ${p.cantidadStock}`,
+        meta: `#${p.codigo} · Stock ${p.cantidadStock} · ${this.productPriceLabel(p)}`,
       })),
   );
   readonly total = computed(() =>
     this.lines().reduce((sum, line) => sum + this.lineTotal(line), 0),
   );
+  productTypeOptions() { return [...new Set(this.products().map(p=>p.tipo))].sort((a,b)=>a.localeCompare(b,'es')); }
   selectedClient(): Client | null {
     return this.clients().find((client) => client._id === this.clientId) ?? null;
   }
@@ -111,6 +120,20 @@ export class SalesEntryPage implements OnInit {
       next: (v) => this.products.set(v),
       error: () => this.error.set('No se pudieron cargar los productos'),
     });
+    this.clientsApi.options().subscribe({next:o=>this.clientFormOptions.set(o)});
+  }
+  openClientCreate() { this.clientModalOpen.set(true); }
+  onClientSaved(client: Client) {
+    this.clients.update(items=>[...items.filter(x=>x._id!==client._id),client]);
+    this.clientModalOpen.set(false); this.onClient(client._id);
+  }
+  openProductCreate() { this.editingProduct.set(null); this.productModalOpen.set(true); }
+  openProductEdit(product: Product) { this.editingProduct.set(product); this.productModalOpen.set(true); }
+  onProductSaved(product: Product) {
+    this.products.update(items=>[...items.filter(x=>x._id!==product._id),product]);
+    this.lines.update(lines=>lines.map(line=>line.product._id===product._id?{...line,product}:line));
+    if (!this.editingProduct()) this.productId=product._id;
+    this.editingProduct.set(null); this.productModalOpen.set(false);
   }
   onClient(clientId: string) {
     this.clientId = clientId;
@@ -138,11 +161,12 @@ export class SalesEntryPage implements OnInit {
     const product = this.products().find((p) => p._id === this.productId),
       list = this.priceList();
     if (!product || !list) return;
-    const price = list.items.find((i) => i.productoId._id === product._id)?.precioCentavos;
-    if (price === undefined) {
-      this.error.set(`${product.nombre} no tiene precio en esta lista`);
+    const listedPrice = list.items.find((i) => i.productoId._id === product._id)?.precioCentavos;
+    if ((!listedPrice || listedPrice <= 0) && !this.canChangePrice()) {
+      this.error.set(`${product.nombre} no tiene precio en esta lista. Consultá con un Dueño.`);
       return;
     }
+    const price = listedPrice && listedPrice > 0 ? listedPrice : 0;
     this.lines.update((lines) =>
       lines.some((l) => l.product._id === product._id)
         ? lines.map((l) =>
@@ -153,7 +177,11 @@ export class SalesEntryPage implements OnInit {
         : [...lines, { product, quantity: 1, unitPriceCents: price, discountPercent: 0 }],
     );
     this.productId = '';
-    this.error.set(null);
+    this.error.set(
+      price === 0
+        ? `${product.nombre} fue agregado sin precio. Ingresá su precio final antes de confirmar.`
+        : null,
+    );
   }
   updateQuantity(id: string, event: Event) {
     const input = event.target as HTMLInputElement;
@@ -168,7 +196,10 @@ export class SalesEntryPage implements OnInit {
   }
   updatePrice(id: string, value: number) {
     if (!this.canChangePrice()) return;
-    const cents = Math.round(Math.max(0, Number(value)) * 100);
+    const line=this.lines().find(item=>item.product._id===id);
+    if (!line) return;
+    const finalCents = Math.round(Math.max(0, Number(value)) * 100);
+    const cents = Math.round(finalCents / (1 + Number(line.product.alicuotaIva ?? 21) / 100));
     this.lines.update((lines) =>
       lines.map((l) => (l.product._id === id ? { ...l, unitPriceCents: cents } : l)),
     );
@@ -186,6 +217,10 @@ export class SalesEntryPage implements OnInit {
     this.reviewAttempted.set(true);
     if (!this.selectedClient() || !this.priceList() || !this.lines().length) {
       this.error.set('Revisá los campos marcados antes de continuar');
+      return;
+    }
+    if (this.lines().some((line) => line.unitPriceCents <= 0)) {
+      this.error.set('Todos los productos deben tener un precio final mayor a $0');
       return;
     }
     if (this.paymentMethod === 'TRANSFERENCIA' && !this.transferReference.trim()) {
@@ -287,6 +322,15 @@ export class SalesEntryPage implements OnInit {
   money(cents: number) {
     return new Intl.NumberFormat('es-AR', { style: 'currency', currency: 'ARS' }).format(
       cents / 100,
+    );
+  }
+  productPriceLabel(product: Product) {
+    const basePrice = this.priceList()?.items.find(
+      (item) => item.productoId._id === product._id,
+    )?.precioCentavos;
+    if (!basePrice || basePrice <= 0) return 'Sin precio';
+    return this.money(
+      Math.round(basePrice * (1 + Number(product.alicuotaIva ?? 21) / 100)),
     );
   }
   lineTotal(l: DraftLine) {

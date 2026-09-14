@@ -46,7 +46,7 @@ export class StockService {
     return this.productModel
       .find({ activo: true })
       .populate('proveedorId proveedorIds', 'codigo nombre activo')
-      .sort({ codigo: 1 })
+      .sort({ nombre: 1, codigo: 1 })
       .lean()
       .exec();
   }
@@ -55,7 +55,7 @@ export class StockService {
     return this.productModel
       .find({ activo: false })
       .populate('proveedorId proveedorIds', 'codigo nombre activo')
-      .sort({ codigo: 1 })
+      .sort({ nombre: 1, codigo: 1 })
       .lean()
       .exec();
   }
@@ -67,6 +67,20 @@ export class StockService {
       .limit(100)
       .lean()
       .exec();
+  }
+
+  async findLots(productId: string) {
+    const lots = await this.inventoryLots.activeLots(productId);
+    return lots.map((lot) => ({
+      _id: lot._id,
+      purchaseCode: lot.purchaseCode,
+      supplierName: lot.supplierName,
+      initialQuantity: lot.initialQuantity,
+      remainingQuantity: lot.remainingQuantity,
+      unitCostCents: lot.unitCostCents,
+      receivedAt: lot.receivedAt,
+      kind: lot.kind,
+    }));
   }
 
   create(dto: CreateProductDto, actor: StockActor) {
@@ -90,12 +104,10 @@ export class StockService {
     const product = await this.productModel.create({
       codigo,
       nombre: dto.nombre.trim(),
-      tipo: dto.tipo.trim(),
+      tipo: dto.tipo.trim().toLocaleUpperCase('es-AR'),
       descripcionAdicional: dto.descripcionAdicional?.trim() ?? '',
       cantidadStock: dto.cantidadStock,
       stockMinimo: dto.stockMinimo,
-      peso: dto.peso,
-      unidadPeso: dto.unidadPeso,
       alicuotaIva: dto.alicuotaIva,
       costoCentavos: 0,
       proveedorId: supplierIds[0] ?? null,
@@ -168,16 +180,16 @@ export class StockService {
     const update: Record<string, unknown> = {
       $set: {
         nombre: dto.nombre.trim(),
-        tipo: dto.tipo.trim(),
+        tipo: dto.tipo.trim().toLocaleUpperCase('es-AR'),
         descripcionAdicional: dto.descripcionAdicional?.trim() ?? '',
         stockMinimo: dto.stockMinimo,
-        peso: dto.peso,
-        unidadPeso: dto.unidadPeso,
-        alicuotaIva: dto.alicuotaIva,
         proveedorId: supplierIds[0] ?? null,
         proveedorIds: supplierIds,
       },
     };
+    if (dto.alicuotaIva !== undefined) {
+      (update.$set as Record<string, unknown>).alicuotaIva = dto.alicuotaIva;
+    }
     if (stockDelta !== 0) {
       update.$inc = { cantidadStock: stockDelta };
     }
@@ -195,12 +207,33 @@ export class StockService {
 
     const oldAverage = product.costoCentavos;
     if (stockDelta !== 0) {
-      product.costoCentavos = await this.inventoryLots.adjust(
-        product._id,
-        stockDelta,
-        product.cantidadStock - stockDelta,
-        oldAverage,
-      );
+      let selectedLotLabel = '';
+      if (stockDelta < 0) {
+        if (!dto.loteId) {
+          throw new BadRequestException({
+            code: 'INVENTORY_LOT_REQUIRED',
+            message: 'Seleccioná el lote del cual se restarán las unidades',
+          });
+        }
+        const result = await this.inventoryLots.consumeSpecificLot(
+          product._id,
+          dto.loteId,
+          Math.abs(stockDelta),
+          oldAverage,
+          product.cantidadStock - stockDelta,
+        );
+        product.costoCentavos = result.averageCostCents;
+        selectedLotLabel = result.lot.purchaseCode
+          ? ` · Lote de compra #${result.lot.purchaseCode} (${result.lot.supplierName || 'sin proveedor'})`
+          : ` · Lote de ${result.lot.kind === 'AJUSTE' ? 'ajuste manual' : 'valuación inicial'} (${result.lot.supplierName || 'sin proveedor'})`;
+      } else {
+        product.costoCentavos = await this.inventoryLots.adjust(
+          product._id,
+          stockDelta,
+          product.cantidadStock - stockDelta,
+          oldAverage,
+        );
+      }
       await product.save();
       const units = Math.abs(stockDelta);
       const reasonLabel = dto.motivoAjuste
@@ -217,7 +250,7 @@ export class StockService {
         currentAverageCostCents: product.costoCentavos,
         previousStock: product.cantidadStock - stockDelta,
         currentStock: product.cantidadStock,
-        reason: `${reasonLabel}: ${stockDelta > 0 ? 'ingreso' : 'egreso'} de ${units} ${units === 1 ? 'unidad' : 'unidades'}${observation ? ` - ${observation}` : ''}`,
+        reason: `${reasonLabel}: ${stockDelta > 0 ? 'ingreso' : 'egreso'} de ${units} ${units === 1 ? 'unidad' : 'unidades'}${selectedLotLabel}${observation ? ` - ${observation}` : ''}`,
       });
     }
     if (previousProduct.stockMinimo !== product.stockMinimo) {
@@ -261,12 +294,29 @@ export class StockService {
     if (product) {
       const previousStock = product.cantidadStock - dto.delta;
       const oldAverage = product.costoCentavos;
-      product.costoCentavos = await this.inventoryLots.adjust(
-        product._id,
-        dto.delta,
-        previousStock,
-        oldAverage,
-      );
+      if (dto.delta < 0) {
+        if (!dto.loteId) {
+          throw new BadRequestException({
+            code: 'INVENTORY_LOT_REQUIRED',
+            message: 'Seleccioná el lote del cual se restará la unidad',
+          });
+        }
+        const result = await this.inventoryLots.consumeSpecificLot(
+          product._id,
+          dto.loteId,
+          1,
+          oldAverage,
+          previousStock,
+        );
+        product.costoCentavos = result.averageCostCents;
+      } else {
+        product.costoCentavos = await this.inventoryLots.adjust(
+          product._id,
+          dto.delta,
+          previousStock,
+          oldAverage,
+        );
+      }
       await product.save();
       await this.recordMovement(product, {
         actor,

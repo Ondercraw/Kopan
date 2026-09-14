@@ -54,6 +54,12 @@ export class StockController {
     return this.stockService.findMovements(id);
   }
 
+  @Get(':id/lots')
+  @Roles(...STOCK_MANAGERS)
+  findLots(@Param('id', MongoIdPipe) id: string) {
+    return this.stockService.findLots(id);
+  }
+
   @Post()
   @Roles(...STOCK_MANAGERS)
   async create(@Body() dto: CreateProductDto, @CurrentUser() user: JwtPayload) {

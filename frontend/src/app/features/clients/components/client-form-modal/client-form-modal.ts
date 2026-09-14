@@ -38,7 +38,7 @@ export class ClientFormModal implements OnInit {
   @Input() client: Client | null = null;
   @Input() options: ClientOptions = { groups: [], locations: [], sellers: [], priceLists: [] };
   @Output() closed = new EventEmitter<void>();
-  @Output() saved = new EventEmitter<void>();
+  @Output() saved = new EventEmitter<Client>();
   readonly saving = signal(false);
   readonly error = signal<string | null>(null);
   readonly taxOptions: SearchableSelectOption[] = Object.entries(TAX_LABELS).map(
@@ -129,7 +129,7 @@ export class ClientFormModal implements OnInit {
       ? this.service.update(this.client._id, payload)
       : this.service.create(payload);
     request.subscribe({
-      next: () => this.saved.emit(),
+      next: (client) => this.saved.emit(client),
       error: (r) => {
         const message = r.error?.message;
         this.error.set(Array.isArray(message) ? message.join('. ') : message || 'No se pudo guardar el cliente');

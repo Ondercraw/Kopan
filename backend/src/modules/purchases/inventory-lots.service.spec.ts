@@ -75,4 +75,61 @@ describe('InventoryLotsService', () => {
 
     expect(create).not.toHaveBeenCalled();
   });
+
+  it('resta únicamente del lote seleccionado', async () => {
+    const productId = new Types.ObjectId();
+    const lotId = new Types.ObjectId();
+    const lot = {
+      _id: lotId,
+      productId,
+      purchaseCode: 18,
+      supplierName: 'Molino Demo',
+      remainingQuantity: 5,
+      unitCostCents: 12_000,
+      kind: 'COMPRA',
+      save: jest.fn().mockResolvedValue(undefined),
+    };
+    const findOne = jest.fn().mockReturnValue({
+      exec: jest.fn().mockResolvedValue(lot),
+    });
+    const find = jest.fn().mockReturnValue({
+      sort: jest.fn().mockReturnValue({
+        exec: jest.fn().mockImplementation(() => Promise.resolve([lot])),
+      }),
+    });
+    const service = new InventoryLotsService({ findOne, find } as never);
+
+    const result = await service.consumeSpecificLot(
+      productId,
+      lotId.toString(),
+      3,
+      12_000,
+      5,
+    );
+
+    expect(lot.remainingQuantity).toBe(2);
+    expect(lot.save).toHaveBeenCalledTimes(1);
+    expect(result.averageCostCents).toBe(12_000);
+    expect(result.lot.purchaseCode).toBe(18);
+  });
+
+  it('rechaza una cantidad superior a las unidades del lote elegido', async () => {
+    const productId = new Types.ObjectId();
+    const lotId = new Types.ObjectId();
+    const lot = {
+      remainingQuantity: 2,
+      save: jest.fn(),
+    };
+    const findOne = jest.fn().mockReturnValue({
+      exec: jest.fn().mockResolvedValue(lot),
+    });
+    const service = new InventoryLotsService({ findOne } as never);
+
+    await expect(
+      service.consumeSpecificLot(productId, lotId.toString(), 3, 10_000, 8),
+    ).rejects.toMatchObject({
+      response: { code: 'INSUFFICIENT_LOT_STOCK' },
+    });
+    expect(lot.save).not.toHaveBeenCalled();
+  });
 });

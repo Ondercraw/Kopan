@@ -26,7 +26,7 @@ export class SupplierFormModal implements OnInit {
   private readonly service = inject(SuppliersService);
   @Input() supplier: Supplier | null = null;
   @Output() closed = new EventEmitter<void>();
-  @Output() saved = new EventEmitter<void>();
+  @Output() saved = new EventEmitter<Supplier>();
   readonly saving = signal(false);
   readonly error = signal<string | null>(null);
   readonly form = this.fb.nonNullable.group({
@@ -57,7 +57,7 @@ export class SupplierFormModal implements OnInit {
       ? this.service.update(this.supplier._id, payload)
       : this.service.create(payload);
     request.subscribe({
-      next: () => this.saved.emit(),
+      next: (supplier) => this.saved.emit(supplier),
       error: (response) => {
         const message = response.error?.message;
         this.error.set(Array.isArray(message) ? message.join('. ') : message || 'No se pudo guardar el proveedor');

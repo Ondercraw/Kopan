@@ -125,7 +125,7 @@
   </section>
 </section>
 
-@if (modalMode(); as mode) {
+@if (visibleModalMode(); as mode) {
   <div class="modal-overlay">
     <section class="modal-card wide" role="dialog" aria-modal="true">
       <header>
@@ -136,16 +136,16 @@
         <button type="button" class="icon" (click)="close()"><i class="ti ti-x"></i></button>
       </header>
       <div class="form-grid">
-        <label class="field"
+        <label class="field supplier-field"
           ><span>Proveedor *</span
-          ><app-searchable-select
+          ><div class="field-with-action"><app-searchable-select
             [(ngModel)]="supplierId"
             (ngModelChange)="onSupplierChange($event)"
             [options]="supplierOptions()"
             placeholder="Buscar proveedor..."
             [clearable]="false"
-        /></label>
-        <label class="field"
+          /><button type="button" class="inline-add" (click)="openSupplierCreate()" title="Agregar proveedor"><i class="ti ti-plus"></i></button></div></label>
+        <label class="field date-field"
           ><span>Fecha *</span><input type="date" [(ngModel)]="purchaseDate"
         /></label>
         <label class="field"
@@ -165,7 +165,7 @@
           ><span>N.º comprobante <small>(opcional)</small></span
           ><input maxlength="80" [(ngModel)]="documentNumber"
         /></label>
-        <label class="field span-2"
+        <label class="field span-2 notes-field"
           ><span>Observaciones <small>(opcional)</small></span
           ><textarea maxlength="500" rows="2" [(ngModel)]="notes"></textarea
           ><small>{{ notes.length }} / 500</small></label
@@ -193,29 +193,29 @@
       @for (line of lines; track $index; let i = $index) {
         <div class="line-row">
           @if (mode === 'STOCK_INICIAL' && i > 0) {
-            <div class="locked-product">{{ productName(line.productId) }}</div>
+            <div class="product-picker"><div class="locked-product">{{ productName(line.productId) }}</div></div>
           } @else {
-            <app-searchable-select
+            <div class="product-picker"><app-searchable-select
               [(ngModel)]="line.productId"
               (ngModelChange)="onProductChange(i, $event)"
               [options]="mode === 'STOCK_INICIAL' ? openingProductOptions() : productOptions()"
               placeholder="Buscar producto..."
               [clearable]="false"
-            />
+            /><button type="button" class="inline-add" (click)="openProductCreate(i)" title="Agregar producto"><i class="ti ti-plus"></i></button></div>
           }
           <input type="number" min="1" step="1" [(ngModel)]="line.quantity" /><app-currency-input
             [(ngModel)]="line.unitCostPesos"
             [ngModelOptions]="{ standalone: true }"
             ariaLabel="Costo unitario con IVA"
           /><strong>{{ money(line.quantity * line.unitCostPesos * 100) }}</strong
-          ><button
+          ><div class="line-actions"><button class="edit" type="button" [disabled]="!line.productId" (click)="openProductEdit(i)" title="Modificar producto"><i class="ti ti-pencil"></i></button><button
             class="remove"
             type="button"
             [disabled]="lines.length === 1"
             (click)="removeLine(i)"
           >
             <i class="ti ti-trash"></i>
-          </button>
+          </button></div>
         </div>
       }
       @if (mode === 'STOCK_INICIAL' && lines[0]?.productId) {
@@ -238,6 +238,12 @@
       </footer>
     </section>
   </div>
+}
+@if (supplierModalOpen()) {
+  <app-supplier-form-modal (closed)="supplierModalOpen.set(false)" (saved)="onSupplierSaved($event)" />
+}
+@if (productModalOpen()) {
+  <app-product-form-modal [product]="editingProduct()" [typeOptions]="productTypeOptions()" [initialSupplierIds]="supplierId ? [supplierId] : []" (cerrado)="productModalOpen.set(false)" (guardado)="onProductSaved($event)" />
 }
 @if (pendingConfirmation()) {
   <app-confirmation-modal

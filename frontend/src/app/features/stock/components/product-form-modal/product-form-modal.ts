@@ -13,7 +13,12 @@ import {
 } from '@angular/core';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { FormBuilder, ReactiveFormsModule, Validators } from '@angular/forms';
-import { Product, StockAdjustmentReason, VatRate, WeightUnit } from '../../models/product.model';
+import {
+  InventoryLotOption,
+  Product,
+  StockAdjustmentReason,
+  VatRate,
+} from '../../models/product.model';
 import { StockService } from '../../services/stock.service';
 import { Supplier } from '../../../suppliers/models/supplier.model';
 import { SuppliersService } from '../../../suppliers/services/suppliers.service';
@@ -37,15 +42,19 @@ export class ProductFormModal implements OnInit {
   private readonly destroyRef = inject(DestroyRef);
 
   @Input() product: Product | null = null;
+  @Input() initialSupplierIds: string[] = [];
   @Input() typeOptions: string[] = [];
+  @Input() disableStockSubtraction = false;
   @Output() cerrado = new EventEmitter<void>();
-  @Output() guardado = new EventEmitter<void>();
+  @Output() guardado = new EventEmitter<Product>();
 
   readonly guardando = signal(false);
   readonly errorMensaje = signal<string | null>(null);
   readonly intentoGuardar = signal(false);
   readonly suppliers = signal<Supplier[]>([]);
   readonly selectedSupplierIds = signal<string[]>([]);
+  readonly inventoryLots = signal<InventoryLotOption[]>([]);
+  readonly loadingLots = signal(false);
   supplierLabel(id: string) {
     return (
       this.suppliers().find((s) => s._id === id)?.nombre ??
@@ -58,25 +67,26 @@ export class ProductFormModal implements OnInit {
     this.selectedSupplierIds.update((ids) => ids.filter((value) => value !== id));
   }
   readonly supplierSelectOptions = computed<SearchableSelectOption[]>(() =>
-    this.suppliers().map((supplier) => ({
+    [...this.suppliers()].sort((a,b)=>a.nombre.localeCompare(b.nombre,'es')).map((supplier) => ({
       value: supplier._id,
       label: supplier.nombre,
       meta: `#${supplier.codigo}${supplier.cuit ? ` · CUIT ${supplier.cuit}` : ''}`,
     })),
   );
-  readonly weightUnitOptions: SearchableSelectOption[] = [
-    { value: 'kg', label: 'kg', meta: 'Kilogramos' },
-    { value: 'g', label: 'g', meta: 'Gramos' },
-  ];
   readonly vatOptions: SearchableSelectOption[] = [
     { value: '21', label: '21%', meta: 'Alícuota general' },
     { value: '10.5', label: '10,5%', meta: 'Alícuota reducida' },
     { value: '0', label: '0%', meta: 'Sin IVA aplicado' },
   ];
-  readonly stockOperationOptions: SearchableSelectOption[] = [
-    { value: 'ADD', label: 'Sumar', meta: 'Agregar unidades al stock' },
-    { value: 'SUBTRACT', label: 'Restar', meta: 'Descontar unidades del stock' },
-  ];
+  readonly lotSelectOptions = computed<SearchableSelectOption[]>(() =>
+    this.inventoryLots().map((lot) => ({
+      value: lot._id,
+      label: lot.purchaseCode
+        ? `Compra #${lot.purchaseCode} · ${lot.supplierName || 'Sin proveedor'}`
+        : `${lot.kind === 'AJUSTE' ? 'Ajuste manual' : 'Valuación inicial'} · ${lot.supplierName || 'Sin proveedor'}`,
+      meta: `${lot.remainingQuantity} disponibles · ${this.formatMoney(lot.unitCostCents)} c/u · ${new Date(lot.receivedAt).toLocaleDateString('es-AR')}`,
+    })),
+  );
   readonly adjustmentReasonOptions: SearchableSelectOption[] = [
     {
       value: 'SALE_OR_DELIVERY',
@@ -115,11 +125,10 @@ export class ProductFormModal implements OnInit {
     cantidadStock: [0, [Validators.required, Validators.min(0), Validators.pattern(/^\d+$/)]],
     cantidadAjuste: [0, [Validators.required, Validators.min(0), Validators.pattern(/^\d+$/)]],
     operacionStock: this.fb.nonNullable.control<'ADD' | 'SUBTRACT'>('ADD'),
+    loteId: this.fb.nonNullable.control(''),
     motivoAjuste: this.fb.nonNullable.control<StockAdjustmentReason | ''>(''),
     observacionAjuste: ['', [Validators.maxLength(200)]],
     stockMinimo: [0, [Validators.required, Validators.min(0), Validators.pattern(/^\d+$/)]],
-    peso: [1, [Validators.required, Validators.min(0.001)]],
-    unidadPeso: this.fb.nonNullable.control<WeightUnit>('kg', Validators.required),
     alicuotaIva: this.fb.nonNullable.control<string>('21', Validators.required),
     costo: this.fb.nonNullable.control({ value: 0, disabled: true }),
     proveedorId: [''],
@@ -127,7 +136,9 @@ export class ProductFormModal implements OnInit {
   });
 
   get typeSelectOptions(): SearchableSelectOption[] {
-    return this.typeOptions.map((type) => ({ value: type, label: type }));
+    return [...new Set(this.typeOptions.map((type) => type.trim().toLocaleUpperCase('es-AR')))]
+      .sort((a,b)=>a.localeCompare(b,'es'))
+      .map((type) => ({ value: type, label: type }));
   }
 
   get visibleAdjustmentReasonOptions(): SearchableSelectOption[] {
@@ -138,13 +149,18 @@ export class ProductFormModal implements OnInit {
     return this.adjustmentReasonOptions.filter((option) => allowed.includes(option.value));
   }
 
+  selectStockOperation(operation: 'ADD' | 'SUBTRACT'): void {
+    if (operation === 'SUBTRACT' && this.disableStockSubtraction) return;
+    this.form.controls.operacionStock.setValue(operation);
+  }
+
   ngOnInit(): void {
     this.selectedSupplierIds.set(
       this.product?.proveedorIds?.length
         ? this.product.proveedorIds.map((s) => s._id)
         : this.product?.proveedorId
           ? [this.product.proveedorId._id]
-          : [],
+          : this.initialSupplierIds,
     );
     this.form.controls.proveedorId.valueChanges
       .pipe(takeUntilDestroyed(this.destroyRef))
@@ -159,6 +175,8 @@ export class ProductFormModal implements OnInit {
       .subscribe(() => {
         this.form.controls.motivoAjuste.setValue('');
         this.form.controls.motivoAjuste.markAsUntouched();
+        this.form.controls.loteId.setValue('');
+        this.form.controls.loteId.markAsUntouched();
       });
     this.suppliersService.findActive().subscribe({
       next: (suppliers) => {
@@ -167,13 +185,23 @@ export class ProductFormModal implements OnInit {
       error: () => this.suppliers.set([]),
     });
     if (!this.product) return;
+    this.loadingLots.set(true);
+    this.stockService.findLots(this.product._id).subscribe({
+      next: (lots) => {
+        this.inventoryLots.set(lots);
+        this.loadingLots.set(false);
+      },
+      error: () => {
+        this.inventoryLots.set([]);
+        this.loadingLots.set(false);
+        this.errorMensaje.set('No se pudieron cargar los lotes disponibles del producto');
+      },
+    });
     this.form.patchValue({
       nombre: this.product.nombre,
       tipo: this.product.tipo,
       cantidadStock: this.product.cantidadStock,
       stockMinimo: this.product.stockMinimo,
-      peso: this.product.peso,
-      unidadPeso: this.product.unidadPeso,
       alicuotaIva: String(this.product.alicuotaIva ?? 21),
       costo: (this.product.costoCentavos ?? 0) / 100,
       proveedorId: '',
@@ -195,16 +223,31 @@ export class ProductFormModal implements OnInit {
       this.form.controls.cantidadAjuste.markAsTouched();
       return;
     }
+    if (
+      this.product &&
+      values.operacionStock === 'SUBTRACT' &&
+      Number(values.cantidadAjuste) > 0 &&
+      !values.loteId
+    ) {
+      this.form.controls.loteId.markAsTouched();
+      this.errorMensaje.set('Seleccioná el lote del cual se restarán las unidades');
+      return;
+    }
+    if (this.lotQuantityExceeded()) {
+      this.form.controls.cantidadAjuste.markAsTouched();
+      this.errorMensaje.set(
+        `El lote seleccionado tiene solamente ${this.selectedLot()?.remainingQuantity ?? 0} unidades disponibles`,
+      );
+      return;
+    }
 
     this.guardando.set(true);
     this.errorMensaje.set(null);
 
     const sharedValues = {
       nombre: values.nombre.trim(),
-      tipo: values.tipo.trim(),
+      tipo: values.tipo.trim().toLocaleUpperCase('es-AR'),
       stockMinimo: Number(values.stockMinimo),
-      peso: Number(values.peso),
-      unidadPeso: values.unidadPeso,
       alicuotaIva: Number(values.alicuotaIva) as VatRate,
       proveedorId: this.selectedSupplierIds()[0],
       proveedorIds: this.selectedSupplierIds(),
@@ -227,6 +270,8 @@ export class ProductFormModal implements OnInit {
       ? this.stockService.update(this.product._id, {
           ...sharedValues,
           ajusteStock: stockAdjustment,
+          loteId:
+            stockAdjustment && stockAdjustment < 0 ? values.loteId || undefined : undefined,
           motivoAjuste: adjustmentAmount > 0 ? values.motivoAjuste || undefined : undefined,
           observacionAjuste:
             adjustmentAmount > 0 ? values.observacionAjuste.trim() || undefined : undefined,
@@ -237,7 +282,7 @@ export class ProductFormModal implements OnInit {
         });
 
     request.subscribe({
-      next: () => this.guardado.emit(),
+      next: (product) => this.guardado.emit(product),
       error: (error) => {
         const backendMessage = Array.isArray(error.error?.message)
           ? error.error.message.join('. ')
@@ -272,6 +317,25 @@ export class ProductFormModal implements OnInit {
 
   hasStockAdjustment(): boolean {
     return !!this.product && Number(this.form.controls.cantidadAjuste.value) > 0;
+  }
+
+  selectedLot(): InventoryLotOption | null {
+    return (
+      this.inventoryLots().find((lot) => lot._id === this.form.controls.loteId.value) ?? null
+    );
+  }
+
+  lotQuantityExceeded(): boolean {
+    if (this.form.controls.operacionStock.value !== 'SUBTRACT') return false;
+    const lot = this.selectedLot();
+    const amount = Number(this.form.controls.cantidadAjuste.value);
+    return !!lot && Number.isFinite(amount) && amount > lot.remainingQuantity;
+  }
+
+  formatMoney(cents: number): string {
+    return new Intl.NumberFormat('es-AR', { style: 'currency', currency: 'ARS' }).format(
+      cents / 100,
+    );
   }
 
   projectedStockStatus(): 'available' | 'low-stock' | 'no-stock' | 'invalid' | null {

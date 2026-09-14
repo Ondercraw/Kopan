@@ -112,34 +112,41 @@ select:focus {
   color: #6f6257;
   font-size: 0.84rem;
 }
-.weight-input,
 .stock-adjustment-input {
   display: grid;
   gap: 0.5rem;
 }
-.weight-input {
-  grid-template-columns: minmax(0, 1fr) 125px;
-}
 .stock-adjustment-input {
-  grid-template-columns: minmax(0, 1fr) 170px;
+  grid-template-columns: minmax(0, 1fr) 210px;
 }
-.weight-input input,
 .stock-adjustment-input input {
   border-radius: 10px;
 }
-.weight-input app-searchable-select,
-.stock-adjustment-input app-searchable-select {
-  min-width: 0;
+.stock-operation-buttons {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 0;
 }
-.weight-input select,
-.stock-adjustment-input select {
+.stock-operation-buttons button {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.3rem;
   min-width: 0;
-  padding: 0 0.65rem;
-  border-left: 0;
-  border-radius: 0 10px 10px 0;
-  background: #f8f3ed;
-  font-weight: 700;
+  border: 1px solid #d8c1b0;
+  background: #fff;
+  padding: 0.72rem 0.55rem;
+  font-weight: 800;
+  cursor: pointer;
 }
+.stock-operation-buttons button:first-child { border-radius: 10px 0 0 10px; }
+.stock-operation-buttons button:last-child { margin-left: -1px; border-radius: 0 10px 10px 0; }
+.stock-operation-buttons .add-operation { color: #28713f; }
+.stock-operation-buttons .subtract-operation { color: #a1362d; }
+.stock-operation-buttons .add-operation.selected { position:relative; z-index:1; border-color:#3e8a55; background: #e8f5eb; }
+.stock-operation-buttons .subtract-operation.selected { position:relative; z-index:1; border-color:#b74439; background: #fdeceb; }
+.stock-operation-buttons button:disabled { cursor:not-allowed; opacity:.45; background:#f2eee9; }
+.stock-operation-buttons i { font-size: 1.1rem; }
 .stock-adjustment-field label strong {
   color: #6d3603;
 }
@@ -169,6 +176,38 @@ select:focus {
   color: #76512f;
   font-size: 0.82rem;
   line-height: 1.35;
+}
+.automatic-sale-stock-note {
+  display: flex;
+  align-items: center;
+  gap: 0.35rem;
+  color: #76512f;
+  font-size: 0.8rem;
+  line-height: 1.35;
+}
+.lot-selection {
+  display: grid;
+  gap: 0.45rem;
+  padding: 0.8rem;
+  border: 1px solid #e4c9b0;
+  border-radius: 11px;
+  background: #fffaf4;
+}
+.lot-selection > label {
+  color: #5c3b22;
+  font-size: 0.8rem;
+  font-weight: 750;
+}
+.lot-selection > label strong {
+  color: #a1362d;
+}
+.selected-lot-summary {
+  color: #76512f;
+  font-size: 0.78rem;
+  line-height: 1.35;
+}
+.selected-lot-summary strong {
+  color: #6d3603;
 }
 .field-error,
 .form-error {

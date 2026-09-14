@@ -1,6 +1,5 @@
 import { Model, Types } from 'mongoose';
 import { StockMovementType } from './enums/stock-movement-type.enum';
-import { WeightUnit } from './enums/weight-unit.enum';
 import { CounterDocument } from './schemas/counter.schema';
 import { ProductDocument } from './schemas/product.schema';
 import {
@@ -16,6 +15,7 @@ describe('StockService', () => {
   let findById: jest.Mock;
   let createMovement: jest.Mock;
   let adjustInventory: jest.Mock;
+  let consumeSpecificLot: jest.Mock;
   let service: StockService;
   const actor = { id: new Types.ObjectId().toString(), name: 'Administrador' };
 
@@ -41,12 +41,16 @@ describe('StockService', () => {
       assertActive: jest.fn().mockResolvedValue(null),
     } as unknown as SuppliersService;
     adjustInventory = jest.fn().mockResolvedValue(1500);
+    consumeSpecificLot = jest.fn().mockResolvedValue({
+      averageCostCents: 1500,
+      lot: { purchaseCode: 1, supplierName: 'Proveedor', kind: 'COMPRA' },
+    });
     service = new StockService(
       productModel,
       counterModel,
       movementModel,
       suppliersService,
-      { adjust: adjustInventory } as never,
+      { adjust: adjustInventory, consumeSpecificLot } as never,
       { transaction: (callback: () => unknown) => callback() } as never,
     );
   });
@@ -57,11 +61,12 @@ describe('StockService', () => {
 
   it('resta una unidad de forma atómica sin permitir cantidades negativas', async () => {
     const product = createProduct(4);
+    const lotId = new Types.ObjectId().toString();
     const exec = jest.fn().mockResolvedValue(product);
     findOneAndUpdate.mockReturnValue({ exec });
 
     await expect(
-      service.adjustStock(product._id.toString(), { delta: -1 }, actor),
+      service.adjustStock(product._id.toString(), { delta: -1, loteId: lotId }, actor),
     ).resolves.toEqual({
       product,
       previousStock: 5,
@@ -79,6 +84,13 @@ describe('StockService', () => {
         actorId: actor.id,
         actorName: actor.name,
       }),
+    );
+    expect(consumeSpecificLot).toHaveBeenCalledWith(
+      product._id,
+      lotId,
+      1,
+      product.costoCentavos,
+      5,
     );
   });
 
@@ -134,8 +146,6 @@ describe('StockService', () => {
         tipo: 'Harina',
         descripcionAdicional: 'Bolsa reforzada',
         stockMinimo: 4,
-        peso: 25,
-        unidadPeso: WeightUnit.KILOGRAM,
         proveedorId: undefined,
       },
       actor,
@@ -146,11 +156,9 @@ describe('StockService', () => {
       {
         $set: {
           nombre: 'Harina 000',
-          tipo: 'Harina',
+          tipo: 'HARINA',
           descripcionAdicional: 'Bolsa reforzada',
           stockMinimo: 4,
-          peso: 25,
-          unidadPeso: WeightUnit.KILOGRAM,
           proveedorId: null,
           proveedorIds: [],
         },
@@ -184,8 +192,6 @@ describe('StockService', () => {
         nombre: product.nombre,
         tipo: product.tipo,
         stockMinimo: product.stockMinimo,
-        peso: product.peso,
-        unidadPeso: WeightUnit.KILOGRAM,
         proveedorId: undefined,
         ajusteStock: 15,
         motivoAjuste: StockAdjustmentReason.INVENTORY_CORRECTION,
@@ -229,8 +235,6 @@ describe('StockService', () => {
           nombre: product.nombre,
           tipo: product.tipo,
           stockMinimo: product.stockMinimo,
-          peso: product.peso,
-          unidadPeso: WeightUnit.KILOGRAM,
           ajusteStock: -10,
           motivoAjuste: StockAdjustmentReason.BREAKAGE_OR_LOSS,
         },
@@ -259,8 +263,6 @@ describe('StockService', () => {
           nombre: product.nombre,
           tipo: product.tipo,
           stockMinimo: product.stockMinimo,
-          peso: product.peso,
-          unidadPeso: WeightUnit.KILOGRAM,
           ajusteStock: 3,
         },
         actor,
@@ -282,8 +284,6 @@ describe('StockService', () => {
       descripcionAdicional: 'Bolsa de 10 kg',
       cantidadStock,
       stockMinimo: 3,
-      peso: 10,
-      unidadPeso: 'kg',
       proveedorId: null,
       costoCentavos: 1500,
       activo: true,

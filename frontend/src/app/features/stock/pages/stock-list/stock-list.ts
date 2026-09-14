@@ -16,7 +16,7 @@ import { ProductFormModal } from '../../components/product-form-modal/product-fo
 import { ProductReactivateModal } from '../../components/product-reactivate-modal/product-reactivate-modal';
 import { StockMovementHistory } from '../../components/stock-movement-history/stock-movement-history';
 import { ReplenishmentModal } from '../../components/replenishment-modal/replenishment-modal';
-import { Product, StockMovement, WeightUnit } from '../../models/product.model';
+import { Product, StockMovement } from '../../models/product.model';
 import { StockService } from '../../services/stock.service';
 import { CsvExportService } from '../../../../shared/services/csv-export.service';
 
@@ -31,8 +31,6 @@ type ProductSort =
   | 'SUPPLIER_DESC'
   | 'DESCRIPTION_ASC'
   | 'DESCRIPTION_DESC'
-  | 'WEIGHT_ASC'
-  | 'WEIGHT_DESC'
   | 'STOCK_ASC'
   | 'STOCK_DESC'
   | 'MINIMUM_ASC'
@@ -74,8 +72,7 @@ export class StockList implements OnInit {
   readonly searchTerm = signal('');
   readonly supplierFilter = signal('');
   readonly typeFilter = signal('');
-  readonly weightFilter = signal('');
-  readonly sortOrder = signal<ProductSort>('STOCK_ASC');
+  readonly sortOrder = signal<ProductSort>('NAME_ASC');
   readonly expandedProductId = signal<string | null>(null);
   readonly movementsByProduct = signal<Record<string, StockMovement[]>>({});
   readonly loadingMovementIds = signal<Set<string>>(new Set());
@@ -93,9 +90,8 @@ export class StockList implements OnInit {
   });
 
   readonly typeOptions = computed(() =>
-    [
-      ...new Set([...this.products(), ...this.inactiveProducts()].map((product) => product.tipo)),
-    ].sort((a, b) => a.localeCompare(b, 'es')),
+    [...new Set([...this.products(), ...this.inactiveProducts()].map((product) =>
+      product.tipo.trim().toLocaleUpperCase('es-AR')))].sort((a, b) => a.localeCompare(b, 'es')),
   );
 
   productSuppliers(product: Product) {
@@ -122,30 +118,17 @@ export class StockList implements OnInit {
     return [...unique.values()].sort((a, b) => a.nombre.localeCompare(b.nombre, 'es'));
   });
 
-  readonly weightOptions = computed(() => {
-    const uniqueWeights = new Map<string, { value: string; peso: number; unidad: WeightUnit }>();
-    for (const product of this.products()) {
-      const value = this.weightKey(product);
-      uniqueWeights.set(value, { value, peso: product.peso, unidad: product.unidadPeso });
-    }
-    return [...uniqueWeights.values()].sort(
-      (a, b) => this.weightInGrams(a.peso, a.unidad) - this.weightInGrams(b.peso, b.unidad),
-    );
-  });
-
   readonly filteredProducts = computed(() => {
     const search = this.normalize(this.searchTerm());
     const supplier = this.supplierFilter();
     const type = this.typeFilter();
-    const weight = this.weightFilter();
 
     const filtered = this.products().filter((product) => {
       const matchesName = !search || this.normalize(product.nombre).includes(search);
       const matchesSupplier =
         !supplier || this.productSuppliers(product).some((item) => item._id === supplier);
-      const matchesType = !type || product.tipo === type;
-      const matchesWeight = !weight || this.weightKey(product) === weight;
-      return matchesName && matchesSupplier && matchesType && matchesWeight;
+      const matchesType = !type || product.tipo.trim().toLocaleUpperCase('es-AR') === type;
+      return matchesName && matchesSupplier && matchesType;
     });
     return filtered.sort((a, b) => this.compareProducts(a, b, this.sortOrder()));
   });
@@ -241,10 +224,6 @@ export class StockList implements OnInit {
     this.supplierFilter.set((event.target as HTMLSelectElement).value);
   }
 
-  onWeightFilter(event: Event): void {
-    this.weightFilter.set((event.target as HTMLSelectElement).value);
-  }
-
   onSortChange(event: Event): void {
     this.sortOrder.set((event.target as HTMLSelectElement).value as ProductSort);
   }
@@ -253,17 +232,15 @@ export class StockList implements OnInit {
     this.searchTerm.set('');
     this.supplierFilter.set('');
     this.typeFilter.set('');
-    this.weightFilter.set('');
   }
 
   exportCurrentStock(): void {
     this.csv.download('stock-actual', this.filteredProducts(), [
       { header: 'ID', value: (p) => p.codigo },
       { header: 'Producto', value: (p) => p.nombre },
-      { header: 'Tipo', value: (p) => p.tipo },
+      { header: 'Rubro', value: (p) => p.tipo },
       { header: 'Proveedor', value: (p) => p.proveedorId?.nombre ?? 'Sin proveedor' },
       { header: 'Descripción', value: (p) => p.descripcionAdicional },
-      { header: 'Peso', value: (p) => this.formatWeight(p.peso, p.unidadPeso) },
       { header: 'Stock actual', value: (p) => p.cantidadStock },
       { header: 'Stock mínimo', value: (p) => p.stockMinimo },
       {
@@ -318,22 +295,10 @@ export class StockList implements OnInit {
     );
   }
 
-  formatWeight(weight: number, unit: WeightUnit): string {
-    return `${new Intl.NumberFormat('es-AR', { maximumFractionDigits: 3 }).format(weight)} ${unit}`;
-  }
-
   formatMoney(cents: number): string {
     return new Intl.NumberFormat('es-AR', { style: 'currency', currency: 'ARS' }).format(
       cents / 100,
     );
-  }
-
-  private weightKey(product: Product): string {
-    return `${product.peso}|${product.unidadPeso}`;
-  }
-
-  private weightInGrams(weight: number, unit: WeightUnit): number {
-    return unit === 'kg' ? weight * 1000 : weight;
   }
 
   private compareProducts(a: Product, b: Product, order: ProductSort): number {
@@ -360,9 +325,6 @@ export class StockList implements OnInit {
         direction,
       );
       return comparison || a.codigo - b.codigo;
-    } else if (order.startsWith('WEIGHT_')) {
-      comparison =
-        this.weightInGrams(a.peso, a.unidadPeso) - this.weightInGrams(b.peso, b.unidadPeso);
     } else if (order.startsWith('STOCK_')) {
       comparison = a.cantidadStock - b.cantidadStock;
     } else if (order.startsWith('MINIMUM_')) {

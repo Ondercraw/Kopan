@@ -1,4 +1,10 @@
-import { Injectable, Logger, OnModuleInit } from '@nestjs/common';
+import {
+  BadRequestException,
+  ConflictException,
+  Injectable,
+  Logger,
+  OnModuleInit,
+} from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
 import { Model, Types } from 'mongoose';
 import {
@@ -66,6 +72,50 @@ export class InventoryLotsService implements OnModuleInit {
       quantity,
       value,
       averageCostCents: quantity ? Math.round(value / quantity) : 0,
+    };
+  }
+
+  async consumeSpecificLot(
+    productId: Types.ObjectId,
+    lotId: string,
+    quantity: number,
+    fallbackCostCents: number,
+    physicalStockBefore: number,
+  ) {
+    const lot = await this.lotModel
+      .findOne({
+        _id: lotId,
+        productId,
+        cancelled: false,
+        remainingQuantity: { $gt: 0 },
+      })
+      .exec();
+    if (!lot) {
+      throw new BadRequestException({
+        code: 'INVENTORY_LOT_NOT_AVAILABLE',
+        message: 'El lote seleccionado no está disponible para este producto',
+      });
+    }
+    if (quantity > lot.remainingQuantity) {
+      throw new ConflictException({
+        code: 'INSUFFICIENT_LOT_STOCK',
+        message: `El lote seleccionado tiene solamente ${lot.remainingQuantity} unidades disponibles`,
+      });
+    }
+    lot.remainingQuantity -= quantity;
+    await lot.save();
+    return {
+      averageCostCents: await this.averageIncludingUnvalued(
+        productId,
+        physicalStockBefore - quantity,
+        fallbackCostCents,
+      ),
+      lot: {
+        purchaseCode: lot.purchaseCode,
+        supplierName: lot.supplierName,
+        unitCostCents: lot.unitCostCents,
+        kind: lot.kind,
+      },
     };
   }
 

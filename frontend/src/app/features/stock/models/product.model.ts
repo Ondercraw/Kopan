@@ -1,4 +1,3 @@
-export type WeightUnit = 'kg' | 'g';
 export type VatRate = 0 | 10.5 | 21;
 export type StockAdjustmentReason =
   | 'PURCHASE_RECEIVED'
@@ -14,12 +13,24 @@ export interface ProductSupplier {
   activo: boolean;
 }
 export interface ProductCostLayer {
+  _id?: string;
   purchaseCode: number;
   supplierName: string;
   initialQuantity: number;
   remainingQuantity: number;
   unitCostCents: number;
   receivedAt: string;
+}
+
+export interface InventoryLotOption {
+  _id: string;
+  purchaseCode: number | null;
+  supplierName: string;
+  initialQuantity: number;
+  remainingQuantity: number;
+  unitCostCents: number;
+  receivedAt: string;
+  kind: 'COMPRA' | 'STOCK_INICIAL' | 'AJUSTE';
 }
 
 export interface Product {
@@ -37,8 +48,6 @@ export interface Product {
   descripcionAdicional: string;
   cantidadStock: number;
   stockMinimo: number;
-  peso: number;
-  unidadPeso: WeightUnit;
   alicuotaIva: VatRate;
   costoCentavos: number;
   // El backend entrega la relación poblada bajo proveedorId.
@@ -56,8 +65,6 @@ export interface CreateProductPayload {
   descripcionAdicional?: string;
   cantidadStock: number;
   stockMinimo: number;
-  peso: number;
-  unidadPeso: WeightUnit;
   proveedorId?: string;
   proveedorIds?: string[];
   alicuotaIva: VatRate;
@@ -69,13 +76,12 @@ export interface UpdateProductPayload {
   tipo: string;
   descripcionAdicional?: string;
   stockMinimo: number;
-  peso: number;
-  unidadPeso: WeightUnit;
   proveedorId?: string;
   proveedorIds?: string[];
   alicuotaIva: VatRate;
   costoCentavos?: number;
   ajusteStock?: number;
+  loteId?: string;
   motivoAjuste?: StockAdjustmentReason;
   observacionAjuste?: string;
 }

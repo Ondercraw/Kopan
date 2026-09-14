@@ -1,6 +1,5 @@
 import { Prop, Schema, SchemaFactory } from '@nestjs/mongoose';
 import { HydratedDocument, Schema as MongooseSchema, Types } from 'mongoose';
-import { WeightUnit } from '../enums/weight-unit.enum';
 import { VatRate } from '../enums/vat-rate.enum';
 
 export type ProductDocument = HydratedDocument<Product>;
@@ -14,14 +13,16 @@ export class Product {
 
   /*
    * Especificaciones principales del producto.
-   * Si en el futuro cambian las unidades (kg, litros, paquetes), se agregan
-   * variantes o se necesita stock por depósito, modificar este bloque junto
+   * Si en el futuro se agregan variantes o se necesita stock por depósito,
+   * modificar este bloque junto
    * con CreateProductDto y el modelo/formulario del frontend.
    */
   @Prop({ required: true, trim: true, maxlength: 120 })
   nombre: string;
 
-  @Prop({ required: true, trim: true, maxlength: 80, index: true })
+  // `tipo` se conserva como nombre interno por compatibilidad con los datos existentes;
+  // en la interfaz y el negocio se presenta como "Rubro".
+  @Prop({ required: true, trim: true, uppercase: true, maxlength: 80, index: true })
   tipo: string;
 
   @Prop({ trim: true, maxlength: 500, default: '' })
@@ -32,13 +33,6 @@ export class Product {
 
   @Prop({ required: true, min: 0, default: 0 })
   stockMinimo: number;
-
-  // Peso y unidad de una presentación; conservarlos separados evita conversiones confusas en pantalla.
-  @Prop({ required: true, min: 0.001 })
-  peso: number;
-
-  @Prop({ required: true, type: String, enum: Object.values(WeightUnit) })
-  unidadPeso: WeightUnit;
 
   // Decisión relevada el 21/08/2026: Kopan usa 21%, 10,5% y 0%.
   // La condición fiscal del cliente sigue siendo un dato independiente.

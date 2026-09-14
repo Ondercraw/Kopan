@@ -59,7 +59,7 @@ export class PricesService {
   ) {}
 
   findAll() {
-    return this.listModel.find().sort({ activo: -1, codigo: 1 }).lean().exec();
+    return this.listModel.find().sort({ activo: -1, nombre: 1, codigo: 1 }).lean().exec();
   }
 
   async findOne(id: string) {
@@ -98,6 +98,11 @@ export class PricesService {
           ),
         },
       };
+    });
+    enriched.sort((a, b) => {
+      const left = (a.productoId as unknown as { nombre: string }).nombre;
+      const right = (b.productoId as unknown as { nombre: string }).nombre;
+      return left.localeCompare(right, 'es', { sensitivity: 'base', numeric: true });
     });
     return { ...list, items: enriched };
   }

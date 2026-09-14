@@ -42,17 +42,17 @@
         </div>
 
         <div class="field">
-          <label for="tipo">Tipo</label>
+          <label for="tipo">Rubro</label>
           <app-searchable-select
             id="tipo"
             formControlName="tipo"
             [options]="typeSelectOptions"
             [allowCustom]="true"
-            placeholder="Buscar o escribir un tipo..."
-            emptyText="No hay tipos que coincidan. Podés escribir uno nuevo."
+            placeholder="Buscar o escribir un rubro..."
+            emptyText="No hay rubros que coincidan. Podés escribir uno nuevo."
           />
           @if (form.controls.tipo.invalid && form.controls.tipo.touched) {
-            <span class="field-error">Ingresá un tipo de producto</span>
+            <span class="field-error">Ingresá un rubro</span>
           }
         </div>
 
@@ -80,17 +80,69 @@
                 id="cantidadAjuste"
                 type="number"
                 min="0"
+                [max]="form.controls.operacionStock.value === 'SUBTRACT' && selectedLot() ? selectedLot()!.remainingQuantity : product.cantidadStock"
                 step="1"
                 formControlName="cantidadAjuste"
                 aria-label="Cantidad de unidades a ajustar"
               />
-              <app-searchable-select
-                formControlName="operacionStock"
-                [options]="stockOperationOptions"
-                [clearable]="false"
-                placeholder="Buscar operación…"
-              />
+              <div class="stock-operation-buttons" role="group" aria-label="Operación de stock">
+                <button
+                  type="button"
+                  class="add-operation"
+                  [class.selected]="form.controls.operacionStock.value === 'ADD'"
+                  [attr.aria-pressed]="form.controls.operacionStock.value === 'ADD'"
+                  (click)="selectStockOperation('ADD')"
+                  title="Sumar unidades"
+                >
+                  <i class="ti ti-plus"></i><span>Sumar</span>
+                </button>
+                <button
+                  type="button"
+                  class="subtract-operation"
+                  [disabled]="disableStockSubtraction"
+                  [class.selected]="form.controls.operacionStock.value === 'SUBTRACT'"
+                  [attr.aria-pressed]="form.controls.operacionStock.value === 'SUBTRACT'"
+                  (click)="selectStockOperation('SUBTRACT')"
+                  [title]="disableStockSubtraction ? 'El stock se descuenta al finalizar la venta' : 'Restar unidades'"
+                >
+                  <i class="ti ti-minus"></i><span>Restar</span>
+                </button>
+              </div>
             </div>
+            @if (form.controls.operacionStock.value === 'SUBTRACT') {
+              <div class="lot-selection">
+                <label for="loteId">Lote del cual restar <strong>*</strong></label>
+                <app-searchable-select
+                  id="loteId"
+                  formControlName="loteId"
+                  [options]="lotSelectOptions()"
+                  [clearable]="false"
+                  [placeholder]="loadingLots() ? 'Cargando lotes...' : 'Seleccionar lote disponible...'"
+                  emptyText="No hay lotes con unidades disponibles."
+                />
+                @if (selectedLot(); as lot) {
+                  <span class="selected-lot-summary">
+                    Este lote tiene <strong>{{ lot.remainingQuantity }} unidades</strong> disponibles
+                    a {{ formatMoney(lot.unitCostCents) }} cada una.
+                  </span>
+                }
+                @if (!form.controls.loteId.value && intentoGuardar() && hasStockAdjustment()) {
+                  <span class="field-error">Seleccioná el lote que se modificará</span>
+                }
+                @if (lotQuantityExceeded()) {
+                  <span class="field-error">
+                    La cantidad no puede superar las {{ selectedLot()!.remainingQuantity }} unidades
+                    disponibles de este lote.
+                  </span>
+                }
+              </div>
+            }
+            @if (disableStockSubtraction) {
+              <span class="automatic-sale-stock-note">
+                <i class="ti ti-info-circle"></i>
+                (El stock se descuenta automáticamente al finalizar la compra)
+              </span>
+            }
             @if (form.controls.cantidadAjuste.invalid && form.controls.cantidadAjuste.touched) {
               <span class="field-error">Ingresá una cantidad entera igual o mayor a 0</span>
             }
@@ -160,21 +212,7 @@
           }
         </div>
 
-        <div class="field">
-          <label for="peso">Peso por unidad <small>(kg o g)</small></label>
-          <div class="weight-input">
-            <input id="peso" type="number" min="0.001" step="0.001" formControlName="peso" />
-            <app-searchable-select
-              formControlName="unidadPeso"
-              [options]="weightUnitOptions"
-              [clearable]="false"
-              placeholder="Buscar unidad…"
-            />
-          </div>
-          @if (form.controls.peso.invalid && form.controls.peso.touched) {
-            <span class="field-error">Ingresá un peso mayor a 0</span>
-          }
-        </div>
+
 
         <div class="field">
           <label for="proveedor">Proveedores <small>(opcional, podés elegir varios)</small></label>

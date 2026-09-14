@@ -88,7 +88,7 @@
   </label>
 
   <label class="select-field">
-    <span>Tipo</span>
+    <span>Rubro</span>
     <select [value]="typeFilter()" (change)="onTypeFilter($event)">
       <option value="">Todos</option>
       @for (type of typeOptions(); track type) {
@@ -97,15 +97,6 @@
     </select>
   </label>
 
-  <label class="select-field">
-    <span>Peso</span>
-    <select [value]="weightFilter()" (change)="onWeightFilter($event)">
-      <option value="">Todos</option>
-      @for (weight of weightOptions(); track weight.value) {
-        <option [value]="weight.value">{{ formatWeight(weight.peso, weight.unidad) }}</option>
-      }
-    </select>
-  </label>
 
   <label class="select-field">
     <span>Ordenar por</span>
@@ -114,14 +105,13 @@
       <option value="ID_DESC">ID: mayor a menor</option>
       <option value="NAME_ASC">Producto: A a Z</option>
       <option value="NAME_DESC">Producto: Z a A</option>
-      <option value="TYPE_ASC">Tipo: A a Z</option>
-      <option value="TYPE_DESC">Tipo: Z a A</option>
+      <option value="TYPE_ASC">Rubro: A a Z</option>
+      <option value="TYPE_DESC">Rubro: Z a A</option>
       <option value="SUPPLIER_ASC">Proveedor: A a Z</option>
       <option value="SUPPLIER_DESC">Proveedor: Z a A</option>
       <option value="DESCRIPTION_ASC">Descripción: A a Z</option>
       <option value="DESCRIPTION_DESC">Descripción: Z a A</option>
-      <option value="WEIGHT_ASC">Peso: menor a mayor</option>
-      <option value="WEIGHT_DESC">Peso: mayor a menor</option>
+
       <option value="STOCK_ASC">Cantidad: menor a mayor</option>
       <option value="STOCK_DESC">Cantidad: mayor a menor</option>
       <option value="MINIMUM_ASC">Stock mínimo: menor a mayor</option>
@@ -135,7 +125,7 @@
     </select>
   </label>
 
-  @if (searchTerm() || supplierFilter() || typeFilter() || weightFilter()) {
+  @if (searchTerm() || supplierFilter() || typeFilter()) {
     <button type="button" class="clear-filters" (click)="clearFilters()">
       <i class="ti ti-filter-off"></i>
       Limpiar
@@ -157,10 +147,10 @@
   <div class="list-header" aria-hidden="true">
     <span>ID</span>
     <span>Producto</span>
-    <span>Tipo</span>
+    <span>Rubro</span>
     <span>Proveedor</span>
     <span>Descripción</span>
-    <span>Peso</span>
+
     <span>Stock</span>
     <span>Acciones</span>
   </div>
@@ -192,16 +182,14 @@
                 <small class="low-label">Stock bajo</small>
               }
             </span>
-            <span class="cell" data-label="Tipo">{{ product.tipo }}</span>
+            <span class="cell" data-label="Rubro">{{ product.tipo }}</span>
             <span class="cell provider" data-label="Proveedor">
               {{ supplierNames(product) }}
             </span>
             <span class="cell description" data-label="Descripción">
               {{ product.descripcionAdicional || 'Sin descripción adicional' }}
             </span>
-            <span class="cell weight" data-label="Peso">
-              {{ formatWeight(product.peso, product.unidadPeso) }}
-            </span>
+
             <span class="cell stock" data-label="Stock">
               <strong>{{ product.cantidadStock }}</strong> unidades
             </span>
@@ -260,13 +248,10 @@
             </div>
             <dl>
               <div>
-                <dt>Tipo</dt>
+                <dt>Rubro</dt>
                 <dd>{{ product.tipo }}</dd>
               </div>
-              <div>
-                <dt>Peso por unidad</dt>
-                <dd>{{ formatWeight(product.peso, product.unidadPeso) }}</dd>
-              </div>
+
               <div>
                 <dt>Cantidad actual</dt>
                 <dd>{{ product.cantidadStock }} unidades</dd>

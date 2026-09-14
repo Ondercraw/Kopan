@@ -16,6 +16,9 @@ import {
 import { ConfirmationModal } from '../../../../shared/components/confirmation-modal/confirmation-modal';
 import { Supplier } from '../../../suppliers/models/supplier.model';
 import { SuppliersService } from '../../../suppliers/services/suppliers.service';
+import { SupplierFormModal } from '../../../suppliers/components/supplier-form-modal/supplier-form-modal';
+import { ProductFormModal } from '../../../stock/components/product-form-modal/product-form-modal';
+import { Product } from '../../../stock/models/product.model';
 import {
   InventoryProduct,
   Purchase,
@@ -34,7 +37,7 @@ interface DraftLine {
 @Component({
   selector: 'app-purchases-list',
   standalone: true,
-  imports: [FormsModule, CurrencyInput, SearchableSelect, ConfirmationModal],
+  imports: [FormsModule, CurrencyInput, SearchableSelect, ConfirmationModal, SupplierFormModal, ProductFormModal],
   templateUrl: './purchases-list.html',
   styleUrl: './purchases-list.scss',
   changeDetection: ChangeDetectionStrategy.OnPush,
@@ -55,6 +58,13 @@ export class PurchasesListPage implements OnInit {
   readonly actionPurchase = signal<Purchase | null>(null);
   readonly accountToPay = signal<SupplierAccount | null>(null);
   readonly actionMode = signal<'PAY' | 'CANCEL' | null>(null);
+  readonly supplierModalOpen = signal(false);
+  readonly productModalOpen = signal(false);
+  readonly editingProduct = signal<Product | null>(null);
+  readonly productTargetLine = signal(0);
+  readonly visibleModalMode = computed(() =>
+    this.supplierModalOpen() || this.productModalOpen() ? null : this.modalMode(),
+  );
   supplierId = '';
   paymentMethod: PurchasePaymentMethod | '' = 'EFECTIVO';
   purchaseDate = argentinaToday();
@@ -68,7 +78,7 @@ export class PurchasesListPage implements OnInit {
   from = '';
   to = '';
   readonly supplierOptions = computed<SearchableSelectOption[]>(() =>
-    this.suppliers().map((s) => ({
+    [...this.suppliers()].sort((a,b)=>a.nombre.localeCompare(b.nombre,'es')).map((s) => ({
       value: s._id,
       label: s.nombre,
       meta: `#${s.codigo}${s.cuit ? ` · CUIT ${s.cuit}` : ''}`,
@@ -77,6 +87,7 @@ export class PurchasesListPage implements OnInit {
   productOptions(): SearchableSelectOption[] {
     return this.inventory()
       .filter((product) => !this.supplierId || this.productHasSupplier(product, this.supplierId))
+      .sort((a,b)=>a.nombre.localeCompare(b.nombre,'es',{sensitivity:'base',numeric:true}))
       .map((p) => ({
         value: p._id,
         label: p.nombre,
@@ -88,6 +99,7 @@ export class PurchasesListPage implements OnInit {
       (option) => this.inventory().find((p) => p._id === option.value)!.unvaluedQuantity > 0,
     );
   }
+  productTypeOptions() { return [...new Set(this.inventory().map(p=>p.tipo))].sort((a,b)=>a.localeCompare(b,'es')); }
   readonly standardPaymentOptions: SearchableSelectOption[] = [
     { value: 'EFECTIVO', label: 'Efectivo' },
     { value: 'TRANSFERENCIA', label: 'Transferencia / Mercado Pago' },
@@ -147,7 +159,7 @@ export class PurchasesListPage implements OnInit {
         this.loading.set(false);
       },
     });
-    this.service.inventory().subscribe({ next: (data) => this.inventory.set(data) });
+    this.service.inventory().subscribe({ next: (data) => this.inventory.set(data.map(p=>({...p,tipo:p.tipo.trim().toLocaleUpperCase('es-AR')})).sort((a,b)=>a.nombre.localeCompare(b.nombre,'es',{sensitivity:'base',numeric:true}))) });
     this.service.supplierAccounts().subscribe({ next: (data) => this.accounts.set(data) });
   }
   open(mode: PurchaseKind) {
@@ -238,6 +250,28 @@ export class PurchasesListPage implements OnInit {
   }
   removeLine(index: number) {
     if (this.lines.length > 1) this.lines = this.lines.filter((_, i) => i !== index);
+  }
+  openSupplierCreate() { this.supplierModalOpen.set(true); }
+  onSupplierSaved(supplier: Supplier) {
+    this.suppliers.update(items => [...items.filter(x=>x._id!==supplier._id), supplier].sort((a,b)=>a.nombre.localeCompare(b.nombre,'es')));
+    this.supplierId = supplier._id;
+    this.supplierModalOpen.set(false);
+  }
+  openProductCreate(index: number) {
+    this.productTargetLine.set(index); this.editingProduct.set(null); this.productModalOpen.set(true);
+  }
+  openProductEdit(index: number) {
+    const product=this.inventory().find(p=>p._id===this.lines[index]?.productId);
+    if (product) { this.productTargetLine.set(index); this.editingProduct.set(product); this.productModalOpen.set(true); }
+  }
+  onProductSaved(product: Product) {
+    const index=this.productTargetLine();
+    if (!this.editingProduct() && this.lines[index]) this.lines[index].productId=product._id;
+    this.productModalOpen.set(false); this.editingProduct.set(null);
+    this.service.inventory().subscribe({next:data=>{
+      this.inventory.set(data.map(p=>({...p,tipo:p.tipo.trim().toLocaleUpperCase('es-AR')})).sort((a,b)=>a.nombre.localeCompare(b.nombre,'es')));
+      if (this.lines[index]?.productId) this.selectProductSupplier(this.lines[index].productId);
+    }});
   }
   requestSave() {
     if (

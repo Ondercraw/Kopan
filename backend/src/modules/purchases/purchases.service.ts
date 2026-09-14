@@ -86,7 +86,7 @@ export class PurchasesService {
   async inventory() {
     const products = await this.productModel
       .find({ activo: true })
-      .sort({ codigo: 1 })
+      .sort({ nombre: 1, codigo: 1 })
       .populate('proveedorId proveedorIds', 'codigo nombre activo')
       .lean()
       .exec();

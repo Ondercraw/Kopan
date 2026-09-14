@@ -74,7 +74,7 @@ export class ClientsService {
       this.priceListModel
         .find({ activo: true })
         .select('codigo nombre')
-        .sort({ codigo: 1 })
+        .sort({ nombre: 1, codigo: 1 })
         .lean()
         .exec(),
     ]);

@@ -5,7 +5,6 @@ import {
   IsInt,
   IsNotEmpty,
   IsMongoId,
-  IsNumber,
   IsNotIn,
   IsOptional,
   IsString,
@@ -15,13 +14,12 @@ import {
   MinLength,
   ValidateIf,
 } from 'class-validator';
-import { WeightUnit } from '../enums/weight-unit.enum';
 import { StockAdjustmentReason } from '../enums/stock-adjustment-reason.enum';
 import { VatRate } from '../enums/vat-rate.enum';
 
 export class UpdateProductDto {
   @IsString()
-  @MinLength(2)
+  @MinLength(2, { message: 'El rubro debe tener al menos 2 caracteres' })
   @MaxLength(120)
   nombre: string;
 
@@ -29,13 +27,6 @@ export class UpdateProductDto {
   @MinLength(2)
   @MaxLength(80)
   tipo: string;
-
-  @IsNumber({ maxDecimalPlaces: 3 })
-  @Min(0.001)
-  peso: number;
-
-  @IsEnum(WeightUnit)
-  unidadPeso: WeightUnit;
 
   @IsEnum(VatRate, { message: 'La alícuota de IVA debe ser 21%, 10,5% o 0%' })
   alicuotaIva: VatRate;
@@ -71,6 +62,14 @@ export class UpdateProductDto {
   @Min(-100000)
   @Max(100000)
   ajusteStock?: number;
+
+  @ValidateIf(
+    (dto: UpdateProductDto) =>
+      dto.ajusteStock !== undefined && dto.ajusteStock < 0,
+  )
+  @IsMongoId({ message: 'Seleccioná un lote válido para realizar la resta' })
+  @IsNotEmpty({ message: 'El lote es obligatorio al restar unidades' })
+  loteId?: string;
 
   @ValidateIf(
     (dto: UpdateProductDto) =>

@@ -259,7 +259,12 @@
   display: grid;
   grid-template-columns: repeat(3, 1fr);
   gap: 13px;
+  align-items: start;
 }
+.date-field { max-width: 190px; }
+.field-with-action,.product-picker { display:grid; grid-template-columns:minmax(0,1fr) 42px; gap:8px; align-items:end; }
+.inline-add,.edit { border:1px solid #d8c1b0; border-radius:9px; background:#fff; color:#713508; min-height:42px; cursor:pointer; }
+.line-actions { display:flex; gap:6px; }
 .field {
   display: grid;
   gap: 6px;
@@ -273,6 +278,7 @@
 .span-2 {
   grid-column: span 2;
 }
+.notes-field { align-self: start; }
 .lines-head {
   margin-top: 18px;
 }
@@ -282,7 +288,7 @@
 .line-labels,
 .line-row {
   display: grid;
-  grid-template-columns: minmax(210px, 1.5fr) 110px minmax(180px, 1fr) 130px 40px;
+  grid-template-columns: minmax(250px, 1.5fr) 110px minmax(180px, 1fr) 130px 82px;
   gap: 9px;
   align-items: center;
 }

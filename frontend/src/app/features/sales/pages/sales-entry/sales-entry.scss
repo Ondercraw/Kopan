@@ -50,6 +50,8 @@
   display: grid;
   gap: 6px;
 }
+.field-with-action { display:grid; grid-template-columns:minmax(0,1fr) 42px; gap:8px; }
+.inline-add,.edit { border:1px solid #d8c2b2; border-radius:9px; background:#fff; color:#713508; cursor:pointer; }
 .sale-data label > span,
 .notes > span {
   font-size: 0.78rem;
@@ -115,7 +117,7 @@
 .check-form{margin:16px 18px;border:1px solid #b98a61;border-radius:0;background:#fffdf8;box-shadow:4px 4px 0 #ead9c9;padding:16px}.check-form>header{display:flex;align-items:end;justify-content:space-between;padding-bottom:10px;border-bottom:1px dashed #cbb092}.check-form>header div{display:flex;flex-direction:column;gap:3px}.check-form>header span{font-size:.68rem;font-weight:850;letter-spacing:.12em;color:#8b480e}.check-form>header strong{font-size:.78rem;color:#786354}.check-form>header em{font:1.35rem Georgia,serif}.check-form>div{display:grid;grid-template-columns:repeat(4,1fr);gap:11px;margin-top:13px}.check-form label{display:grid;gap:5px}.check-form label span{font-size:.72rem;font-weight:750;color:#704525}.check-form input{width:100%;padding:9px;border:1px solid #d8c2b2;background:#fff}.check-form>p{padding:9px 11px;border-left:3px solid #9c5c23;background:#f5e9dc;font:italic .85rem Georgia,serif}.check-form .deferred{display:flex;align-items:center;width:max-content}.check-form .deferred input{width:18px;height:18px;accent-color:#713600}.check-form .due{max-width:260px;margin-top:9px}
 .add-line {
   display: grid;
-  grid-template-columns: 1fr auto;
+  grid-template-columns: 1fr auto auto;
   gap: 12px;
   padding: 18px;
   border-bottom: 1px solid #eaded5;
@@ -128,11 +130,13 @@
   color: white;
   padding: 11px 18px;
   font-weight: 750;
+  cursor: pointer;
 }
+.add-line .secondary-product { border: 1px solid #b98456; background: #fff7ee; color: #713508; }
 .lines-head,
 .line {
   display: grid;
-  grid-template-columns: minmax(210px, 1fr) 90px 160px 100px 130px 40px;
+  grid-template-columns: minmax(210px, 1fr) 90px 160px 100px 130px 76px;
   gap: 10px;
   align-items: center;
 }
@@ -176,6 +180,8 @@
   color: #a12c20;
   font-size: 1.1rem;
 }
+.line-actions { display:flex; justify-content:center; gap:5px; }
+.line-actions .edit { min-width:32px; min-height:32px; }
 .empty {
   padding: 36px;
   text-align: center;
