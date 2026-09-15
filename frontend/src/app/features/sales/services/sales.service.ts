@@ -21,6 +21,9 @@ export class SalesService {
     if (filters.medioPago) params = params.set('medioPago', filters.medioPago);
     return this.http.get<Sale[]>(this.base, { withCredentials: true, params });
   }
+  findOne(id: string) {
+    return this.http.get<Sale>(`${this.base}/${id}`, { withCredentials: true });
+  }
   findTransfers() {
     return this.http.get<Sale[]>(`${this.base}/transfers`, { withCredentials: true });
   }

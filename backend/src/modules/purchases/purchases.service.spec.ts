@@ -13,6 +13,10 @@ describe('PurchasesService', () => {
       montoPagadoEfectivoCentavos: 0,
       montoPagadoTransferenciaCentavos: 0,
       pagadaAt: null,
+      codigo: 7,
+      items: [{ productName: 'Harina', quantity: 4 }],
+      proveedorId: 'supplier-id',
+      proveedorNombre: 'Proveedor prueba',
       save: jest.fn().mockResolvedValue(undefined),
     };
     const purchaseModel = {
@@ -23,6 +27,7 @@ describe('PurchasesService', () => {
     const financeExec = jest.fn().mockResolvedValue({ acknowledged: true });
     const financeModel = {
       updateOne: jest.fn().mockReturnValue({ exec: financeExec }),
+      create: jest.fn().mockResolvedValue({}),
     };
     const connection = {
       transaction: jest.fn((work: () => unknown) => work()),
@@ -55,9 +60,15 @@ describe('PurchasesService', () => {
       expect.objectContaining({
         $inc: expect.objectContaining({
           montoPagadoCentavos: 4_000,
-          montoPagadoEfectivoCentavos: 4_000,
         }),
         $set: expect.objectContaining({ pagado: false }),
+      }),
+    );
+    expect(financeModel.create).toHaveBeenCalledWith(
+      expect.objectContaining({
+        montoCentavos: 4_000,
+        pagado: true,
+        fechaMovimiento: expect.any(Date),
       }),
     );
   });

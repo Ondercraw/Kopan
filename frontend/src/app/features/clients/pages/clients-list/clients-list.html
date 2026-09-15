@@ -157,7 +157,7 @@
             </div>
             <div>
               <small>Lista de precios</small
-              ><span>{{ client.listaPreciosId?.nombre || 'Sin lista asignada' }}</span>
+              ><span [class.missing-price-list]="!client.listaPreciosId">{{ client.listaPreciosId?.nombre || 'Sin lista asignada' }}</span>
             </div>
             <div>
               <small>Cuenta corriente</small

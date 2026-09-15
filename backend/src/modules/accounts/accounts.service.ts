@@ -1,4 +1,4 @@
-import { BadRequestException, ConflictException, Injectable, NotFoundException } from '@nestjs/common';
+import { BadRequestException, ConflictException, Injectable, Logger, NotFoundException, OnModuleInit } from '@nestjs/common';
 import { InjectConnection, InjectModel } from '@nestjs/mongoose';
 import { Connection, Model, Types } from 'mongoose';
 import { Client, ClientDocument } from '../clients/schemas/client.schema';
@@ -15,7 +15,8 @@ import { AccountPayment, AccountPaymentDocument } from './schemas/account-paymen
 interface Actor { id: string; name: string }
 
 @Injectable()
-export class AccountsService {
+export class AccountsService implements OnModuleInit {
+  private readonly logger = new Logger(AccountsService.name);
   constructor(
     @InjectConnection() private readonly connection: Connection,
     @InjectModel(Sale.name) private readonly saleModel: Model<SaleDocument>,
@@ -25,6 +26,63 @@ export class AccountsService {
     @InjectModel(FinancialMovement.name) private readonly financeModel: Model<FinancialMovementDocument>,
     private readonly purchasesService: PurchasesService,
   ) {}
+
+  async onModuleInit() {
+    // Los pagos a proveedores registrados antes de que cada pago tuviera su
+    // propio movimiento financiero se recuperan desde el historial de cuentas.
+    // sourceKey vuelve esta migración segura para ejecutarla en cada inicio.
+    const supplierPayments = await this.paymentModel
+      .find({ tipoCuenta: 'PROVEEDOR' })
+      .lean()
+      .exec();
+    let restored = 0;
+    for (const payment of supplierPayments) {
+      // Las versiones anteriores acumulaban el pago dentro del movimiento de
+      // la compra. Al separarlo por fecha, se limpian esos importes para que el
+      // efectivo o la transferencia no se descuenten dos veces.
+      await this.financeModel.updateOne(
+        {
+          compraId: payment.comprobanteId,
+          categoria: FinancialMovementCategory.PURCHASE,
+        },
+        {
+          $set: { medioPago: FinancialPaymentMethod.CREDIT },
+          $unset: {
+            montoPagadoEfectivoCentavos: 1,
+            montoPagadoTransferenciaCentavos: 1,
+          },
+        },
+      ).exec();
+      const result = await this.financeModel.updateOne(
+        { sourceKey: `account-payment:${payment._id.toString()}` },
+        {
+          $setOnInsert: {
+            tipo: FinancialMovementKind.EXPENSE,
+            categoria: FinancialMovementCategory.SUPPLIER_ACCOUNT_PAYMENT,
+            montoCentavos: payment.montoCentavos,
+            concepto: `Pago a proveedor - Compra #${payment.comprobanteCodigo}`,
+            detalle: payment.entidadNombre,
+            medioPago: payment.medioPago,
+            disponible: false,
+            pagado: true,
+            montoPagadoCentavos: payment.montoCentavos,
+            pagadoAt: payment.fecha,
+            fechaMovimiento: payment.fecha,
+            proveedorId: payment.entidadId,
+            proveedorNombre: payment.entidadNombre,
+            compraId: payment.comprobanteId,
+            compraCodigo: payment.comprobanteCodigo,
+            actorId: payment.actorId,
+            actorName: payment.actorName,
+          },
+        },
+        { upsert: true },
+      ).exec();
+      if (result.upsertedCount) restored += 1;
+    }
+    if (restored > 0)
+      this.logger.log(`Se restauraron ${restored} pago(s) históricos de proveedores`);
+  }
 
   async statement() {
     const [sales, purchases, payments] = await Promise.all([
@@ -120,7 +178,19 @@ export class AccountsService {
       ? PurchasePaymentMethod.CASH
       : PurchasePaymentMethod.TRANSFER;
     const updated = await this.purchasesService.pay(purchaseId, purchaseMethod, actor, amountCents);
-    await this.paymentModel.create({ tipoCuenta: 'PROVEEDOR', entidadId: purchase.proveedorId, entidadNombre: purchase.proveedorNombre, comprobanteTipo: 'COMPRA', comprobanteId: purchase._id, comprobanteCodigo: purchase.codigo, montoCentavos: amountCents, medioPago: method, fecha: new Date(), actorId: actor.id, actorName: actor.name });
+    const payment = await this.paymentModel.create({ tipoCuenta: 'PROVEEDOR', entidadId: purchase.proveedorId, entidadNombre: purchase.proveedorNombre, comprobanteTipo: 'COMPRA', comprobanteId: purchase._id, comprobanteCodigo: purchase.codigo, montoCentavos: amountCents, medioPago: method, fecha: new Date(), actorId: actor.id, actorName: actor.name });
+    // Vincula el movimiento que creó PurchasesService con el pago de cuenta para
+    // que la reconciliación histórica nunca pueda duplicarlo.
+    await this.financeModel.findOneAndUpdate(
+      {
+        compraId: purchase._id,
+        categoria: FinancialMovementCategory.SUPPLIER_ACCOUNT_PAYMENT,
+        montoCentavos: amountCents,
+        sourceKey: /^purchase-payment:/,
+      },
+      { $set: { sourceKey: `account-payment:${payment._id.toString()}` } },
+      { sort: { fechaMovimiento: -1 } },
+    ).exec();
     return updated;
   }
 

@@ -2,7 +2,7 @@
   <header>
     <div>
       <span>CONTROL ECONÓMICO</span>
-      <h1>Ingresos y gastos</h1>
+      <h1>Ingresos y egresos</h1>
       <p>Dinero total acumulado y movimientos del período seleccionado.</p>
     </div>
     <button class="primary" type="button" (click)="openExpense()">
@@ -29,11 +29,14 @@
         >
       </article>
       <article class="pending">
-        <span>No disponible</span
-        ><strong>{{
-          money(overall().chequesPendientesCentavos + overall().cuentaCorrienteCentavos)
-        }}</strong
-        ><small>Cheques pendientes y cuenta corriente</small>
+        <span>Cheques pendientes</span
+        ><strong>{{ money(overall().chequesPendientesCentavos) }}</strong
+        ><small>Dinero todavía no disponible</small>
+      </article>
+      <article class="pending">
+        <span>Pagos a recibir</span
+        ><strong>{{ money(overall().cuentaCorrienteCentavos) }}</strong
+        ><small>Cuentas corrientes de clientes</small>
       </article>
     </div>
   </section>
@@ -57,6 +60,7 @@
     <div class="period-totals">
       <article class="income">
         <span>Ingresos</span><strong>{{ money(period().ingresosCentavos) }}</strong>
+        <small>Pagos a recibir: {{ money(period().cuentaCorrienteCentavos) }}</small>
       </article>
       <article class="automatic">
         <span>Reposición de mercadería</span
@@ -111,6 +115,7 @@
         [class.automatic]="item.categoria === 'REPOSICION_AUTOMATICA'"
         [class.manual]="item.categoria === 'GASTO_MANUAL'"
         [class.purchase]="item.categoria === 'COMPRA_PRODUCTOS'"
+        [class.supplier-payment]="item.categoria === 'PAGO_CUENTA_PROVEEDOR'"
         [class.cancelled]="item.cancelado"
       >
         <div class="movement-type" data-label="Tipo">
@@ -163,6 +168,8 @@
             <button type="button" (click)="openCheckCollection(item)">Cobrar cheque</button>
           } @else if (item.categoria === 'COMPRA_PRODUCTOS') {
             <a routerLink="/compras">Gestionar compra</a>
+          } @else if (item.categoria === 'VENTA' && item.ventaId) {
+            <a [routerLink]="['/compras']" [queryParams]="{ reponerVenta: item.ventaId }">Reponer productos</a>
           } @else if (item.tipo === 'GASTO') {
             @if (!item.pagado) {
               <button type="button" (click)="openPay(item)">Pagar gasto</button>

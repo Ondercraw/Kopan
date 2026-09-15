@@ -2,6 +2,13 @@
   border-left-color: #b52d24;
   background: #fff1ef;
 }
+.movement-list > article.supplier-payment:not(.cancelled) {
+  border-left-color: #b52d24;
+  background: #fff1ef;
+}
+.movement-list > article.supplier-payment:not(.cancelled) > strong:nth-last-child(2) {
+  color: #a52c20;
+}
 .movement-list > article.purchase:not(.cancelled) > strong:nth-last-child(2) {
   color: #a52c20;
 }

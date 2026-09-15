@@ -53,6 +53,7 @@ export class SalesEntryPage implements OnInit {
   readonly saving = signal(false);
   readonly reviewing = signal(false);
   readonly clientModalOpen = signal(false);
+  readonly editingClient = signal<Client | null>(null);
   readonly clientFormOptions = signal<ClientOptions>({groups:[],locations:[],sellers:[],priceLists:[]});
   readonly productModalOpen = signal(false);
   readonly editingProduct = signal<Product | null>(null);
@@ -122,10 +123,32 @@ export class SalesEntryPage implements OnInit {
     });
     this.clientsApi.options().subscribe({next:o=>this.clientFormOptions.set(o)});
   }
-  openClientCreate() { this.clientModalOpen.set(true); }
+  openClientCreate() {
+    this.editingClient.set(null);
+    this.clientModalOpen.set(true);
+  }
+  openClientEdit() {
+    const client = this.selectedClient();
+    if (!client) return;
+    this.editingClient.set(client);
+    this.clientModalOpen.set(true);
+  }
+  closeClientModal() {
+    this.clientModalOpen.set(false);
+    this.editingClient.set(null);
+  }
   onClientSaved(client: Client) {
-    this.clients.update(items=>[...items.filter(x=>x._id!==client._id),client]);
-    this.clientModalOpen.set(false); this.onClient(client._id);
+    this.clientModalOpen.set(false);
+    // El alta devuelve las referencias como IDs; al recargar se obtienen la
+    // lista de precios y el vendedor poblados, igual que al entrar a Ventas.
+    this.clientsApi.findAll().subscribe({
+      next: (items) => {
+        this.clients.set(items);
+        this.editingClient.set(null);
+        this.onClient(client._id);
+      },
+      error: () => this.error.set('El cliente se guardó, pero no se pudieron recargar sus datos'),
+    });
   }
   openProductCreate() { this.editingProduct.set(null); this.productModalOpen.set(true); }
   openProductEdit(product: Product) { this.editingProduct.set(product); this.productModalOpen.set(true); }

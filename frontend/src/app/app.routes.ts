@@ -129,7 +129,7 @@ export const routes: Routes = [
           import('./features/finance/pages/income-expenses/income-expenses').then(
             (m) => m.IncomeExpensesPage,
           ),
-        data: { titulo: 'Ingresos y gastos' },
+        data: { titulo: 'Ingresos y egresos' },
         canActivate: [roleGuard([UserRole.JEFE])],
       },
       {

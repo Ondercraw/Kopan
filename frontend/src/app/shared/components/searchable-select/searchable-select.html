@@ -1,4 +1,4 @@
-<div class="select-shell" [class.open]="open()" [class.open-up]="openUp()" [class.disabled]="disabled()">
+<div class="select-shell" [class.open]="open()" [class.open-up]="openUp()" [class.align-right]="alignRight()" [class.disabled]="disabled()">
   <div class="search-row">
     <input type="search" autocomplete="off" [placeholder]="placeholder()" [value]="query()" [disabled]="disabled()" (focus)="show()" (input)="onInput($event)" (blur)="touch()" />
     @if(query()&&clearable()){<button type="button" class="clear" aria-label="Limpiar selección" [disabled]="disabled()" (click)="clear()"><i class="ti ti-x"></i></button>}

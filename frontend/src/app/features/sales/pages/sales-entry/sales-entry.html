@@ -23,10 +23,11 @@
           [options]="clientOptions()"
           [clearable]="false"
           placeholder="Buscar cliente..."
-        /><button type="button" class="inline-add" (click)="openClientCreate()" title="Agregar cliente"><i class="ti ti-plus"></i></button></div>
+        /><button type="button" class="inline-action" (click)="openClientCreate()" title="Agregar cliente" aria-label="Agregar cliente"><i class="ti ti-plus"></i></button
+        ><button type="button" class="inline-action" (click)="openClientEdit()" [disabled]="!selectedClient()" title="Modificar cliente" aria-label="Modificar cliente"><i class="ti ti-pencil"></i></button></div>
         @if (invalidSaleSelection(clientId)) { <small class="field-error">Seleccioná el cliente que realiza la compra.</small> }
       </label>
-      <div class="summary">
+      <div class="summary" [class.missing-list]="!priceList()">
         <span>Lista de precios</span
         ><strong>{{ priceList()?.nombre || 'Sin lista seleccionada' }}</strong
         ><small>{{ selectedClient()?.condicionIva?.replaceAll('_', ' ') || '' }}</small>
@@ -169,7 +170,7 @@
     </footer>
   </div>
 </section>
-@if (clientModalOpen()) { <app-client-form-modal [options]="clientFormOptions()" (closed)="clientModalOpen.set(false)" (saved)="onClientSaved($event)" /> }
+@if (clientModalOpen()) { <app-client-form-modal [client]="editingClient()" [options]="clientFormOptions()" (closed)="closeClientModal()" (saved)="onClientSaved($event)" /> }
 @if (productModalOpen()) { <app-product-form-modal [product]="editingProduct()" [typeOptions]="productTypeOptions()" [disableStockSubtraction]="true" (cerrado)="productModalOpen.set(false)" (guardado)="onProductSaved($event)" /> }
 @if (reviewing()) {
   <div class="overlay">

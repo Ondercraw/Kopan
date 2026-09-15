@@ -132,6 +132,12 @@
         <div>
           <span>COMPRAS</span>
           <h2>{{ mode === 'COMPRA' ? 'Registrar compra' : 'Valorar stock existente' }}</h2>
+          @if (replenishmentSaleCode()) {
+            <p>
+              Reposición sugerida desde la venta #{{ replenishmentSaleCode() }}. Podés cambiar las
+              unidades antes de confirmar.
+            </p>
+          }
         </div>
         <button type="button" class="icon" (click)="close()"><i class="ti ti-x"></i></button>
       </header>

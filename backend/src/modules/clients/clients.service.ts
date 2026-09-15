@@ -232,8 +232,7 @@ export class ClientsService {
       );
   }
 
-  private async validatePriceList(id?: string): Promise<void> {
-    if (!id) return;
+  private async validatePriceList(id: string): Promise<void> {
     const list = await this.priceListModel.exists({ _id: id, activo: true });
     if (!list)
       throw new NotFoundException(

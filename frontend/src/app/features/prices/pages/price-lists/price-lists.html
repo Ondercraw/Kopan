@@ -74,7 +74,7 @@
           /></label>
         </div>
         <div class="table-head">
-          <span>Producto</span><span>Costo</span><span>IVA</span><span>Precio final y base</span>
+          <span>Producto</span><span class="cost-column cost-header">Costo</span><span>IVA</span><span>Precio final y base</span>
         </div>
         @for (product of visibleProducts(); track product._id) {
           <article class="product-row">
@@ -89,7 +89,7 @@
                 }}
               </button>
             </div>
-            <span class="money-value">{{ money(product.costoCentavos ?? 0) }}</span
+            <span class="money-value cost-column">{{ money(product.costoCentavos ?? 0) }}</span
             ><span>{{ product.alicuotaIva ?? 21 }}%</span>
             <div class="price-cell">
               @if (currentPrice(product._id) !== null) {

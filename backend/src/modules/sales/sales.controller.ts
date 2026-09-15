@@ -1,9 +1,10 @@
-import { Body, Controller, Get, Post, Query, UseGuards } from '@nestjs/common';
+import { Body, Controller, Get, Param, Post, Query, UseGuards } from '@nestjs/common';
 import { CurrentUser } from '../../common/decorators/current-user.decorator';
 import { Roles } from '../../common/decorators/roles.decorator';
 import { UserRole } from '../../common/enums/user-role.enum';
 import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard';
 import { RolesGuard } from '../../common/guards/roles.guard';
+import { MongoIdPipe } from '../../common/pipes/mongo-id.pipe';
 import type { JwtPayload } from '../auth/interfaces/jwt-payload.interface';
 import { CreateSaleDto } from './dto/create-sale.dto';
 import { SalesService } from './sales.service';
@@ -22,6 +23,9 @@ export class SalesController {
   }
   @Get('transfers') @Roles(UserRole.JEFE) transfers() {
     return this.service.findTransfers();
+  }
+  @Get(':id') @Roles(UserRole.JEFE) findOne(@Param('id', MongoIdPipe) id: string) {
+    return this.service.findOne(id);
   }
   @Post() @Roles(...SALE_CREATORS) create(
     @Body() dto: CreateSaleDto,

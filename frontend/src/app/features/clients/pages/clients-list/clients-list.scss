@@ -212,6 +212,14 @@
   font-weight: 700;
   text-transform: uppercase;
 }
+.details .missing-price-list {
+  width: fit-content;
+  padding: 0.28rem 0.55rem;
+  border-radius: 7px;
+  background: #a72621;
+  color: #fff;
+  font-weight: 750;
+}
 .wide {
   grid-column: 1/-1;
 }

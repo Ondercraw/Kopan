@@ -22,6 +22,7 @@ import {
 import { StockService } from '../../services/stock.service';
 import { Supplier } from '../../../suppliers/models/supplier.model';
 import { SuppliersService } from '../../../suppliers/services/suppliers.service';
+import { SupplierFormModal } from '../../../suppliers/components/supplier-form-modal/supplier-form-modal';
 import {
   SearchableSelect,
   SearchableSelectOption,
@@ -30,7 +31,7 @@ import {
 @Component({
   selector: 'app-product-form-modal',
   standalone: true,
-  imports: [ReactiveFormsModule, SearchableSelect],
+  imports: [ReactiveFormsModule, SearchableSelect, SupplierFormModal],
   templateUrl: './product-form-modal.html',
   styleUrl: './product-form-modal.scss',
   changeDetection: ChangeDetectionStrategy.OnPush,
@@ -55,6 +56,7 @@ export class ProductFormModal implements OnInit {
   readonly selectedSupplierIds = signal<string[]>([]);
   readonly inventoryLots = signal<InventoryLotOption[]>([]);
   readonly loadingLots = signal(false);
+  readonly supplierModalOpen = signal(false);
   supplierLabel(id: string) {
     return (
       this.suppliers().find((s) => s._id === id)?.nombre ??
@@ -65,6 +67,19 @@ export class ProductFormModal implements OnInit {
   }
   removeSupplier(id: string) {
     this.selectedSupplierIds.update((ids) => ids.filter((value) => value !== id));
+  }
+  openSupplierCreate(): void {
+    this.supplierModalOpen.set(true);
+  }
+  onSupplierSaved(supplier: Supplier): void {
+    this.suppliers.update((items) =>
+      [...items.filter((item) => item._id !== supplier._id), supplier].sort((a, b) =>
+        a.nombre.localeCompare(b.nombre, 'es'),
+      ),
+    );
+    this.selectedSupplierIds.update((ids) => [...new Set([...ids, supplier._id])]);
+    this.form.controls.proveedorId.setValue('', { emitEvent: false });
+    this.supplierModalOpen.set(false);
   }
   readonly supplierSelectOptions = computed<SearchableSelectOption[]>(() =>
     [...this.suppliers()].sort((a,b)=>a.nombre.localeCompare(b.nombre,'es')).map((supplier) => ({
@@ -364,6 +379,7 @@ export class ProductFormModal implements OnInit {
 
   @HostListener('document:keydown.escape')
   onEscape(): void {
+    if (this.supplierModalOpen()) return;
     this.onCancelar();
   }
 }

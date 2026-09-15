@@ -4,8 +4,10 @@ import {
   EventEmitter,
   HostListener,
   Input,
+  OnChanges,
   OnInit,
   Output,
+  SimpleChanges,
   inject,
   signal,
 } from '@angular/core';
@@ -32,7 +34,7 @@ import { CurrencyInput } from '../../../../shared/components/currency-input/curr
   styleUrls: ['./client-form-modal.scss', './client-form-modal-selects.scss'],
   changeDetection: ChangeDetectionStrategy.OnPush,
 })
-export class ClientFormModal implements OnInit {
+export class ClientFormModal implements OnInit, OnChanges {
   private readonly fb = inject(FormBuilder);
   private readonly service = inject(ClientsService);
   @Input() client: Client | null = null;
@@ -65,14 +67,11 @@ export class ClientFormModal implements OnInit {
     ];
   }
   get priceListOptions(): SearchableSelectOption[] {
-    return [
-      { value: '', label: 'Sin lista asignada', meta: 'Debe elegirse al vender' },
-      ...this.options.priceLists.map((list) => ({
+    return this.options.priceLists.map((list) => ({
         value: list._id,
         label: list.nombre,
         meta: `Lista #${list.codigo}`,
-      })),
-    ];
+      }));
   }
   readonly form = this.fb.nonNullable.group({
     nombre: ['', [Validators.required, Validators.pattern(/\S/), Validators.minLength(2), Validators.maxLength(120)]],
@@ -86,18 +85,30 @@ export class ClientFormModal implements OnInit {
     vendedorId: [''],
     condicionIva: this.fb.nonNullable.control<TaxCondition>('NO_DEFINIDA'),
     observaciones: ['', Validators.maxLength(500)],
-    listaPreciosId: [''],
+    listaPreciosId: ['', Validators.required],
     permiteCuentaCorriente: [false],
     limiteCredito: [0, [Validators.required, Validators.min(0)]],
   });
   ngOnInit(): void {
+    const generalListId = this.defaultPriceListId();
     if (this.client)
       this.form.patchValue({
         ...this.client,
         vendedorId: this.client.vendedorId?._id ?? '',
-        listaPreciosId: this.client.listaPreciosId?._id ?? '',
+        listaPreciosId: this.client.listaPreciosId?._id ?? generalListId,
         limiteCredito: (this.client.limiteCreditoCentavos ?? 0) / 100,
       });
+    else this.form.controls.listaPreciosId.setValue(generalListId);
+  }
+  ngOnChanges(changes: SimpleChanges): void {
+    if (changes['options'] && !this.form.controls.listaPreciosId.value) {
+      this.form.controls.listaPreciosId.setValue(this.defaultPriceListId());
+    }
+  }
+  private defaultPriceListId(): string {
+    return this.options.priceLists.find(
+      (list) => list.nombre.trim().toLocaleLowerCase('es') === 'general',
+    )?._id ?? this.options.priceLists[0]?._id ?? '';
   }
   submit(): void {
     if (this.form.invalid || this.saving()) {
@@ -119,7 +130,7 @@ export class ClientFormModal implements OnInit {
       vendedorId: raw.vendedorId || undefined,
       condicionIva: raw.condicionIva,
       observaciones: raw.observaciones.trim() || undefined,
-      listaPreciosId: raw.listaPreciosId || undefined,
+      listaPreciosId: raw.listaPreciosId,
       permiteCuentaCorriente: raw.permiteCuentaCorriente,
       limiteCreditoCentavos: raw.permiteCuentaCorriente
         ? Math.round(Number(raw.limiteCredito) * 100)

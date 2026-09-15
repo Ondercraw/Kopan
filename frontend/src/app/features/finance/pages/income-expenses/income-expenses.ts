@@ -137,7 +137,7 @@ export class IncomeExpensesPage implements OnInit {
         this.loading.set(false);
       },
       error: () => {
-        this.error.set('No se pudieron cargar los ingresos y gastos');
+        this.error.set('No se pudieron cargar los ingresos y egresos');
         this.loading.set(false);
       },
     });
@@ -310,6 +310,7 @@ export class IncomeExpensesPage implements OnInit {
     if (i.categoria === 'COMPRA_PRODUCTOS') return 'Compra de productos';
     if (i.categoria === 'CHEQUE') return 'Ingreso de cheque';
     if (i.categoria === 'COBRO_CUENTA_CORRIENTE') return 'Cobro de cuenta corriente';
+    if (i.categoria === 'PAGO_CUENTA_PROVEEDOR') return 'Pago de cuenta a proveedor';
     return 'Ingreso de venta';
   }
   method(v: FinancialPaymentMethod | null) {

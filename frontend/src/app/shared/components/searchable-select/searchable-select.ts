@@ -16,7 +16,7 @@ export class SearchableSelect implements ControlValueAccessor {
   readonly emptyText=input('No hay opciones que coincidan.');
   readonly allowCustom=input(false);
   readonly clearable=input(true);
-  readonly open=signal(false);readonly openUp=signal(false);readonly query=signal('');readonly disabled=signal(false);readonly selectedValue=signal('');
+  readonly open=signal(false);readonly openUp=signal(false);readonly alignRight=signal(false);readonly query=signal('');readonly disabled=signal(false);readonly selectedValue=signal('');
   private readonly syncWhenOptionsChange=effect(()=>{this.options();if(!this.open())this.syncLabel();});
   private onChange:(value:string)=>void=()=>{};private onTouched:()=>void=()=>{};
 
@@ -42,6 +42,8 @@ export class SearchableSelect implements ControlValueAccessor {
     const spaceBelow=visibleBottom-rect.bottom;
     const spaceAbove=rect.top-visibleTop;
     this.openUp.set(spaceBelow<220&&spaceAbove>spaceBelow);
+    const panelWidth=Math.max(rect.width,Math.min(360,window.innerWidth-40));
+    this.alignRight.set(rect.left+panelWidth>window.innerWidth-20);
     this.open.set(true);
   }
   touch():void{this.onTouched();}

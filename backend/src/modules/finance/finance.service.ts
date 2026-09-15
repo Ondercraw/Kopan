@@ -617,15 +617,14 @@ export class FinanceService {
       $sum: { $cond: [{ $and: conditions }, amount, 0] },
     });
     const income = eq('tipo', FinancialMovementKind.INCOME);
-    const accountingIncome = [
-      income,
-      { $ne: ['$categoria', FinancialMovementCategory.ACCOUNT_PAYMENT] },
-    ];
+    const available = eq('disponible', true);
+    // Sólo es ingreso del período el dinero efectivamente disponible. Las ventas
+    // a cuenta corriente y los cheques pendientes quedan como pagos a recibir.
+    const accountingIncome = [income, available];
     const activeExpense = [
       eq('tipo', FinancialMovementKind.EXPENSE),
       { $ne: ['$cancelado', true] },
     ];
-    const available = eq('disponible', true);
     const paid = eq('pagado', true);
     const unpaid = { $ne: ['$pagado', true] };
     const purchaseCategory = eq(
@@ -695,8 +694,8 @@ export class FinanceService {
         {
           $group: {
             _id: null,
-            // Un cobro de cuenta corriente da disponibilidad, pero no vuelve a
-            // contabilizar como ingreso una venta que ya se registró al confirmar.
+            // Los cobros de cuenta corriente sí son ingresos reales en la fecha
+            // del cobro; la venta original a crédito no se suma hasta entonces.
             incomes: amountWhen(...accountingIncome),
             paidAutomatic: amountWhen(
               ...activeExpense,

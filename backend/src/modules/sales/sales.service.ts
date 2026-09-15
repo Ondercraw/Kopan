@@ -107,6 +107,15 @@ export class SalesService {
       .exec();
   }
 
+  async findOne(id: string) {
+    const sale = await this.saleModel
+      .findOne({ _id: id, estado: SaleStatus.CONFIRMED })
+      .lean()
+      .exec();
+    if (!sale) throw new NotFoundException('Venta inexistente');
+    return sale;
+  }
+
   create(dto: CreateSaleDto, actor: SaleActor) {
     return this.connection.transaction(() =>
       this.createInTransaction(dto, actor),

@@ -12,7 +12,7 @@ export class SaveClientDto {
   @IsOptional() @IsString() @MaxLength(80) grupo?: string;
   @IsOptional() @IsMongoId({ message: 'El vendedor seleccionado no es válido' }) vendedorId?: string;
   @IsEnum(TaxCondition) condicionIva: TaxCondition;
-  @IsOptional() @IsMongoId({ message: 'La lista de precios seleccionada no es válida' }) listaPreciosId?: string;
+  @IsMongoId({ message: 'Seleccioná una lista de precios válida' }) listaPreciosId: string;
   @IsBoolean() permiteCuentaCorriente: boolean;
   @IsInt() @Min(0) limiteCreditoCentavos: number;
   @IsOptional() @IsString() @MaxLength(500) observaciones?: string;

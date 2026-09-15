@@ -77,12 +77,17 @@
             placeholder="Buscar condición…"
         /></label>
         <label
-          ><span>Lista de precios</span
+          ><span>Lista de precios *</span
           ><app-searchable-select
             formControlName="listaPreciosId"
             [options]="priceListOptions"
-            placeholder="Buscar lista."
-        /></label>
+            [clearable]="false"
+            placeholder="Buscar lista…"
+        />
+          @if (form.controls.listaPreciosId.invalid && form.controls.listaPreciosId.touched) {
+            <small class="field-error">Seleccioná una lista de precios.</small>
+          }
+        </label>
         <label class="credit-toggle">
           <input type="checkbox" formControlName="permiteCuentaCorriente" />
           <span class="toggle-track" aria-hidden="true"><span></span></span>

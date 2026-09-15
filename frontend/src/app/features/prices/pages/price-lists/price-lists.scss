@@ -116,7 +116,7 @@
 .table-head,
 .product-row {
   display: grid;
-  grid-template-columns: minmax(220px, 1fr) 130px 90px minmax(230px, 1fr);
+  grid-template-columns: minmax(220px, 1fr) 110px 90px minmax(230px, 1fr);
   gap: 12px;
   align-items: center;
 }
@@ -131,6 +131,23 @@
 .product-row {
   padding: 12px;
   border-bottom: 1px solid #eee1d8;
+}
+.cost-column {
+  align-self: center;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin: 0.18rem 0.35rem;
+  padding: 0.45rem 0.4rem;
+  border-radius: 8px;
+  background: #8b5a2b;
+  color: #fffaf4;
+  font-weight: 800;
+}
+.cost-header {
+  border-radius: 6px;
+  background: #6f3f18;
+  color: #fff;
 }
 .product-row > div:first-child {
   display: flex;

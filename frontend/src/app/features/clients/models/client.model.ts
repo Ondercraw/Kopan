@@ -60,7 +60,7 @@ export interface SaveClientPayload {
   vendedorId?: string;
   condicionIva: TaxCondition;
   observaciones?: string;
-  listaPreciosId?: string;
+  listaPreciosId: string;
   permiteCuentaCorriente: boolean;
   limiteCreditoCentavos: number;
 }

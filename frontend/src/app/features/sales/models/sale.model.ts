@@ -28,6 +28,8 @@ export interface SaleItem {
   ivaCentavos: number;
   costoUnitarioCentavos: number;
   totalCentavos: number;
+  proveedorId?: string | null;
+  proveedorNombre?: string;
 }
 export interface Sale {
   _id: string;

@@ -71,7 +71,7 @@ const NAV_GROUPS: NavGroup[] = [
       },
       { label: 'Caja', icon: 'ti-cash', path: '/caja', rolesPermitidos: [UserRole.JEFE] },
       {
-        label: 'Ingresos y gastos',
+        label: 'Ingresos y egresos',
         icon: 'ti-arrows-exchange',
         path: '/ingresos-gastos',
         rolesPermitidos: [UserRole.JEFE],

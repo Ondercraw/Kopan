@@ -482,20 +482,42 @@ export class PurchasesService {
         {
           $inc: {
             montoPagadoCentavos: amountCents,
-            ...(method === PurchasePaymentMethod.CASH
-              ? { montoPagadoEfectivoCentavos: amountCents }
-              : { montoPagadoTransferenciaCentavos: amountCents }),
           },
           $set: {
             pagado: fullyPaid,
             pagadoAt: fullyPaid ? now : null,
-            medioPago: method,
             actorId: actor.id,
             actorName: actor.name,
           },
         },
       )
       .exec();
+    // Cada pago tiene su propia fecha contable. El movimiento original conserva
+    // la fecha y el saldo de la compra; este movimiento refleja la salida real
+    // de dinero en el período en que se efectuó el pago.
+    await this.financeModel.create({
+      sourceKey: `purchase-payment:${purchase._id.toString()}:${new Types.ObjectId().toString()}`,
+      tipo: FinancialMovementKind.EXPENSE,
+      categoria: FinancialMovementCategory.SUPPLIER_ACCOUNT_PAYMENT,
+      montoCentavos: amountCents,
+      concepto: `Pago a proveedor - Compra #${purchase.codigo}`,
+      detalle: (purchase.items ?? [])
+        .map((item) => `${item.productName} x${item.quantity}`)
+        .join(', ')
+        .slice(0, 500),
+      medioPago: method as unknown as FinancialPaymentMethod,
+      disponible: false,
+      pagado: true,
+      montoPagadoCentavos: amountCents,
+      pagadoAt: now,
+      fechaMovimiento: now,
+      proveedorId: purchase.proveedorId,
+      proveedorNombre: purchase.proveedorNombre,
+      compraId: purchase._id,
+      compraCodigo: purchase.codigo,
+      actorId: actor.id,
+      actorName: actor.name,
+    });
     return purchase;
   }
 

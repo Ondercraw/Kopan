@@ -1,6 +1,6 @@
 export type FinancialMovementKind = 'INGRESO' | 'GASTO';
 export type FinancialMovementCategory =
-  'VENTA' | 'CHEQUE' | 'REPOSICION_AUTOMATICA' | 'GASTO_MANUAL' | 'COMPRA_PRODUCTOS' | 'COBRO_CUENTA_CORRIENTE';
+  'VENTA' | 'CHEQUE' | 'REPOSICION_AUTOMATICA' | 'GASTO_MANUAL' | 'COMPRA_PRODUCTOS' | 'COBRO_CUENTA_CORRIENTE' | 'PAGO_CUENTA_PROVEEDOR';
 export type FinancialPaymentMethod =
   'EFECTIVO' | 'TRANSFERENCIA' | 'CREDITO' | 'CHEQUE' | 'PAGADO_ANTES_SISTEMA';
 export interface FinancialMovement {
@@ -25,6 +25,7 @@ export interface FinancialMovement {
   canceladoPorNombre: string;
   fechaMovimiento: string;
   ventaCodigo: number | null;
+  ventaId?: string | null;
   clienteNombre: string;
   proveedorNombre: string;
   chequeNumero: string;

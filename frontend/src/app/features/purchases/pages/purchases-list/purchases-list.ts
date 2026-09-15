@@ -27,6 +27,8 @@ import {
   SupplierAccount,
 } from '../../models/purchase.model';
 import { PurchasesService } from '../../services/purchases.service';
+import { ActivatedRoute, Router } from '@angular/router';
+import { SalesService } from '../../../sales/services/sales.service';
 
 interface DraftLine {
   productId: string;
@@ -45,6 +47,9 @@ interface DraftLine {
 export class PurchasesListPage implements OnInit {
   private readonly service = inject(PurchasesService);
   private readonly suppliersService = inject(SuppliersService);
+  private readonly salesService = inject(SalesService);
+  private readonly route = inject(ActivatedRoute);
+  private readonly router = inject(Router);
   readonly purchases = signal<Purchase[]>([]);
   readonly inventory = signal<InventoryProduct[]>([]);
   readonly suppliers = signal<Supplier[]>([]);
@@ -62,6 +67,7 @@ export class PurchasesListPage implements OnInit {
   readonly productModalOpen = signal(false);
   readonly editingProduct = signal<Product | null>(null);
   readonly productTargetLine = signal(0);
+  readonly replenishmentSaleCode = signal<number | null>(null);
   readonly visibleModalMode = computed(() =>
     this.supplierModalOpen() || this.productModalOpen() ? null : this.modalMode(),
   );
@@ -145,6 +151,37 @@ export class PurchasesListPage implements OnInit {
   ngOnInit() {
     this.reload();
     this.suppliersService.findActive().subscribe({ next: (data) => this.suppliers.set(data) });
+    const saleId = this.route.snapshot.queryParamMap.get('reponerVenta');
+    if (saleId) this.loadSaleReplenishment(saleId);
+  }
+  private loadSaleReplenishment(saleId: string) {
+    this.salesService.findOne(saleId).subscribe({
+      next: (sale) => {
+        this.open('COMPRA');
+        this.replenishmentSaleCode.set(sale.codigo);
+        this.notes = `Reposición de productos vendidos en la venta #${sale.codigo}`;
+        this.lines = sale.items.map((item) => ({
+          productId: item.productoId,
+          quantity: item.cantidad,
+          unitCostPesos: 0,
+        }));
+        const supplierIds = [
+          ...new Set(
+            sale.items
+              .map((item) => item.proveedorId)
+              .filter((id): id is string => !!id),
+          ),
+        ];
+        this.supplierId = supplierIds.length === 1 ? supplierIds[0] : '';
+        if (supplierIds.length > 1) {
+          this.error.set(
+            'La venta incluye varios proveedores. Elegí uno y conservá únicamente sus productos para registrar cada compra por separado.',
+          );
+        }
+      },
+      error: (e) =>
+        this.error.set(e.error?.message ?? 'No se pudo preparar la reposición de la venta'),
+    });
   }
   reload() {
     this.loading.set(true);
@@ -172,11 +209,16 @@ export class PurchasesListPage implements OnInit {
     this.documentNumber = '';
     this.notes = '';
     this.lines = [{ productId: '', quantity: 1, unitCostPesos: 0 }];
+    this.replenishmentSaleCode.set(null);
   }
   close() {
     if (!this.saving()) {
       this.modalMode.set(null);
       this.pendingConfirmation.set(false);
+      this.replenishmentSaleCode.set(null);
+      if (this.route.snapshot.queryParamMap.has('reponerVenta')) {
+        this.router.navigate([], { relativeTo: this.route, queryParams: {}, replaceUrl: true });
+      }
     }
   }
   selectOpeningProduct(productId: string) {

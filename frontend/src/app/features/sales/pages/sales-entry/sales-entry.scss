@@ -50,8 +50,9 @@
   display: grid;
   gap: 6px;
 }
-.field-with-action { display:grid; grid-template-columns:minmax(0,1fr) 42px; gap:8px; }
-.inline-add,.edit { border:1px solid #d8c2b2; border-radius:9px; background:#fff; color:#713508; cursor:pointer; }
+.field-with-action { display:grid; grid-template-columns:minmax(0,1fr) 42px 42px; gap:8px; }
+.inline-action,.edit { border:1px solid #d8c2b2; border-radius:9px; background:#fff; color:#713508; cursor:pointer; }
+.inline-action:disabled { cursor:not-allowed; opacity:.45; background:#eee8e2; }
 .sale-data label > span,
 .notes > span {
   font-size: 0.78rem;
@@ -94,6 +95,18 @@
   gap: 5px;
   padding: 8px 12px;
   border-left: 3px solid #b86719;
+}
+.summary.missing-list {
+  border: 1px solid #9f201d;
+  border-left: 4px solid #76120f;
+  border-radius: 9px;
+  background: #b82d27;
+  color: #fff;
+}
+.summary.missing-list span,
+.summary.missing-list small,
+.summary.missing-list strong {
+  color: #fff;
 }
 .summary span,
 .summary small {

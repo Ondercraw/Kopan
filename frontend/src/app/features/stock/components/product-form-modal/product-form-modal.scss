@@ -68,6 +68,32 @@
 .field-span-2 {
   grid-column: span 2;
 }
+.product-basics-row {
+  display: grid;
+  grid-template-columns: minmax(240px, 1fr) minmax(130px, 180px) minmax(130px, 180px);
+  gap: 0.85rem;
+}
+.supplier-picker {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 44px;
+  gap: 0.5rem;
+  align-items: end;
+}
+.inline-add {
+  display: grid;
+  place-items: center;
+  width: 44px;
+  height: 44px;
+  border: 1px solid #d8c1b0;
+  border-radius: 10px;
+  background: #fff;
+  color: #713508;
+  font-size: 1.05rem;
+  cursor: pointer;
+}
+.inline-add:hover {
+  background: #f4e8dc;
+}
 label {
   color: #3d2d20;
   font-size: 0.84rem;
@@ -326,6 +352,9 @@ button:disabled {
   .field-wide {
     grid-column: auto;
   }
+  .product-basics-row {
+    grid-template-columns: 1fr;
+  }
   .modal-actions {
     flex-direction: column-reverse;
   }
@@ -339,6 +368,9 @@ button:disabled {
   }
   .field-span-2 {
     grid-column: 1 / -1;
+  }
+  .product-basics-row {
+    grid-template-columns: minmax(220px, 1fr) minmax(120px, 160px) minmax(120px, 160px);
   }
 }
 .supplier-chips {
