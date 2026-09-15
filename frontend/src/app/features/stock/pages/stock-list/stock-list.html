@@ -294,6 +294,16 @@
         <i class="ti ti-package-off"></i>
         <strong>No se encontraron productos</strong>
         <span>Probá cambiando la búsqueda o los filtros.</span>
+        <div class="empty-actions">
+          <button type="button" class="clear-filters" (click)="clearFilters()">
+            <i class="ti ti-filter-off"></i> Limpiar filtros
+          </button>
+          @if (canManageStock()) {
+            <button type="button" class="primary-action" (click)="addModalOpen.set(true)">
+              <i class="ti ti-plus"></i> Agregar producto
+            </button>
+          }
+        </div>
       </div>
     }
   }

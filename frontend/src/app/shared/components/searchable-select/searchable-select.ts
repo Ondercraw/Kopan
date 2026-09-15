@@ -16,7 +16,7 @@ export class SearchableSelect implements ControlValueAccessor {
   readonly emptyText=input('No hay opciones que coincidan.');
   readonly allowCustom=input(false);
   readonly clearable=input(true);
-  readonly open=signal(false);readonly query=signal('');readonly disabled=signal(false);readonly selectedValue=signal('');
+  readonly open=signal(false);readonly openUp=signal(false);readonly query=signal('');readonly disabled=signal(false);readonly selectedValue=signal('');
   private readonly syncWhenOptionsChange=effect(()=>{this.options();if(!this.open())this.syncLabel();});
   private onChange:(value:string)=>void=()=>{};private onTouched:()=>void=()=>{};
 
@@ -25,10 +25,25 @@ export class SearchableSelect implements ControlValueAccessor {
   registerOnChange(fn:(value:string)=>void):void{this.onChange=fn;}
   registerOnTouched(fn:()=>void):void{this.onTouched=fn;}
   setDisabledState(value:boolean):void{this.disabled.set(value);}
-  onInput(event:Event):void{const text=(event.target as HTMLInputElement).value;this.query.set(text);this.open.set(true);if(this.allowCustom()){this.selectedValue.set(text);this.onChange(text);}else if(text!==this.selectedLabel()){this.selectedValue.set('');this.onChange('');}}
+  onInput(event:Event):void{const text=(event.target as HTMLInputElement).value;this.query.set(text);this.show();if(this.allowCustom()){this.selectedValue.set(text);this.onChange(text);}else if(text!==this.selectedLabel()){this.selectedValue.set('');this.onChange('');}}
   select(option:SearchableSelectOption):void{this.selectedValue.set(option.value);this.query.set(option.label);this.onChange(option.value);this.onTouched();this.open.set(false);}
   clear():void{this.selectedValue.set('');this.query.set('');this.onChange('');this.onTouched();this.open.set(false);}
-  toggle():void{if(!this.disabled())this.open.update(value=>!value);}
+  toggle():void{if(!this.disabled()){if(this.open())this.open.set(false);else this.show();}}
+  show():void{
+    if(this.disabled())return;
+    const host=this.element.nativeElement;
+    const rect=host.getBoundingClientRect();
+    // Los modales de Compras tienen scroll propio: medir sólo el viewport hacía
+    // que la lista se abriera hacia abajo aunque el borde del modal la recortara.
+    const clippingContainer=host.closest('.modal-card') as HTMLElement|null;
+    const bounds=clippingContainer?.getBoundingClientRect();
+    const visibleBottom=Math.min(window.innerHeight,bounds?.bottom??window.innerHeight);
+    const visibleTop=Math.max(0,bounds?.top??0);
+    const spaceBelow=visibleBottom-rect.bottom;
+    const spaceAbove=rect.top-visibleTop;
+    this.openUp.set(spaceBelow<220&&spaceAbove>spaceBelow);
+    this.open.set(true);
+  }
   touch():void{this.onTouched();}
   selectedLabel():string{const value=this.selectedValue();return this.options().find(option=>option.value===value)?.label??(this.allowCustom()?value:'');}
   trackOption(_:number,option:SearchableSelectOption):string{return option.value;}

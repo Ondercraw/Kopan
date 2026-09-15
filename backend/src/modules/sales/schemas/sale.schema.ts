@@ -65,6 +65,14 @@ export class Sale {
   @Prop({ required: true, min: 0 }) totalCentavos: number;
   @Prop({ required: true, type: String, enum: PaymentMethod })
   medioPago: PaymentMethod;
+  @Prop({ required: true, min: 0, default: 0 })
+  montoCobradoCuentaCorrienteCentavos: number;
+  @Prop({ required: true, min: 0, default: 0 })
+  montoCobradoEfectivoCentavos: number;
+  @Prop({ required: true, min: 0, default: 0 })
+  montoCobradoTransferenciaCentavos: number;
+  @Prop({ required: true, default: false }) cuentaCorrientePagada: boolean;
+  @Prop({ type: Date, default: null }) cuentaCorrientePagadaAt: Date | null;
   @Prop({ trim: true, maxlength: 100, default: '' })
   referenciaTransferencia: string;
   @Prop({

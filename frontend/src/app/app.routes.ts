@@ -133,6 +133,15 @@ export const routes: Routes = [
         canActivate: [roleGuard([UserRole.JEFE])],
       },
       {
+        path: 'cuentas-corrientes',
+        loadComponent: () =>
+          import('./features/accounts/pages/current-accounts/current-accounts').then(
+            (m) => m.CurrentAccountsPage,
+          ),
+        data: { titulo: 'Cuentas corrientes' },
+        canActivate: [roleGuard([UserRole.JEFE])],
+      },
+      {
         path: 'impresora-fiscal',
         component: PlaceholderPage,
         data: { titulo: 'Impresora fiscal' },

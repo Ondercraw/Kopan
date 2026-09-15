@@ -617,6 +617,10 @@ export class FinanceService {
       $sum: { $cond: [{ $and: conditions }, amount, 0] },
     });
     const income = eq('tipo', FinancialMovementKind.INCOME);
+    const accountingIncome = [
+      income,
+      { $ne: ['$categoria', FinancialMovementCategory.ACCOUNT_PAYMENT] },
+    ];
     const activeExpense = [
       eq('tipo', FinancialMovementKind.EXPENSE),
       { $ne: ['$cancelado', true] },
@@ -691,7 +695,9 @@ export class FinanceService {
         {
           $group: {
             _id: null,
-            incomes: amountWhen(income),
+            // Un cobro de cuenta corriente da disponibilidad, pero no vuelve a
+            // contabilizar como ingreso una venta que ya se registró al confirmar.
+            incomes: amountWhen(...accountingIncome),
             paidAutomatic: amountWhen(
               ...activeExpense,
               eq('categoria', FinancialMovementCategory.REPLENISHMENT),
@@ -770,7 +776,13 @@ export class FinanceService {
               { $ne: ['$disponible', true] },
               eq('medioPago', FinancialPaymentMethod.CHECK),
             ),
-            currentAccount: amountWhen(
+            currentAccount: amountWhenValue(
+              {
+                $max: [{ $subtract: [
+                  { $ifNull: ['$montoCentavos', 0] },
+                  { $ifNull: ['$montoPagadoCentavos', 0] },
+                ] }, 0],
+              },
               income,
               { $ne: ['$disponible', true] },
               eq('medioPago', FinancialPaymentMethod.CREDIT),

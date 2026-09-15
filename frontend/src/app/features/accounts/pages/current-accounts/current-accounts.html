@@ -1,0 +1,44 @@
+<section class="page">
+  <header class="page-header"><div><span>ADMINISTRACIÓN</span><h1>Cuentas corrientes</h1><p>Comprobantes, saldos y pagos de clientes y proveedores.</p></div>
+    <div class="date-filters" aria-label="Filtros por fecha">
+      <div class="period-buttons">
+        <button type="button" [class.active]="period() === 'TODAY'" (click)="selectPeriod('TODAY')">Hoy</button>
+        <button type="button" [class.active]="period() === 'WEEK'" (click)="selectPeriod('WEEK')">Semana</button>
+        <button type="button" [class.active]="period() === 'MONTH'" (click)="selectPeriod('MONTH')">Mes</button>
+        <button type="button" [class.active]="period() === 'YEAR'" (click)="selectPeriod('YEAR')">Año</button>
+      </div>
+      <div class="exact-date"><label><span>Fecha exacta</span><input type="date" [value]="exactDate()" (change)="selectDate($event)" /></label>
+        <button type="button" class="show-all" [disabled]="!period() && !exactDate()" (click)="clearDateFilters()"><i class="ti ti-calendar-off"></i> Todas</button>
+      </div>
+      <label class="account-search"><span>Buscar por nombre</span><div><i class="ti ti-search"></i><input type="search" placeholder="Cliente o proveedor..." [value]="searchTerm()" (input)="search($event)" /></div></label>
+    </div>
+  </header>
+  @if (error() && !paymentTarget()) { <p class="message error" role="alert">{{ error() }}</p> }
+  @if (loading()) { <p class="empty">Cargando cuentas corrientes...</p> } @else {
+    <div class="columns">
+      <section class="account-column"><header><i class="ti ti-users"></i><div><h2>Clientes</h2><p>Ventas realizadas a crédito</p></div></header>
+        @for (account of filteredClients(); track account.entidadId) { <article class="account-card">
+          <button class="account-summary" type="button" (click)="toggle('c-' + account.entidadId)"><span><strong>{{ account.entidadNombre }}</strong><small>{{ account.documentos.length }} comprobante/s</small></span><span class="balance" [class.paid]="account.saldoCentavos === 0">{{ money(account.saldoCentavos) }}<small>saldo</small></span><i class="ti" [class.ti-chevron-down]="expanded() !== 'c-' + account.entidadId" [class.ti-chevron-up]="expanded() === 'c-' + account.entidadId"></i></button>
+          @if (expanded() === 'c-' + account.entidadId) { <div class="documents">@for (doc of account.documentos; track doc.id) { <ng-container [ngTemplateOutlet]="document" [ngTemplateOutletContext]="{ $implicit: doc, side: 'CLIENTE', entity: account.entidadNombre }" /> }</div> }
+        </article> } @empty { <p class="empty">No hay ventas a cuenta corriente.</p> }
+      </section>
+      <section class="account-column"><header><i class="ti ti-truck"></i><div><h2>Proveedores</h2><p>Compras realizadas a cuenta corriente</p></div></header>
+        @for (account of filteredSuppliers(); track account.entidadId) { <article class="account-card">
+          <button class="account-summary" type="button" (click)="toggle('p-' + account.entidadId)"><span><strong>{{ account.entidadNombre }}</strong><small>{{ account.documentos.length }} comprobante/s</small></span><span class="balance" [class.paid]="account.saldoCentavos === 0">{{ money(account.saldoCentavos) }}<small>saldo</small></span><i class="ti" [class.ti-chevron-down]="expanded() !== 'p-' + account.entidadId" [class.ti-chevron-up]="expanded() === 'p-' + account.entidadId"></i></button>
+          @if (expanded() === 'p-' + account.entidadId) { <div class="documents">@for (doc of account.documentos; track doc.id) { <ng-container [ngTemplateOutlet]="document" [ngTemplateOutletContext]="{ $implicit: doc, side: 'PROVEEDOR', entity: account.entidadNombre }" /> }</div> }
+        </article> } @empty { <p class="empty">No hay compras a cuenta corriente.</p> }
+      </section>
+    </div>
+  }
+</section>
+
+<ng-template #document let-doc let-side="side" let-entity="entity">
+  <article class="document" [class.pending]="doc.estado === 'PENDIENTE'" [class.partial]="doc.estado === 'PARCIAL'" [class.paid]="doc.estado === 'PAGADO'">
+    <div class="document-head"><div><strong>{{ doc.tipo === 'VENTA' ? 'Venta' : 'Compra' }} #{{ doc.codigo }}</strong><small>{{ date(doc.fecha) }}</small></div><span class="status">{{ doc.estado === 'PARCIAL' ? 'Pagado parcialmente' : doc.estado === 'PAGADO' ? 'Pagado' : 'A pagar' }}</span></div>
+    <p>{{ doc.detalle }}</p><div class="amounts"><span>Total <strong>{{ money(doc.totalCentavos) }}</strong></span><span>Pagado <strong>{{ money(doc.pagadoCentavos) }}</strong></span><span>Restante <strong>{{ money(doc.saldoCentavos) }}</strong></span></div>
+    @for (payment of doc.pagos; track payment.id) { <div class="payment"><i class="ti ti-cash"></i><span>Pago por {{ payment.medioPago === 'EFECTIVO' ? 'efectivo' : 'transferencia' }}<small>{{ date(payment.fecha) }} · {{ payment.actorName }}</small></span><strong>{{ money(payment.montoCentavos) }}</strong></div> }
+    @if (doc.saldoCentavos > 0) { <button class="pay" type="button" (click)="openPayment(side, entity, doc)"><i class="ti ti-cash-banknote"></i> Registrar pago</button> }
+  </article>
+</ng-template>
+
+@if (paymentTarget(); as target) { <div class="modal-overlay"><section class="modal-card" role="dialog" aria-modal="true"><header><div><span>CUENTA CORRIENTE</span><h2>Registrar pago</h2></div><button class="icon" type="button" (click)="closePayment()"><i class="ti ti-x"></i></button></header><p><strong>{{ target.entity }}</strong> · {{ target.document.tipo === 'VENTA' ? 'Venta' : 'Compra' }} #{{ target.document.codigo }}</p><div class="form-grid"><label><span>Importe *</span><app-currency-input [(ngModel)]="amountPesos" [ngModelOptions]="{ standalone: true }" /></label><label><span>Medio de pago *</span><app-searchable-select [(ngModel)]="paymentMethod" [options]="paymentOptions()" placeholder="Elegir..." [clearable]="false" /></label></div><small class="limit">Saldo máximo: {{ money(target.document.saldoCentavos) }}</small>@if (error()) { <p class="message error" role="alert">{{ error() }}</p> }<footer><button class="secondary" type="button" (click)="closePayment()">Cancelar</button><button class="primary" type="button" (click)="pay()" [disabled]="saving()">Confirmar pago</button></footer></section></div> }

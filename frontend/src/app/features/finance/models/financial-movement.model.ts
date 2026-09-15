@@ -1,6 +1,6 @@
 export type FinancialMovementKind = 'INGRESO' | 'GASTO';
 export type FinancialMovementCategory =
-  'VENTA' | 'CHEQUE' | 'REPOSICION_AUTOMATICA' | 'GASTO_MANUAL' | 'COMPRA_PRODUCTOS';
+  'VENTA' | 'CHEQUE' | 'REPOSICION_AUTOMATICA' | 'GASTO_MANUAL' | 'COMPRA_PRODUCTOS' | 'COBRO_CUENTA_CORRIENTE';
 export type FinancialPaymentMethod =
   'EFECTIVO' | 'TRANSFERENCIA' | 'CREDITO' | 'CHEQUE' | 'PAGADO_ANTES_SISTEMA';
 export interface FinancialMovement {

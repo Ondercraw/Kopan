@@ -172,6 +172,23 @@ button:disabled {
   font-weight: 700;
   cursor: pointer;
 }
+.empty-actions { display:flex; justify-content:center; align-items:center; gap:.7rem; margin-top:.65rem; flex-wrap:wrap; }
+.empty-actions .clear-filters { border:1px solid #d6bda9; border-radius:9px; padding:0 .8rem; background:#fff; }
+.empty-actions .primary-action {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  height: 42px;
+  padding: 0 0.8rem;
+  border: 1px solid #d6bda9;
+  border-radius: 9px;
+  background: #fff;
+  color: #7a4b24;
+  font: inherit;
+  font-weight: 700;
+  cursor: pointer;
+}
+.empty-actions .primary-action:hover { background: #f4e8dc; }
 .error-banner {
   display: flex;
   align-items: center;

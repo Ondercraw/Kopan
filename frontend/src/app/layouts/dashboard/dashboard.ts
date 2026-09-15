@@ -77,6 +77,12 @@ const NAV_GROUPS: NavGroup[] = [
         rolesPermitidos: [UserRole.JEFE],
       },
       {
+        label: 'Cuentas corrientes',
+        icon: 'ti-book-2',
+        path: '/cuentas-corrientes',
+        rolesPermitidos: [UserRole.JEFE],
+      },
+      {
         label: 'Cheques',
         icon: 'ti-file-text',
         path: '/cheques',

@@ -304,7 +304,10 @@
 .line-row {
   padding: 8px 0;
   border-bottom: 1px solid #e5d6ca;
+  position: relative;
+  z-index: 1;
 }
+.line-row:focus-within { z-index: 20; }
 .line-row > input {
   width: 100%;
   border: 1px solid #d8c1b0;
@@ -364,6 +367,10 @@
   }
   .form-grid {
     grid-template-columns: repeat(2, 1fr);
+  }
+  .line-labels,
+  .line-row {
+    grid-template-columns: minmax(210px, 1.5fr) 90px minmax(150px, 1fr) 110px 76px;
   }
 }
 @media (max-width: 700px) {

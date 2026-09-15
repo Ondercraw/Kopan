@@ -309,6 +309,7 @@ export class IncomeExpensesPage implements OnInit {
     if (i.categoria === 'GASTO_MANUAL') return 'Gasto extra';
     if (i.categoria === 'COMPRA_PRODUCTOS') return 'Compra de productos';
     if (i.categoria === 'CHEQUE') return 'Ingreso de cheque';
+    if (i.categoria === 'COBRO_CUENTA_CORRIENTE') return 'Cobro de cuenta corriente';
     return 'Ingreso de venta';
   }
   method(v: FinancialPaymentMethod | null) {

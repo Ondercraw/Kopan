@@ -1,6 +1,6 @@
-<div class="select-shell" [class.open]="open()" [class.disabled]="disabled()">
+<div class="select-shell" [class.open]="open()" [class.open-up]="openUp()" [class.disabled]="disabled()">
   <div class="search-row">
-    <input type="search" autocomplete="off" [placeholder]="placeholder()" [value]="query()" [disabled]="disabled()" (focus)="open.set(true)" (input)="onInput($event)" (blur)="touch()" />
+    <input type="search" autocomplete="off" [placeholder]="placeholder()" [value]="query()" [disabled]="disabled()" (focus)="show()" (input)="onInput($event)" (blur)="touch()" />
     @if(query()&&clearable()){<button type="button" class="clear" aria-label="Limpiar selección" [disabled]="disabled()" (click)="clear()"><i class="ti ti-x"></i></button>}
     <button type="button" class="toggle" aria-label="Mostrar opciones" [attr.aria-expanded]="open()" [disabled]="disabled()" (click)="toggle()"><i class="ti" [class.ti-chevron-up]="open()" [class.ti-chevron-down]="!open()"></i></button>
   </div>
