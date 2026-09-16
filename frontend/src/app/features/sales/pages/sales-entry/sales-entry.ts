@@ -32,6 +32,16 @@ interface DraftLine {
   unitPriceCents: number;
   discountPercent: number;
 }
+interface ReceiptView {
+  date: Date;
+  clientCode: number;
+  clientName: string;
+  sellerName: string;
+  priceListName: string;
+  paymentMethod: PaymentMethod;
+  items: Array<{ quantity: number; name: string; unitPriceCents: number; totalCents: number }>;
+  totalCents: number;
+}
 @Component({
   selector: 'app-sales-entry',
   standalone: true,
@@ -341,6 +351,76 @@ export class SalesEntryPage implements OnInit {
           this.saving.set(false);
         },
       });
+  }
+  exportDraftReceipt(): void {
+    const client = this.selectedClient();
+    const list = this.priceList();
+    if (!client || !list || !this.lines().length) {
+      this.error.set('Seleccioná un cliente, su lista y al menos un producto para preparar el comprobante.');
+      return;
+    }
+    const popup = window.open('', '_blank', 'width=900,height=760');
+    if (!popup) {
+      this.error.set('El navegador bloqueó la ventana del comprobante. Habilitá las ventanas emergentes e intentá nuevamente.');
+      return;
+    }
+    this.renderReceipt({
+      date: new Date(),
+      clientCode: client.codigo,
+      clientName: client.nombre,
+      sellerName: client.vendedorId?.nombre || this.auth.currentUser()?.nombre || 'Venta mostrador',
+      priceListName: list.nombre,
+      paymentMethod: this.paymentMethod,
+      items: this.lines().map((line) => ({
+        quantity: line.quantity,
+        name: line.product.nombre,
+        unitPriceCents: this.finalUnitPrice(line),
+        totalCents: this.lineTotal(line),
+      })),
+      totalCents: this.total(),
+    }, popup);
+  }
+  private renderReceipt(receipt: ReceiptView, popup: Window): void {
+    const rows = receipt.items.map((item) => {
+      return `<tr><td class="quantity">${item.quantity}</td><td>${this.escapeHtml(item.name)}</td><td class="money">${this.escapeHtml(this.money(item.unitPriceCents))}</td><td class="money total-line">${this.escapeHtml(this.money(item.totalCents))}</td></tr>`;
+    }).join('');
+    const date = new Intl.DateTimeFormat('es-AR', {
+      timeZone: 'America/Argentina/Buenos_Aires',
+      dateStyle: 'short',
+      timeStyle: 'short',
+    }).format(receipt.date);
+    const payment = this.receiptPaymentLabel(receipt.paymentMethod);
+    const fileDate = new Intl.DateTimeFormat('es-AR', {
+      timeZone: 'America/Argentina/Buenos_Aires',
+      day: '2-digit',
+      month: '2-digit',
+      year: 'numeric',
+    }).format(receipt.date).replaceAll('/', '-');
+    const title = `${this.filenamePart(receipt.clientName)}-Comprobante-${fileDate}`;
+    popup.document.open();
+    popup.document.write(`<!doctype html><html lang="es"><head><meta charset="utf-8"><title>${this.escapeHtml(title)}</title><style>
+      @page{size:A4;margin:12mm}*{box-sizing:border-box}body{margin:0;background:#f4ece5;color:#2d190e;font-family:Arial,sans-serif}.ticket{width:min(100%,820px);min-height:calc(100vh - 48px);margin:24px auto;padding:34px;border:1px solid #d8c2b2;background:#fff;box-shadow:0 12px 34px #3f210f20}.brand{display:flex;justify-content:space-between;align-items:flex-start;gap:24px;padding-bottom:18px;border-bottom:3px solid #713508}.brand-mark{display:flex;align-items:center;gap:12px}.logo{display:grid;place-items:center;width:48px;height:48px;background:#713508;color:#fff;font:700 28px Georgia,serif}.brand h1{margin:0;font:700 25px Georgia,serif}.brand p{margin:4px 0 0;color:#8a654d;font-size:12px;letter-spacing:.08em}.number{text-align:right}.number strong{display:block;font:700 24px Georgia,serif;color:#713508}.number span{font-size:12px;color:#765d4d}.internal{margin:16px 0;padding:9px 12px;border-left:4px solid #b86719;background:#fbf1e7;color:#713508;font-size:12px;font-weight:700}.data{display:grid;grid-template-columns:1fr 1fr;gap:10px 28px;margin:18px 0 24px}.data div{display:grid;grid-template-columns:110px 1fr;gap:8px;padding-bottom:7px;border-bottom:1px solid #eaded5}.data span{color:#846b5b;font-size:11px;font-weight:700;text-transform:uppercase}.data strong{font-size:13px}table{width:100%;border-collapse:collapse}th{padding:10px 9px;background:#713508;color:#fff;font-size:11px;letter-spacing:.06em;text-align:left;text-transform:uppercase}td{padding:12px 9px;border-bottom:1px solid #eaded5;font-size:13px}.quantity{width:72px;text-align:center}.money{width:145px;text-align:right;font-variant-numeric:tabular-nums}.total-line{font-weight:700}.grand-total{display:flex;justify-content:flex-end;align-items:center;gap:30px;margin-top:28px;padding:20px 22px;background:#f1e2d4;border:2px solid #713508}.grand-total span{font-size:14px;font-weight:800;letter-spacing:.08em;text-transform:uppercase}.grand-total strong{font:700 32px Georgia,serif;color:#713508}.footer{margin-top:26px;padding-top:14px;border-top:1px dashed #cbb5a4;color:#806858;font-size:11px;text-align:center}@media(max-width:650px){.ticket{margin:0;padding:20px;box-shadow:none}.brand,.data{grid-template-columns:1fr;display:grid}.number{text-align:left}.data div{grid-template-columns:90px 1fr}.money{width:auto}.grand-total{justify-content:space-between}.grand-total strong{font-size:25px}}@media print{body{background:#fff}.ticket{width:100%;min-height:auto;margin:0;padding:0;border:0;box-shadow:none}.no-print{display:none!important}}
+    </style></head><body><main class="ticket"><header class="brand"><div class="brand-mark"><div class="logo">K</div><div><h1>Distribuidora Kopan</h1><p>COMPROBANTE DE VENTA</p></div></div><div class="number"><strong>COMPROBANTE</strong><span>${this.escapeHtml(date)}</span></div></header><p class="internal">COMPROBANTE INTERNO · NO VÁLIDO COMO FACTURA</p><section class="data"><div><span>Cliente</span><strong>#${receipt.clientCode} · ${this.escapeHtml(receipt.clientName)}</strong></div><div><span>Vendedor</span><strong>${this.escapeHtml(receipt.sellerName)}</strong></div><div><span>Lista</span><strong>${this.escapeHtml(receipt.priceListName)}</strong></div><div><span>Pago</span><strong>${this.escapeHtml(payment)}</strong></div></section><table><thead><tr><th class="quantity">Cantidad</th><th>Producto</th><th class="money">Precio unitario</th><th class="money">Total</th></tr></thead><tbody>${rows}</tbody></table><section class="grand-total"><span>Total de la compra</span><strong>${this.escapeHtml(this.money(receipt.totalCents))}</strong></section><p class="footer">Gracias por su compra · Distribuidora Kopan.</p></main><script>window.onload=()=>{document.title=${JSON.stringify(title)};setTimeout(()=>window.print(),150)};<\/script></body></html>`);
+    popup.document.close();
+    popup.focus();
+  }
+  private receiptPaymentLabel(method: PaymentMethod): string {
+    if (method === 'TRANSFERENCIA') return 'Transferencia / Mercado Pago';
+    if (method === 'CREDITO') return 'Cuenta corriente';
+    if (method === 'CHEQUE') return 'Cheque';
+    return 'Efectivo';
+  }
+  private escapeHtml(value: unknown): string {
+    return String(value ?? '').replace(/[&<>"']/g, (character) => ({
+      '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#039;',
+    })[character]!);
+  }
+  private filenamePart(value: string): string {
+    return value
+      .normalize('NFD')
+      .replace(/[\u0300-\u036f]/g, '')
+      .replace(/[^a-zA-Z0-9]+/g, '-')
+      .replace(/^-+|-+$/g, '') || 'Cliente';
   }
   money(cents: number) {
     return new Intl.NumberFormat('es-AR', { style: 'currency', currency: 'ARS' }).format(

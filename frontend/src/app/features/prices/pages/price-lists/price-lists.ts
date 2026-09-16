@@ -131,7 +131,7 @@ export class PriceListsPage implements OnInit {
     const list=this.selected(); if(!list) return;
     const rows=this.visibleProducts().map(p=>{const price=this.currentPrice(p._id);return price===null?'':`<tr><td>${this.escape(p.nombre)}</td><td>${this.escape(this.supplierNames(p))}</td><td>${this.escape(p.tipo)}</td><td>${this.escape(this.money(this.finalPrice(p,price)))}</td></tr>`}).join('');
     const popup=window.open('','_blank','width=900,height=700'); if(!popup){this.error.set('El navegador bloqueó la ventana para generar el PDF');return;}
-    popup.document.write(`<!doctype html><html><head><title>${this.escape(list.nombre)}</title><style>body{font-family:Arial;padding:32px;color:#2d190e}h1{font-family:Georgia}table{width:100%;border-collapse:collapse}th,td{padding:10px;border-bottom:1px solid #d8c2b2;text-align:left}th{background:#f2e7dd}</style></head><body><h1>${this.escape(list.nombre)}</h1><p>${new Date().toLocaleDateString('es-AR')}</p><table><thead><tr><th>Producto</th><th>Proveedor</th><th>Rubro</th><th>Precio final</th></tr></thead><tbody>${rows}</tbody></table><script>window.onload=()=>window.print()<\/script></body></html>`); popup.document.close();
+    popup.document.write(`<!doctype html><html><head><title>${this.escape(this.pdfDocumentTitle(list.nombre))}</title><style>body{font-family:Arial;padding:32px;color:#2d190e}h1{font-family:Georgia}table{width:100%;border-collapse:collapse}th,td{padding:10px;border-bottom:1px solid #d8c2b2;text-align:left}th{background:#f2e7dd}</style></head><body><h1>${this.escape(list.nombre)}</h1><p>${new Date().toLocaleDateString('es-AR')}</p><table><thead><tr><th>Producto</th><th>Proveedor</th><th>Rubro</th><th>Precio final</th></tr></thead><tbody>${rows}</tbody></table><script>window.onload=()=>window.print()<\/script></body></html>`); popup.document.close();
   }
   exportSelectedProductsPdf() {
     const source = this.sourceDetail();
@@ -179,10 +179,15 @@ export class PriceListsPage implements OnInit {
       return;
     }
     this.derivedPdfError.set(null);
-    popup.document.write(`<!doctype html><html><head><title>${this.escape(title)}</title><style>body{font-family:Arial;padding:32px;color:#2d190e}h1{font-family:Georgia}table{width:100%;border-collapse:collapse}th,td{padding:10px;border-bottom:1px solid #d8c2b2;text-align:left}th{background:#f2e7dd}</style></head><body><h1>${this.escape(title)}</h1><p>${new Date().toLocaleDateString('es-AR')} · Basada en ${this.escape(source.nombre)}</p><table><thead><tr><th>Producto</th><th>Proveedor</th><th>Rubro</th><th>Precio final</th></tr></thead><tbody>${rows}</tbody></table><script>window.onload=()=>window.print()<\/script></body></html>`);
+    popup.document.write(`<!doctype html><html><head><title>${this.escape(this.pdfDocumentTitle(title))}</title><style>body{font-family:Arial;padding:32px;color:#2d190e}h1{font-family:Georgia}table{width:100%;border-collapse:collapse}th,td{padding:10px;border-bottom:1px solid #d8c2b2;text-align:left}th{background:#f2e7dd}</style></head><body><h1>${this.escape(title)}</h1><p>${new Date().toLocaleDateString('es-AR')} · Basada en ${this.escape(source.nombre)}</p><table><thead><tr><th>Producto</th><th>Proveedor</th><th>Rubro</th><th>Precio final</th></tr></thead><tbody>${rows}</tbody></table><script>window.onload=()=>window.print()<\/script></body></html>`);
     popup.document.close();
   }
   private escape(value:unknown){return String(value??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#039;'}[c]!));}
+  private pdfDocumentTitle(name:string){
+    const safeName=name.normalize('NFD').replace(/[\u0300-\u036f]/g,'').replace(/[^a-zA-Z0-9]+/g,'-').replace(/^-+|-+$/g,'')||'Lista-de-precios';
+    const date=new Intl.DateTimeFormat('es-AR',{timeZone:'America/Argentina/Buenos_Aires',day:'2-digit',month:'2-digit',year:'numeric'}).format(new Date()).replaceAll('/','-');
+    return `${safeName}-${date}`;
+  }
   reload() {
     this.loading.set(true);
     this.prices.findAll().subscribe({

@@ -215,9 +215,11 @@
       </p>
       <footer>
         <button type="button" (click)="reviewing.set(false)" [disabled]="saving()">Volver</button
-        ><button class="confirm" type="button" (click)="confirm()" [disabled]="saving()">
+        ><div class="confirmation-actions"><button class="receipt-action" type="button" (click)="exportDraftReceipt()" [disabled]="saving()">
+          <i class="ti ti-file-type-pdf"></i> Generar PDF
+        </button><button class="confirm" type="button" (click)="confirm()" [disabled]="saving()">
           {{ saving() ? 'Confirmando...' : 'Confirmar venta' }}
-        </button>
+        </button></div>
       </footer>
     </section>
   </div>
