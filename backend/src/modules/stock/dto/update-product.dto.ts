@@ -67,6 +67,7 @@ export class UpdateProductDto {
     (dto: UpdateProductDto) =>
       dto.ajusteStock !== undefined && dto.ajusteStock < 0,
   )
+  @ValidateIf((_dto: UpdateProductDto, value: unknown) => value !== 'UNVALUED')
   @IsMongoId({ message: 'Seleccioná un lote válido para realizar la resta' })
   @IsNotEmpty({ message: 'El lote es obligatorio al restar unidades' })
   loteId?: string;

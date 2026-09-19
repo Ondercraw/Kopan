@@ -36,6 +36,12 @@ export class CurrentAccountsPage {
     this.service.pay(kind, target.document.id, cents, this.paymentMethod as 'EFECTIVO' | 'TRANSFERENCIA').subscribe({ next: () => { this.saving.set(false); this.paymentTarget.set(null); this.load(); }, error: (err) => { this.saving.set(false); this.error.set(err?.error?.message ?? 'No se pudo registrar el pago'); } });
   }
   money(cents: number) { return new Intl.NumberFormat('es-AR', { style: 'currency', currency: 'ARS' }).format(cents / 100); }
+  paymentLabel(method: AccountDocument['pagos'][number]['medioPago']) {
+    if (method === 'EFECTIVO') return 'efectivo';
+    if (method === 'TRANSFERENCIA') return 'transferencia';
+    if (method === 'CHEQUE') return 'cheque';
+    return 'pagado antes de usar el sistema';
+  }
   date(value: string) { return new Intl.DateTimeFormat('es-AR', { dateStyle: 'short', timeStyle: 'short' }).format(new Date(value)); }
   private filterAccounts(accounts: CurrentAccount[]) {
     const range = this.dateRange();

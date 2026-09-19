@@ -7,6 +7,7 @@ export class CreateSaleItemDto {
   @IsMongoId() productoId: string;
   @IsInt() @Min(1) cantidad: number;
   @IsOptional() @IsInt() @Min(0) precioUnitarioCentavos?: number;
+  @IsOptional() @IsInt() @Min(0) precioFinalUnitarioCentavos?: number;
   @IsOptional() @IsInt() @Min(0) @Max(10000) bonificacionPuntosBase?: number;
 }
 

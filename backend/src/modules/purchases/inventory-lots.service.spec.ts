@@ -132,4 +132,44 @@ describe('InventoryLotsService', () => {
     });
     expect(lot.save).not.toHaveBeenCalled();
   });
+
+  it('permite restar unidades físicas que todavía no tienen lote ni costo asignado', async () => {
+    const productId = new Types.ObjectId();
+    const find = jest.fn().mockReturnValue({
+      sort: jest.fn().mockReturnValue({
+        exec: jest.fn().mockResolvedValue([]),
+      }),
+    });
+    const findOne = jest.fn();
+    const service = new InventoryLotsService({ find, findOne } as never);
+
+    const result = await service.consumeSpecificLot(
+      productId,
+      'UNVALUED',
+      3,
+      0,
+      10,
+    );
+
+    expect(result.averageCostCents).toBe(0);
+    expect(result.lot.kind).toBe('SIN_VALORAR');
+    expect(findOne).not.toHaveBeenCalled();
+  });
+
+  it('impide restar más unidades sin valorar que las existentes', async () => {
+    const productId = new Types.ObjectId();
+    const trackedLot = { remainingQuantity: 8 };
+    const find = jest.fn().mockReturnValue({
+      sort: jest.fn().mockReturnValue({
+        exec: jest.fn().mockResolvedValue([trackedLot]),
+      }),
+    });
+    const service = new InventoryLotsService({ find } as never);
+
+    await expect(
+      service.consumeSpecificLot(productId, 'UNVALUED', 3, 10_000, 10),
+    ).rejects.toMatchObject({
+      response: { code: 'INSUFFICIENT_LOT_STOCK' },
+    });
+  });
 });

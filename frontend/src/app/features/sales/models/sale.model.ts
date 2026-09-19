@@ -4,6 +4,7 @@ export interface SaleItemPayload {
   productoId: string;
   cantidad: number;
   precioUnitarioCentavos?: number;
+  precioFinalUnitarioCentavos?: number;
   bonificacionPuntosBase?: number;
 }
 export interface CreateSalePayload {

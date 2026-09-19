@@ -23,13 +23,14 @@ import { Product } from '../../../stock/models/product.model';
 import { StockService } from '../../../stock/services/stock.service';
 import { PaymentMethod } from '../../models/sale.model';
 import { SalesService } from '../../services/sales.service';
-import { CurrencyInput } from '../../../../shared/components/currency-input/currency-input';
 import { argentinaToday } from '../../../../shared/utils/argentina-date';
 import { amountInWords } from '../../../checks/utils/amount-in-words';
 interface DraftLine {
   product: Product;
   quantity: number;
+  quantityInput: string;
   unitPriceCents: number;
+  priceInput: string;
   discountPercent: number;
 }
 interface ReceiptView {
@@ -45,7 +46,7 @@ interface ReceiptView {
 @Component({
   selector: 'app-sales-entry',
   standalone: true,
-  imports: [FormsModule, SearchableSelect, CurrencyInput, ClientFormModal, ProductFormModal],
+  imports: [FormsModule, SearchableSelect, ClientFormModal, ProductFormModal],
   templateUrl: './sales-entry.html',
   styleUrls: ['./sales-entry.scss', './sales-entry-adjustments.scss'],
   changeDetection: ChangeDetectionStrategy.OnPush,
@@ -110,6 +111,9 @@ export class SalesEntryPage implements OnInit {
   );
   readonly total = computed(() =>
     this.lines().reduce((sum, line) => sum + this.lineTotal(line), 0),
+  );
+  readonly hasInvalidQuantities = computed(() =>
+    this.lines().some((line) => this.quantityError(line) !== null),
   );
   productTypeOptions() { return [...new Set(this.products().map(p=>p.tipo))].sort((a,b)=>a.localeCompare(b,'es')); }
   selectedClient(): Client | null {
@@ -204,10 +208,13 @@ export class SalesEntryPage implements OnInit {
       lines.some((l) => l.product._id === product._id)
         ? lines.map((l) =>
             l.product._id === product._id
-              ? { ...l, quantity: Math.min(l.quantity + 1, product.cantidadStock) }
+              ? (() => {
+                  const quantity = Math.min(l.quantity + 1, product.cantidadStock);
+                  return { ...l, quantity, quantityInput: String(quantity) };
+                })()
               : l,
           )
-        : [...lines, { product, quantity: 1, unitPriceCents: price, discountPercent: 0 }],
+        : [...lines, { product, quantity: 0, quantityInput: '', unitPriceCents: Math.round(price * (1 + Number(product.alicuotaIva ?? 21) / 100)), priceInput: price > 0 ? String(Math.round(price * (1 + Number(product.alicuotaIva ?? 21) / 100)) / 100) : '', discountPercent: 0 }],
     );
     this.productId = '';
     this.error.set(
@@ -218,23 +225,36 @@ export class SalesEntryPage implements OnInit {
   }
   updateQuantity(id: string, event: Event) {
     const input = event.target as HTMLInputElement;
-    const requested = Math.floor(Number(input.value));
+    const cleaned = input.value.replace(/\D/g, '');
+    input.value = cleaned;
+    const requested = cleaned === '' ? 0 : Number(cleaned);
     const line = this.lines().find((item) => item.product._id === id);
     if (!line) return;
-    const quantity = Math.max(1, Math.min(requested || 1, line.product.cantidadStock));
-    // `max` guía los controles y esta asignación también corrige inmediatamente
-    // los valores escritos manualmente que superen el stock disponible.
-    input.value = String(quantity);
-    this.lines.update((lines) => lines.map((l) => (l.product._id === id ? { ...l, quantity } : l)));
-  }
-  updatePrice(id: string, value: number) {
-    if (!this.canChangePrice()) return;
-    const line=this.lines().find(item=>item.product._id===id);
-    if (!line) return;
-    const finalCents = Math.round(Math.max(0, Number(value)) * 100);
-    const cents = Math.round(finalCents / (1 + Number(line.product.alicuotaIva ?? 21) / 100));
     this.lines.update((lines) =>
-      lines.map((l) => (l.product._id === id ? { ...l, unitPriceCents: cents } : l)),
+      lines.map((l) =>
+        l.product._id === id ? { ...l, quantity: requested, quantityInput: cleaned } : l,
+      ),
+    );
+  }
+  quantityError(line: DraftLine): string | null {
+    if (line.quantityInput === '') return 'Ingresá la cantidad.';
+    if (line.quantity === 0) return 'No se acepta 0 como una cantidad válida.';
+    if (!Number.isInteger(line.quantity) || line.quantity < 0) {
+      return 'Ingresá una cantidad entera mayor a 0.';
+    }
+    if (line.quantity > line.product.cantidadStock) {
+      return `La cantidad supera el stock existente. Hay ${line.product.cantidadStock} ${line.product.cantidadStock === 1 ? 'unidad disponible' : 'unidades disponibles'}.`;
+    }
+    return null;
+  }
+  updatePrice(id: string, event: Event) {
+    if (!this.canChangePrice()) return;
+    const input = event.target as HTMLInputElement;
+    const cleaned = input.value.replace(/\D/g, '');
+    input.value = cleaned;
+    const finalCents = cleaned ? Number(cleaned) * 100 : 0;
+    this.lines.update((lines) =>
+      lines.map((l) => (l.product._id === id ? { ...l, unitPriceCents: finalCents, priceInput: cleaned } : l)),
     );
   }
   updateDiscount(id: string, event: Event) {
@@ -250,6 +270,10 @@ export class SalesEntryPage implements OnInit {
     this.reviewAttempted.set(true);
     if (!this.selectedClient() || !this.priceList() || !this.lines().length) {
       this.error.set('Revisá los campos marcados antes de continuar');
+      return;
+    }
+    if (this.hasInvalidQuantities()) {
+      this.error.set('Las cantidades deben ser enteras, mayores a cero y no superar el stock disponible');
       return;
     }
     if (this.lines().some((line) => line.unitPriceCents <= 0)) {
@@ -325,7 +349,7 @@ export class SalesEntryPage implements OnInit {
         items: this.lines().map((l) => ({
           productoId: l.product._id,
           cantidad: l.quantity,
-          precioUnitarioCentavos: l.unitPriceCents,
+          precioFinalUnitarioCentavos: l.unitPriceCents,
           bonificacionPuntosBase: Math.round(l.discountPercent * 100),
         })),
       })
@@ -437,16 +461,16 @@ export class SalesEntryPage implements OnInit {
     );
   }
   lineTotal(l: DraftLine) {
-    return this.lineNet(l) + this.lineVat(l);
-  }
-  lineNet(l: DraftLine) {
     return Math.round((l.unitPriceCents * l.quantity * (100 - l.discountPercent)) / 100);
   }
+  lineNet(l: DraftLine) {
+    return Math.round(this.lineTotal(l) / (1 + Number(l.product.alicuotaIva ?? 21) / 100));
+  }
   lineVat(l: DraftLine) {
-    return Math.round((this.lineNet(l) * Number(l.product.alicuotaIva ?? 21)) / 100);
+    return this.lineTotal(l) - this.lineNet(l);
   }
   finalUnitPrice(l: DraftLine) {
-    return Math.round(l.unitPriceCents * (1 + Number(l.product.alicuotaIva ?? 21) / 100));
+    return l.unitPriceCents;
   }
   paymentLabel(): string {
     if (this.paymentMethod === 'TRANSFERENCIA') return 'transferencia / Mercado Pago';

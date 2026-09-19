@@ -70,8 +70,18 @@ export class StockService {
   }
 
   async findLots(productId: string) {
-    const lots = await this.inventoryLots.activeLots(productId);
-    return lots.map((lot) => ({
+    const [product, lots] = await Promise.all([
+      this.productModel
+        .findById(productId)
+        .select('cantidadStock createdAt')
+        .lean()
+        .exec(),
+      this.inventoryLots.activeLots(productId),
+    ]);
+    if (!product) {
+      throw new NotFoundException('Producto no encontrado');
+    }
+    const trackedLots = lots.map((lot) => ({
       _id: lot._id,
       purchaseCode: lot.purchaseCode,
       supplierName: lot.supplierName,
@@ -81,6 +91,29 @@ export class StockService {
       receivedAt: lot.receivedAt,
       kind: lot.kind,
     }));
+    const trackedQuantity = lots.reduce(
+      (sum, lot) => sum + lot.remainingQuantity,
+      0,
+    );
+    const unvaluedQuantity = Math.max(
+      0,
+      product.cantidadStock - trackedQuantity,
+    );
+    return unvaluedQuantity > 0
+      ? [
+          {
+            _id: 'UNVALUED',
+            purchaseCode: null,
+            supplierName: '',
+            initialQuantity: unvaluedQuantity,
+            remainingQuantity: unvaluedQuantity,
+            unitCostCents: 0,
+            receivedAt: product.createdAt,
+            kind: 'SIN_VALORAR',
+          },
+          ...trackedLots,
+        ]
+      : trackedLots;
   }
 
   create(dto: CreateProductDto, actor: StockActor) {
@@ -223,9 +256,12 @@ export class StockService {
           product.cantidadStock - stockDelta,
         );
         product.costoCentavos = result.averageCostCents;
-        selectedLotLabel = result.lot.purchaseCode
-          ? ` · Lote de compra #${result.lot.purchaseCode} (${result.lot.supplierName || 'sin proveedor'})`
-          : ` · Lote de ${result.lot.kind === 'AJUSTE' ? 'ajuste manual' : 'valuación inicial'} (${result.lot.supplierName || 'sin proveedor'})`;
+        selectedLotLabel =
+          result.lot.kind === 'SIN_VALORAR'
+            ? ' · Unidades sin valorar'
+            : result.lot.purchaseCode
+              ? ` · Lote de compra #${result.lot.purchaseCode} (${result.lot.supplierName || 'sin proveedor'})`
+              : ` · Lote de ${result.lot.kind === 'AJUSTE' ? 'ajuste manual' : 'valuación inicial'} (${result.lot.supplierName || 'sin proveedor'})`;
       } else {
         product.costoCentavos = await this.inventoryLots.adjust(
           product._id,

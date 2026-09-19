@@ -6,6 +6,7 @@ export class AdjustStockDto {
   delta: -1 | 1;
 
   @ValidateIf((dto: AdjustStockDto) => dto.delta < 0)
+  @ValidateIf((_dto: AdjustStockDto, value: unknown) => value !== 'UNVALUED')
   @IsMongoId({ message: 'Seleccioná un lote válido para realizar la resta' })
   @IsNotEmpty({ message: 'El lote es obligatorio al restar unidades' })
   loteId?: string;

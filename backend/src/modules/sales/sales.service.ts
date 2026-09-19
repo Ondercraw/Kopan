@@ -175,6 +175,7 @@ export class SalesService {
       {
         cantidad: number;
         precioUnitarioCentavos?: number;
+        precioFinalUnitarioCentavos?: number;
         bonificacionPuntosBase: number;
       }
     >();
@@ -184,6 +185,8 @@ export class SalesService {
         cantidad: (current?.cantidad ?? 0) + item.cantidad,
         precioUnitarioCentavos:
           item.precioUnitarioCentavos ?? current?.precioUnitarioCentavos,
+        precioFinalUnitarioCentavos:
+          item.precioFinalUnitarioCentavos ?? current?.precioFinalUnitarioCentavos,
         bonificacionPuntosBase:
           item.bonificacionPuntosBase ?? current?.bonificacionPuntosBase ?? 0,
       });
@@ -213,21 +216,24 @@ export class SalesService {
         throw new ConflictException(
           `${product.nombre} no tiene precio en ${list.nombre}`,
         );
-      const unitPrice = requested.precioUnitarioCentavos ?? listPrice;
+      const listFinalPrice = Math.round(listPrice * (1 + Number(product.alicuotaIva) / 100));
+      const requestedFinalPrice = requested.precioFinalUnitarioCentavos;
+      const unitPrice = requestedFinalPrice !== undefined
+        ? Math.round(requestedFinalPrice / (1 + Number(product.alicuotaIva) / 100))
+        : requested.precioUnitarioCentavos ?? listPrice;
       if (
-        unitPrice !== listPrice &&
+        (requestedFinalPrice !== undefined ? requestedFinalPrice !== listFinalPrice : unitPrice !== listPrice) &&
         !normalizeUserRoles(actor.roles).includes(UserRole.JEFE)
       )
         throw new ConflictException(
           'Solo un dueño puede modificar precios durante una venta',
         );
-      // El precio de lista es neto. Primero se aplica el descuento y luego el IVA del producto.
-      const subtotalNeto = unitPrice * requested.cantidad;
-      const neto = Math.round(
-        (subtotalNeto * (10000 - requested.bonificacionPuntosBase)) / 10000,
-      );
-      const iva = Math.round((neto * Number(product.alicuotaIva)) / 100);
-      const total = neto + iva;
+      // Si el dueño ingresa el precio final, se conserva exactamente ese importe
+      // y se separan neto/IVA después, evitando diferencias de un centavo.
+      const totalBeforeDiscount = (requestedFinalPrice ?? listFinalPrice) * requested.cantidad;
+      const total = Math.round((totalBeforeDiscount * (10000 - requested.bonificacionPuntosBase)) / 10000);
+      const neto = Math.round(total / (1 + Number(product.alicuotaIva) / 100));
+      const iva = total - neto;
       const supplier = product.proveedorId as unknown as {
         _id: Types.ObjectId;
         nombre: string;

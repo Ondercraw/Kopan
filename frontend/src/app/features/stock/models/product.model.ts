@@ -30,7 +30,7 @@ export interface InventoryLotOption {
   remainingQuantity: number;
   unitCostCents: number;
   receivedAt: string;
-  kind: 'COMPRA' | 'STOCK_INICIAL' | 'AJUSTE';
+  kind: 'COMPRA' | 'STOCK_INICIAL' | 'AJUSTE' | 'SIN_VALORAR';
 }
 
 export interface Product {

@@ -82,6 +82,36 @@ export class InventoryLotsService implements OnModuleInit {
     fallbackCostCents: number,
     physicalStockBefore: number,
   ) {
+    if (lotId === 'UNVALUED') {
+      const lots = await this.activeLots(productId);
+      const trackedQuantity = lots.reduce(
+        (sum, lot) => sum + lot.remainingQuantity,
+        0,
+      );
+      const unvaluedQuantity = Math.max(
+        0,
+        physicalStockBefore - trackedQuantity,
+      );
+      if (quantity > unvaluedQuantity) {
+        throw new ConflictException({
+          code: 'INSUFFICIENT_LOT_STOCK',
+          message: `Hay solamente ${unvaluedQuantity} unidades sin valorar disponibles`,
+        });
+      }
+      return {
+        averageCostCents: await this.averageIncludingUnvalued(
+          productId,
+          physicalStockBefore - quantity,
+          fallbackCostCents,
+        ),
+        lot: {
+          purchaseCode: null,
+          supplierName: '',
+          unitCostCents: 0,
+          kind: 'SIN_VALORAR',
+        },
+      };
+    }
     const lot = await this.lotModel
       .findOne({
         _id: lotId,

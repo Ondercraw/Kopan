@@ -103,7 +103,7 @@
                 id="cantidadAjuste"
                 type="number"
                 min="0"
-                [max]="form.controls.operacionStock.value === 'SUBTRACT' && selectedLot() ? selectedLot()!.remainingQuantity : product.cantidadStock"
+                [attr.max]="form.controls.operacionStock.value === 'SUBTRACT' && selectedLot() ? selectedLot()!.remainingQuantity : null"
                 step="1"
                 formControlName="cantidadAjuste"
                 aria-label="Cantidad de unidades a ajustar"
@@ -146,7 +146,11 @@
                 @if (selectedLot(); as lot) {
                   <span class="selected-lot-summary">
                     Este lote tiene <strong>{{ lot.remainingQuantity }} unidades</strong> disponibles
-                    a {{ formatMoney(lot.unitCostCents) }} cada una.
+                    @if (lot.kind === 'SIN_VALORAR') {
+                      sin precio asignado.
+                    } @else {
+                      a {{ formatMoney(lot.unitCostCents) }} cada una.
+                    }
                   </span>
                 }
                 @if (!form.controls.loteId.value && intentoGuardar() && hasStockAdjustment()) {

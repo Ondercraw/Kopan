@@ -39,3 +39,13 @@ app-searchable-select.field-invalid .select-trigger {
   border-color: #b64034 !important;
   box-shadow: 0 0 0 3px rgba(182, 64, 52, 0.12) !important;
 }
+
+@media (max-width: 600px) {
+  button,
+  a[role='button'] {
+    max-width: 100%;
+    min-width: 0;
+    white-space: normal;
+    overflow-wrap: anywhere;
+  }
+}

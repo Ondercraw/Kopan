@@ -86,8 +86,8 @@ export class AccountsService implements OnModuleInit {
 
   async statement() {
     const [sales, purchases, payments] = await Promise.all([
-      this.saleModel.find({ estado: SaleStatus.CONFIRMED, medioPago: PaymentMethod.CREDIT }).sort({ createdAt: -1 }).lean().exec(),
-      this.purchaseModel.find({ estado: PurchaseStatus.CONFIRMED, medioPago: PurchasePaymentMethod.CREDIT }).sort({ fechaCompra: -1 }).lean().exec(),
+      this.saleModel.find({ estado: SaleStatus.CONFIRMED, medioPago: { $in: [PaymentMethod.CASH, PaymentMethod.TRANSFER, PaymentMethod.CREDIT, PaymentMethod.CHECK] } }).sort({ createdAt: -1 }).lean().exec(),
+      this.purchaseModel.find({ estado: PurchaseStatus.CONFIRMED, medioPago: { $in: [PurchasePaymentMethod.CASH, PurchasePaymentMethod.TRANSFER, PurchasePaymentMethod.CREDIT, PurchasePaymentMethod.HISTORICAL] } }).sort({ fechaCompra: -1 }).lean().exec(),
       this.paymentModel.find().sort({ fecha: -1 }).lean().exec(),
     ]);
     const paymentMap = new Map<string, typeof payments>();
@@ -98,26 +98,39 @@ export class AccountsService implements OnModuleInit {
     const status = (total: number, paid: number) => paid <= 0 ? 'PENDIENTE' : paid < total ? 'PARCIAL' : 'PAGADO';
     const clients = this.group(
       sales.map((sale) => {
-        const paid = sale.montoCobradoCuentaCorrienteCentavos ?? 0;
+        const isCredit = sale.medioPago === PaymentMethod.CREDIT;
+        const paid = isCredit ? (sale.montoCobradoCuentaCorrienteCentavos ?? 0) : sale.totalCentavos;
+        const directPayments = isCredit ? [] : [{ id: `sale-initial-${sale._id.toString()}`, montoCentavos: sale.totalCentavos, medioPago: sale.medioPago, fecha: sale.createdAt, actorName: sale.actorName }];
         return {
           id: sale._id.toString(), codigo: sale.codigo, entidadId: sale.clienteId.toString(), entidadNombre: sale.clienteNombre,
           tipo: 'VENTA', fecha: sale.createdAt, totalCentavos: sale.totalCentavos, pagadoCentavos: paid,
           saldoCentavos: Math.max(0, sale.totalCentavos - paid), estado: status(sale.totalCentavos, paid),
           detalle: sale.items.map((item) => `${item.productoNombre} x${item.cantidad}`).join(', '),
-          pagos: (paymentMap.get(sale._id.toString()) ?? []).map(this.serializePayment),
+          pagos: directPayments.concat((paymentMap.get(sale._id.toString()) ?? []).map(this.serializePayment)),
         };
       }),
     );
     const suppliers = this.group(
       purchases.map((purchase) => {
-        const paid = purchase.montoPagadoCentavos ?? 0;
+        const isCredit = purchase.medioPago === PurchasePaymentMethod.CREDIT;
+        const paid = isCredit ? (purchase.montoPagadoCentavos ?? 0) : purchase.totalCentavos;
+        const paymentDate = purchase.pagadaAt ?? purchase.fechaCompra;
+        const directPayments = isCredit
+          ? []
+          : purchase.medioPago === PurchasePaymentMethod.HISTORICAL
+            ? [{ id: `historical-${purchase._id.toString()}`, montoCentavos: purchase.totalCentavos, medioPago: purchase.medioPago, fecha: paymentDate, actorName: purchase.actorName }]
+            : this.legacyPayments(
+                purchase.medioPago === PurchasePaymentMethod.CASH ? purchase.totalCentavos : 0,
+                purchase.medioPago === PurchasePaymentMethod.TRANSFER ? purchase.totalCentavos : 0,
+                paymentDate,
+              );
         return {
           id: purchase._id.toString(), codigo: purchase.codigo, entidadId: purchase.proveedorId.toString(), entidadNombre: purchase.proveedorNombre,
           tipo: 'COMPRA', fecha: purchase.fechaCompra, totalCentavos: purchase.totalCentavos, pagadoCentavos: paid,
           saldoCentavos: Math.max(0, purchase.totalCentavos - paid), estado: status(purchase.totalCentavos, paid),
           detalle: purchase.items.map((item) => `${item.productName} x${item.quantity}`).join(', '),
-          pagos: (paymentMap.get(purchase._id.toString()) ?? []).map(this.serializePayment).concat(
-            paymentMap.has(purchase._id.toString()) ? [] : this.legacyPayments(
+          pagos: directPayments.concat((paymentMap.get(purchase._id.toString()) ?? []).map(this.serializePayment)).concat(
+            paymentMap.has(purchase._id.toString()) || !isCredit ? [] : this.legacyPayments(
               purchase.montoPagadoEfectivoCentavos ?? 0,
               purchase.montoPagadoTransferenciaCentavos ?? 0,
               purchase.pagadaAt ?? purchase.updatedAt,

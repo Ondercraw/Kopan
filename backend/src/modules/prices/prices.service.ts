@@ -139,6 +139,15 @@ export class PricesService {
   }
 
   async setActive(id: string, activo: boolean) {
+    const current = await this.listModel
+      .findById(id)
+      .select('codigo')
+      .lean()
+      .exec();
+    if (!current) throw new NotFoundException('Lista de precios no encontrada');
+    if (!activo && current.codigo === 1) {
+      throw new ConflictException('La lista General no se puede eliminar');
+    }
     const list = await this.listModel
       .findByIdAndUpdate(id, { $set: { activo } }, { new: true })
       .exec();

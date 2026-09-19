@@ -44,26 +44,57 @@
   font-family: Georgia, serif;
   margin: 0 0 14px;
 }
-.lists > button {
+.list-entry {
   width: 100%;
   display: grid;
-  grid-template-columns: 40px 1fr auto;
+  grid-template-columns: minmax(0, 1fr) auto auto;
   gap: 8px;
-  text-align: left;
   align-items: center;
-  padding: 12px;
+  padding: 5px 7px 5px 5px;
   border: 1px solid transparent;
   border-bottom-color: #eaded5;
   background: none;
-  cursor: pointer;
 }
-.lists > button.active {
+.list-entry.active {
   background: #fff5e9;
   border-color: #c87924;
   border-radius: 10px;
 }
-.lists > button.inactive {
+.list-entry.inactive {
   opacity: 0.55;
+}
+.list-select {
+  min-width: 0;
+  display: grid;
+  grid-template-columns: 40px minmax(0, 1fr);
+  gap: 8px;
+  align-items: center;
+  padding: 7px;
+  border: 0;
+  background: transparent;
+  color: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+.list-select strong {
+  overflow-wrap: anywhere;
+}
+.list-delete-icon {
+  width: 32px;
+  height: 32px;
+  display: grid;
+  place-items: center;
+  padding: 0;
+  border: 1px solid #ddb9a8;
+  border-radius: 8px;
+  background: #fff8f5;
+  color: #a52a23;
+  cursor: pointer;
+}
+.list-delete-icon:hover,
+.list-delete-icon:focus-visible {
+  border-color: #a52a23;
+  background: #fbe8e4;
 }
 .lists small,
 .product-row small {

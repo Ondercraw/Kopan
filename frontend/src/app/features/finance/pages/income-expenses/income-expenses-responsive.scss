@@ -47,3 +47,37 @@
     min-width: 130px;
   }
 }
+
+@media (max-width: 1050px) {
+  .movement-list > article {
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  }
+}
+
+@media (max-width: 600px) {
+  .movement-list > article {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .movement-list > article > * {
+    min-width: 0;
+    max-width: 100%;
+  }
+
+  .movement-list > article > .action {
+    display: grid;
+    grid-template-columns: 1fr;
+    grid-column: 1;
+    gap: 6px;
+    width: auto;
+  }
+
+  .action a,
+  .action button {
+    width: 100%;
+    min-width: 0;
+    max-width: 100%;
+    white-space: normal;
+    overflow-wrap: anywhere;
+  }
+}

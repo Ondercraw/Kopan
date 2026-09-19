@@ -176,9 +176,31 @@
   background: #f2eee9;
   color: #765;
 }
+.quantity-cell {
+  display: grid !important;
+  gap: 5px;
+  min-width: 0;
+}
+.quantity-cell input {
+  width: 100%;
+}
+.line-field-error {
+  color: #a5221f !important;
+  font-size: 0.68rem;
+  font-weight: 700;
+  line-height: 1.2;
+}
+.line input.field-invalid {
+  border-color: #b42320;
+  background: #fff5f4;
+  box-shadow: 0 0 0 2px rgba(180, 35, 32, 0.08);
+}
 .discount {
   position: relative;
 }
+.plain-price-input { position:relative; display:block; }
+.plain-price-input > span { position:absolute;left:10px;top:12px;color:#765d4d;font-size:.7rem;font-weight:750;z-index:1; }
+.plain-price-input > input { padding-left:44px; }
 .discount span {
   position: absolute;
   right: 10px;

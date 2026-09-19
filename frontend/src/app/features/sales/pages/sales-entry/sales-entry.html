@@ -117,19 +117,28 @@
             {{ line.product.alicuotaIva ?? 21 }}%</small
           >
         </div>
-        <input
-          type="number"
-          min="1"
-          [max]="line.product.cantidadStock"
-          [value]="line.quantity"
-          (input)="updateQuantity(line.product._id, $event)"
-        /><app-currency-input
+        <div class="quantity-cell">
+          <input
+            type="text"
+            inputmode="numeric"
+            autocomplete="off"
+            [value]="line.quantityInput"
+            [class.field-invalid]="quantityError(line)"
+            [attr.aria-invalid]="quantityError(line) ? 'true' : null"
+            (input)="updateQuantity(line.product._id, $event)"
+          />
+          @if (quantityError(line); as quantityMessage) {
+            <small class="line-field-error">{{ quantityMessage }}</small>
+          }
+        </div><label class="plain-price-input"><span>ARS$</span><input
+          type="text"
+          inputmode="numeric"
+          autocomplete="off"
           [disabled]="!canChangePrice()"
-          [ngModel]="finalUnitPrice(line) / 100"
-          (ngModelChange)="updatePrice(line.product._id, $event)"
-          [ngModelOptions]="{ standalone: true }"
-          [ariaLabel]="'Precio de ' + line.product.nombre"
-        /><label class="discount"
+          [value]="line.priceInput"
+          (input)="updatePrice(line.product._id, $event)"
+          [attr.aria-label]="'Precio final de ' + line.product.nombre"
+        /></label><label class="discount"
           ><input
             type="number"
             min="0"
@@ -164,7 +173,7 @@
       <div>
         <small>{{ lines().length }} productos</small><strong>Total {{ money(total()) }}</strong>
       </div>
-      <button class="confirm" type="button" (click)="review()" [disabled]="!lines().length">
+      <button class="confirm" type="button" (click)="review()" [disabled]="!lines().length || hasInvalidQuantities()">
         Revisar y confirmar
       </button>
     </footer>

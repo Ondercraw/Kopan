@@ -96,10 +96,16 @@ export class ProductFormModal implements OnInit {
   readonly lotSelectOptions = computed<SearchableSelectOption[]>(() =>
     this.inventoryLots().map((lot) => ({
       value: lot._id,
-      label: lot.purchaseCode
-        ? `Compra #${lot.purchaseCode} · ${lot.supplierName || 'Sin proveedor'}`
-        : `${lot.kind === 'AJUSTE' ? 'Ajuste manual' : 'Valuación inicial'} · ${lot.supplierName || 'Sin proveedor'}`,
-      meta: `${lot.remainingQuantity} disponibles · ${this.formatMoney(lot.unitCostCents)} c/u · ${new Date(lot.receivedAt).toLocaleDateString('es-AR')}`,
+      label:
+        lot.kind === 'SIN_VALORAR'
+          ? 'Unidades sin valorar'
+          : lot.purchaseCode
+            ? `Compra #${lot.purchaseCode} · ${lot.supplierName || 'Sin proveedor'}`
+            : `${lot.kind === 'AJUSTE' ? 'Ajuste manual' : 'Valuación inicial'} · ${lot.supplierName || 'Sin proveedor'}`,
+      meta:
+        lot.kind === 'SIN_VALORAR'
+          ? `${lot.remainingQuantity} disponibles · sin costo asignado`
+          : `${lot.remainingQuantity} disponibles · ${this.formatMoney(lot.unitCostCents)} c/u · ${new Date(lot.receivedAt).toLocaleDateString('es-AR')}`,
     })),
   );
   readonly adjustmentReasonOptions: SearchableSelectOption[] = [
@@ -138,7 +144,7 @@ export class ProductFormModal implements OnInit {
       ],
     ],
     cantidadStock: [0, [Validators.required, Validators.min(0), Validators.pattern(/^\d+$/)]],
-    cantidadAjuste: [0, [Validators.required, Validators.min(0), Validators.pattern(/^\d+$/)]],
+    cantidadAjuste: ['', [Validators.min(0), Validators.pattern(/^\d+$/)]],
     operacionStock: this.fb.nonNullable.control<'ADD' | 'SUBTRACT'>('ADD'),
     loteId: this.fb.nonNullable.control(''),
     motivoAjuste: this.fb.nonNullable.control<StockAdjustmentReason | ''>(''),

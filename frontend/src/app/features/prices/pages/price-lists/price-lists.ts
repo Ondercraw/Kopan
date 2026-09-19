@@ -38,6 +38,7 @@ export class PriceListsPage implements OnInit {
   readonly success = signal<string | null>(null);
   readonly draftPrices = signal<Record<string, number>>({});
   readonly pendingPrice = signal<{ product: Product; amount: number } | null>(null);
+  readonly pendingDeleteList = signal<PriceList | null>(null);
   readonly savingPrice = signal(false);
   readonly createAttempted = signal(false);
   readonly derivedMode = signal<'ALL' | 'SELECTED' | null>(null);
@@ -62,8 +63,13 @@ export class PriceListsPage implements OnInit {
   historyTo = '';
   readonly visibleProducts = computed(() => {
     const q = this.search().trim().toLocaleLowerCase('es');
+    const selected = this.selected();
+    const allowedIds = selected && selected.codigo !== 1
+      ? new Set(selected.items.map((item) => item.productoId._id))
+      : null;
     return [...this.products()].sort((a,b)=>a.nombre.localeCompare(b.nombre,'es',{sensitivity:'base',numeric:true})).filter(
-      (p) => !q || p.nombre.toLocaleLowerCase('es').includes(q) || String(p.codigo).includes(q),
+      (p) => (!allowedIds || allowedIds.has(p._id)) &&
+        (!q || p.nombre.toLocaleLowerCase('es').includes(q) || String(p.codigo).includes(q)),
     );
   });
   ngOnInit() {
@@ -109,7 +115,11 @@ export class PriceListsPage implements OnInit {
   toggleDerivedProduct(id:string) { this.selectedProductIds.update(current=>{const next=new Set(current); next.has(id)?next.delete(id):next.add(id); return next;}); }
   selectRubro() {
     if (!this.derivedRubro) return;
-    this.selectedProductIds.update(current=>{const next=new Set(current); this.derivedProducts().filter(p=>p.tipo===this.derivedRubro).forEach(p=>next.add(p._id)); return next;});
+    this.selectedProductIds.update(current=>{const next=new Set(current); this.derivedProducts().filter(p=>p.tipo.trim().toLocaleUpperCase('es-AR')===this.derivedRubro).forEach(p=>next.add(p._id)); return next;});
+  }
+  onDerivedRubroChange(rubro: string) {
+    this.derivedRubro = rubro;
+    this.selectRubro();
   }
   selectDerivedDirection(direction:'ADD'|'SUBTRACT') { this.derivedDirection=direction; }
   createDerived() {
@@ -192,7 +202,9 @@ export class PriceListsPage implements OnInit {
     this.loading.set(true);
     this.prices.findAll().subscribe({
       next: (l) => {
-        this.lists.set(l);
+        this.lists.set(l.filter((list) => list.activo).sort((a, b) =>
+          a.codigo === 1 ? -1 : b.codigo === 1 ? 1 : a.nombre.localeCompare(b.nombre, 'es', { sensitivity: 'base', numeric: true }),
+        ));
         this.loading.set(false);
         if (!this.selected() && l.find((x) => x.activo)) this.open(l.find((x) => x.activo)!);
       },
@@ -228,6 +240,23 @@ export class PriceListsPage implements OnInit {
         this.open({ ...l });
       },
       error: (e) => this.error.set(e.error?.message ?? 'No se pudo crear la lista'),
+    });
+  }
+  requestDeleteList(list: PriceList) {
+    if (list.codigo === 1) return;
+    this.pendingDeleteList.set(list);
+  }
+  confirmDeleteList() {
+    const list = this.pendingDeleteList();
+    if (!list) return;
+    this.prices.setActive(list._id, false).subscribe({
+      next: () => {
+        if (this.selected()?._id === list._id) this.selected.set(null);
+        this.pendingDeleteList.set(null);
+        this.success.set('Lista personalizada eliminada');
+        this.reload();
+      },
+      error: (e) => this.error.set(e.error?.message ?? 'No se pudo eliminar la lista'),
     });
   }
   currentPrice(productId: string) {

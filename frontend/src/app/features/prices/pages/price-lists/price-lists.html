@@ -16,16 +16,25 @@
     <aside class="lists">
       <h2>Listas de precios</h2>
       @for (list of lists(); track list._id) {
-        <button
-          type="button"
+        <div
+          class="list-entry"
           [class.active]="selected()?._id === list._id"
           [class.inactive]="!list.activo"
-          (click)="open(list)"
         >
-          <span>#{{ list.codigo }}</span
-          ><strong>{{ list.nombre }}</strong
-          ><small>{{ list.activo ? 'Activa' : 'Inactiva' }}</small>
-        </button>
+          <button type="button" class="list-select" (click)="open(list)">
+            <span>#{{ list.codigo }}</span><strong>{{ list.nombre }}</strong>
+          </button>
+          <small>{{ list.activo ? 'Activa' : 'Inactiva' }}</small>
+          @if (canEdit() && list.codigo !== 1) {
+            <button
+              type="button"
+              class="list-delete-icon"
+              (click)="requestDeleteList(list)"
+              [attr.aria-label]="'Eliminar lista ' + list.nombre"
+              [title]="'Eliminar lista ' + list.nombre"
+            ><i class="ti ti-trash"></i></button>
+          }
+        </div>
       }
       @if (canEdit()) {
         <form (ngSubmit)="create()">
@@ -64,7 +73,7 @@
             <h2>{{ list.nombre }}</h2>
             <p>{{ list.descripcion || 'Sin descripción' }}</p>
           </div>
-          <button type="button" class="pdf-button" (click)="exportPdf()"><i class="ti ti-file-type-pdf"></i> Generar PDF</button><label
+          <div class="list-detail-actions"><button type="button" class="pdf-button" (click)="exportPdf()"><i class="ti ti-file-type-pdf"></i> Generar PDF</button></div><label
             ><i class="ti ti-search"></i
             ><input
               type="search"
@@ -291,6 +300,9 @@
     @if(derivedPdfError(); as pdfError){<p class="derived-pdf-error"><i class="ti ti-alert-triangle"></i><span>{{pdfError}}</span></p>}
     <div class="derived-form"><label>Nombre *<input [(ngModel)]="derivedName" maxlength="100" placeholder="Ej.: Lista especial panaderías"></label><label>Lista base<select [(ngModel)]="derivedSourceId" (ngModelChange)="loadDerivedSource()">@for(list of lists();track list._id){<option [value]="list._id">{{list.nombre}}</option>}</select></label><div class="derived-operation"><span>Ajuste</span><div class="percentage-operation-buttons"><button type="button" class="add-operation" [class.selected]="derivedDirection==='ADD'" (click)="selectDerivedDirection('ADD')"><i class="ti ti-plus"></i><span>Sumar</span></button><button type="button" class="subtract-operation" [class.selected]="derivedDirection==='SUBTRACT'" (click)="selectDerivedDirection('SUBTRACT')"><i class="ti ti-minus"></i><span>Restar</span></button></div></div><label>Porcentaje<input type="number" min="0" max="1000" step="0.01" [(ngModel)]="derivedPercentage"></label></div>
     @if(mode==='ALL'){<div class="percentage-list-heading"><strong>Productos con precio</strong><span>Precio actual → Precio ajustado</span></div><div class="product-selection percentage-product-list">@for(product of pricedDerivedProducts();track product._id){<article><i class="ti ti-tag"></i><span><strong>{{product.nombre}}</strong><small>{{supplierNames(product)}} · {{product.tipo}}</small></span><div class="price-comparison"><small>{{derivedCurrentPrice(product)}}</small><i class="ti ti-arrow-right"></i><b>{{derivedDisplayPrice(product)}}</b></div></article>}@empty{<p class="empty-priced-products">La lista seleccionada todavía no tiene productos con precio.</p>}</div>}
-    @if(mode==='SELECTED'){<div class="rubro-select"><select [(ngModel)]="derivedRubro"><option value="">Elegir rubro…</option>@for(rubro of derivedRubros();track rubro){<option [value]="rubro">{{rubro}}</option>}</select><button type="button" class="select-rubro" (click)="selectRubro()"><i class="ti ti-category-plus"></i> Seleccionar rubro</button></div><p class="missing-price-note">Podés seleccionar productos sin precio para preparar la lista, pero deberás asignarles uno antes de generar el PDF.</p><div class="product-selection">@for(product of derivedProducts();track product._id){<button type="button" [class.selected]="selectedProductIds().has(product._id)" (click)="toggleDerivedProduct(product._id)"><i class="ti" [class.ti-square]="!selectedProductIds().has(product._id)" [class.ti-square-check]="selectedProductIds().has(product._id)"></i><span><strong>{{product.nombre}}</strong><small>{{supplierNames(product)}} · {{product.tipo}} · <b [class.no-price]="derivedSourcePrice(product._id)===null || derivedSourcePrice(product._id)===0">{{derivedDisplayPrice(product)}}</b></small></span></button>}</div>}
+    @if(mode==='SELECTED'){<div class="rubro-select"><select [ngModel]="derivedRubro" (ngModelChange)="onDerivedRubroChange($event)"><option value="">Elegir rubro…</option>@for(rubro of derivedRubros();track rubro){<option [value]="rubro">{{rubro}}</option>}</select></div><p class="missing-price-note">Al elegir un rubro se seleccionan automáticamente sus productos. Podés desmarcar individualmente los que no quieras incluir.</p><div class="product-selection">@for(product of derivedProducts();track product._id){<button type="button" [class.selected]="selectedProductIds().has(product._id)" (click)="toggleDerivedProduct(product._id)"><i class="ti" [class.ti-square]="!selectedProductIds().has(product._id)" [class.ti-square-check]="selectedProductIds().has(product._id)"></i><span><strong>{{product.nombre}}</strong><small>{{supplierNames(product)}} · {{product.tipo}} · <b [class.no-price]="derivedSourcePrice(product._id)===null || derivedSourcePrice(product._id)===0">{{derivedDisplayPrice(product)}}</b></small></span></button>}</div>}
     <footer><button type="button" class="cancel-derived" (click)="derivedMode.set(null)"><i class="ti ti-x"></i> Cancelar</button><div class="derived-submit-actions">@if(mode==='SELECTED'){<button type="button" class="direct-pdf" (click)="exportSelectedProductsPdf()"><i class="ti ti-file-type-pdf"></i> Generar PDF</button>}<button type="button" class="primary" [disabled]="derivedSaving()" (click)="createDerived()">{{derivedSaving()?'Creando…':'Crear lista'}}</button></div></footer></section></div>
+}
+@if (pendingDeleteList(); as list) {
+  <app-confirmation-modal title="Eliminar lista personalizada" [message]="'¿Eliminar la lista ' + list.nombre + '?'" detail="La lista General no se modifica. Esta lista dejará de estar disponible para nuevas asignaciones." confirmLabel="Eliminar lista" tone="danger" (cancelled)="pendingDeleteList.set(null)" (confirmed)="confirmDeleteList()" />
 }
