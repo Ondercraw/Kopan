@@ -158,19 +158,21 @@ export class PricesService {
   setProductPrice(
     listId: string,
     productId: string,
-    precioCentavos: number,
+    precioFinalCentavos: number | undefined,
     actor: PriceActor,
+    legacyPrecioCentavos?: number,
   ) {
     return this.connection.transaction(() =>
-      this.setPriceInTransaction(listId, productId, precioCentavos, actor),
+      this.setPriceInTransaction(listId, productId, precioFinalCentavos, actor, legacyPrecioCentavos),
     );
   }
 
   private async setPriceInTransaction(
     listId: string,
     productId: string,
-    precioCentavos: number,
+    requestedFinalCents: number | undefined,
     actor: PriceActor,
+    legacyPrecioCentavos?: number,
   ) {
     const list = await this.listModel
       .findOne({ _id: listId, activo: true })
@@ -182,13 +184,17 @@ export class PricesService {
       throw new NotFoundException('Lista de precios inexistente o inactiva');
     if (!product)
       throw new NotFoundException('Producto inexistente o inactivo');
+    const vatFactor = 1 + Number(product.alicuotaIva ?? 21) / 100;
+    const precioFinalCentavos = requestedFinalCents ??
+      Math.round(((legacyPrecioCentavos ?? 0) * vatFactor) / 100) * 100;
+    const precioCentavos = legacyPrecioCentavos ?? Math.round(precioFinalCentavos / vatFactor);
     const previous = await this.itemModel
       .findOne({ listaId: listId, productoId: productId })
       .exec();
     const item = await this.itemModel
       .findOneAndUpdate(
         { listaId: listId, productoId: productId },
-        { $set: { precioCentavos, actorId: actor.id, actorName: actor.name } },
+        { $set: { precioCentavos, precioFinalCentavos, actorId: actor.id, actorName: actor.name } },
         {
           new: true,
           upsert: true,
@@ -201,12 +207,20 @@ export class PricesService {
         'codigo nombre tipo activo alicuotaIva costoCentavos cantidadStock',
       )
       .exec();
-    if (!previous || previous.precioCentavos !== precioCentavos) {
+    const previousFinal = previous
+      ? (previous.precioFinalCentavos ??
+        Math.round(
+          (previous.precioCentavos * (1 + Number(product.alicuotaIva ?? 21) / 100)) / 100,
+        ) * 100)
+      : null;
+    if (!previous || previousFinal !== precioFinalCentavos) {
       await this.historyModel.create({
         listaId: list._id,
         productoId: product._id,
         precioCentavos,
+        precioFinalCentavos,
         precioAnteriorCentavos: previous?.precioCentavos ?? null,
+        precioFinalAnteriorCentavos: previousFinal,
         actorId: actor.id,
         actorName: actor.name,
         vigenteDesde: new Date(),

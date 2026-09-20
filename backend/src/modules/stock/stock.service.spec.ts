@@ -253,6 +253,44 @@ describe('StockService', () => {
     );
   });
 
+  it('permite restar todo el lote y dejar el stock exactamente en cero', async () => {
+    const previousProduct = createProduct(5);
+    const product = createProduct(0);
+    product._id = previousProduct._id;
+    product.costoCentavos = 0;
+    findById.mockReturnValue({ exec: jest.fn().mockResolvedValue(previousProduct) });
+    findOneAndUpdate.mockReturnValue({ exec: jest.fn().mockResolvedValue(product) });
+    consumeSpecificLot.mockResolvedValue({
+      averageCostCents: 0,
+      lot: { purchaseCode: null, supplierName: '', kind: 'SIN_VALORAR' },
+    });
+
+    await expect(
+      service.update(
+        product._id.toString(),
+        {
+          nombre: product.nombre,
+          tipo: product.tipo,
+          stockMinimo: product.stockMinimo,
+          ajusteStock: -5,
+          loteId: 'UNVALUED',
+          motivoAjuste: StockAdjustmentReason.INVENTORY_CORRECTION,
+        },
+        actor,
+      ),
+    ).resolves.toMatchObject({ cantidadStock: 0, costoCentavos: 0 });
+    expect(consumeSpecificLot).toHaveBeenCalledWith(
+      product._id,
+      'UNVALUED',
+      5,
+      0,
+      5,
+    );
+    expect(createMovement).toHaveBeenCalledWith(
+      expect.objectContaining({ previousStock: 5, currentStock: 0 }),
+    );
+  });
+
   it('rechaza un ajuste masivo sin motivo aunque el servicio se invoque directamente', async () => {
     const product = createProduct(5);
 

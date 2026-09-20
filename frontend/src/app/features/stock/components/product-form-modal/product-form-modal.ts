@@ -308,15 +308,48 @@ export class ProductFormModal implements OnInit {
         const backendMessage = Array.isArray(error.error?.message)
           ? error.error.message.join('. ')
           : error.error?.message;
-        this.errorMensaje.set(
+        const message =
           error.error?.code === 'INSUFFICIENT_STOCK'
             ? 'No se pueden restar más unidades que las disponibles'
             : typeof backendMessage === 'string' && backendMessage.trim()
               ? backendMessage
               : this.product
                 ? 'No se pudo actualizar el producto'
-                : 'No se pudo agregar el producto',
-        );
+                : 'No se pudo agregar el producto';
+        // Si la conexión se corta después del commit, no debe quedar el modal
+        // abierto informando un falso fallo. Se consulta el estado real y sólo
+        // se toma como éxito si coincide con todos los valores enviados.
+        if (this.product) {
+          this.stockService.findAll().subscribe({
+            next: (products) => {
+              const persisted = products.find((item) => item._id === this.product?._id);
+              const supplierIds = (persisted?.proveedorIds?.length
+                ? persisted.proveedorIds
+                : persisted?.proveedorId
+                  ? [persisted.proveedorId]
+                  : []
+              ).map((supplier) => supplier._id).sort();
+              const expectedSuppliers = [...this.selectedSupplierIds()].sort();
+              const wasCommitted = !!persisted &&
+                persisted.nombre === sharedValues.nombre &&
+                persisted.tipo === sharedValues.tipo &&
+                persisted.stockMinimo === sharedValues.stockMinimo &&
+                persisted.cantidadStock === projectedStock &&
+                supplierIds.join('|') === expectedSuppliers.join('|');
+              if (wasCommitted) this.guardado.emit(persisted!);
+              else {
+                this.errorMensaje.set(message);
+                this.guardando.set(false);
+              }
+            },
+            error: () => {
+              this.errorMensaje.set(message);
+              this.guardando.set(false);
+            },
+          });
+          return;
+        }
+        this.errorMensaje.set(message);
         this.guardando.set(false);
       },
     });

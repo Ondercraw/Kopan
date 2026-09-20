@@ -65,9 +65,12 @@ export class PricesController {
     @Body() dto: SetPriceDto,
     @CurrentUser() user: JwtPayload,
   ) {
-    return this.service.setProductPrice(listId, productId, dto.precioCentavos, {
-      id: user.sub,
-      name: user.nombre,
-    });
+    return this.service.setProductPrice(
+      listId,
+      productId,
+      dto.precioFinalCentavos,
+      { id: user.sub, name: user.nombre },
+      dto.precioCentavos,
+    );
   }
 }

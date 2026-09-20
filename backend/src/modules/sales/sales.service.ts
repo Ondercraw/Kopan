@@ -206,7 +206,10 @@ export class SalesService {
     const priceByProduct = new Map(
       prices.map((price) => [
         price.productoId.toString(),
-        price.precioCentavos,
+        {
+          net: price.precioCentavos,
+          final: price.precioFinalCentavos,
+        },
       ]),
     );
     const items: SaleItem[] = products.map((product) => {
@@ -216,13 +219,14 @@ export class SalesService {
         throw new ConflictException(
           `${product.nombre} no tiene precio en ${list.nombre}`,
         );
-      const listFinalPrice = Math.round(listPrice * (1 + Number(product.alicuotaIva) / 100));
+      const listFinalPrice = listPrice.final ??
+        Math.round((listPrice.net * (1 + Number(product.alicuotaIva) / 100)) / 100) * 100;
       const requestedFinalPrice = requested.precioFinalUnitarioCentavos;
       const unitPrice = requestedFinalPrice !== undefined
         ? Math.round(requestedFinalPrice / (1 + Number(product.alicuotaIva) / 100))
-        : requested.precioUnitarioCentavos ?? listPrice;
+        : requested.precioUnitarioCentavos ?? listPrice.net;
       if (
-        (requestedFinalPrice !== undefined ? requestedFinalPrice !== listFinalPrice : unitPrice !== listPrice) &&
+        (requestedFinalPrice !== undefined ? requestedFinalPrice !== listFinalPrice : unitPrice !== listPrice.net) &&
         !normalizeUserRoles(actor.roles).includes(UserRole.JEFE)
       )
         throw new ConflictException(

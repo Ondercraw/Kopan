@@ -9,6 +9,9 @@ export class PriceListItem {
   @Prop({ required: true, type: MongooseSchema.Types.ObjectId, ref: 'PriceList', index: true }) listaId: Types.ObjectId;
   @Prop({ required: true, type: MongooseSchema.Types.ObjectId, ref: 'Product', index: true }) productoId: Types.ObjectId;
   @Prop({ required: true, min: 0 }) precioCentavos: number;
+  // Conserva el importe final ingresado por el usuario sin reconstruirlo desde
+  // el neto y el IVA, operación que puede perder un centavo por redondeo.
+  @Prop({ type: Number, min: 0, default: null }) precioFinalCentavos: number | null;
   @Prop({ required: true }) actorId: string;
   @Prop({ required: true, trim: true }) actorName: string;
   declare createdAt: Date;

@@ -103,9 +103,9 @@
             <div class="price-cell">
               @if (currentPrice(product._id) !== null) {
                 <strong
-                  >Final con IVA {{ money(finalPrice(product, currentPrice(product._id))) }}</strong
+                  >Final con IVA {{ money(currentPrice(product._id)) }}</strong
                 >
-                <small>Precio base sin IVA: {{ money(currentPrice(product._id)) }}</small>
+                <small>Precio base sin IVA: {{ money(basePrice(product, currentPrice(product._id)!)) }}</small>
               } @else {
                 <strong>Sin precio</strong>
               }
@@ -180,7 +180,7 @@
                       · Precio final:
                       {{
                         closing.price
-                          ? money(finalPrice(product, closing.price.precioCentavos))
+                          ? money(historyFinalPrice(product, closing.price.precioCentavos, closing.price.precioFinalCentavos))
                           : 'Sin registro histórico'
                       }}
                     </p>
@@ -239,8 +239,8 @@
                       <time>{{ price.vigenteDesde | date: 'dd/MM/yyyy HH:mm' }}</time>
                       <div>
                         <strong
-                          >Final {{ money(finalPrice(product, price.precioAnteriorCentavos)) }} →
-                          {{ money(finalPrice(product, price.precioCentavos)) }}</strong
+                          >Final {{ money(historyFinalPrice(product, price.precioAnteriorCentavos, price.precioFinalAnteriorCentavos)) }} →
+                          {{ money(historyFinalPrice(product, price.precioCentavos, price.precioFinalCentavos)) }}</strong
                         ><small
                           >Base sin IVA: {{ money(price.precioAnteriorCentavos) }} →
                           {{ money(price.precioCentavos) }} · Modificado por

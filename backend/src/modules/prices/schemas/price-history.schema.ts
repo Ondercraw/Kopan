@@ -21,7 +21,10 @@ export class PriceHistory {
   })
   productoId: Types.ObjectId;
   @Prop({ required: true, min: 0 }) precioCentavos: number;
+  @Prop({ type: Number, min: 0, default: null }) precioFinalCentavos: number | null;
   @Prop({ type: Number, min: 0, default: null }) precioAnteriorCentavos:
+    number | null;
+  @Prop({ type: Number, min: 0, default: null }) precioFinalAnteriorCentavos:
     number | null;
   @Prop({ required: true }) actorId: string;
   @Prop({ required: true, trim: true }) actorName: string;

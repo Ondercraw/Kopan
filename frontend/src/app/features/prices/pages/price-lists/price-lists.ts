@@ -95,7 +95,10 @@ export class PriceListsPage implements OnInit {
     return this.derivedProducts().filter((product) => (this.derivedSourcePrice(product._id) ?? 0) > 0);
   }
   derivedRubros() { return [...new Set(this.derivedProducts().map(p=>p.tipo.trim().toLocaleUpperCase('es-AR'))) ].sort((a,b)=>a.localeCompare(b,'es')); }
-  derivedSourcePrice(productId:string) { return this.sourceDetail()?.items.find(item=>item.productoId._id===productId)?.precioCentavos ?? null; }
+  derivedSourcePrice(productId:string) {
+    const item = this.sourceDetail()?.items.find(item=>item.productoId._id===productId);
+    return item ? this.exactFinalPrice(item.productoId, item) : null;
+  }
   derivedDisplayPrice(product: Product) {
     const sourcePrice = this.derivedSourcePrice(product._id);
     if (sourcePrice === null || sourcePrice <= 0) return 'Sin precio';
@@ -104,18 +107,18 @@ export class PriceListsPage implements OnInit {
     const factor = 1 + (this.derivedDirection === 'ADD' ? validPercentage : -validPercentage) / 100;
     return factor < 0
       ? 'Ajuste inválido'
-      : this.money(this.finalPrice(product, Math.round(sourcePrice * factor)));
+      : this.money(Math.round(sourcePrice * factor));
   }
   derivedCurrentPrice(product: Product) {
     const sourcePrice = this.derivedSourcePrice(product._id);
     return sourcePrice === null || sourcePrice <= 0
       ? 'Sin precio'
-      : this.money(this.finalPrice(product, sourcePrice));
+      : this.money(sourcePrice);
   }
   toggleDerivedProduct(id:string) { this.selectedProductIds.update(current=>{const next=new Set(current); next.has(id)?next.delete(id):next.add(id); return next;}); }
   selectRubro() {
-    if (!this.derivedRubro) return;
-    this.selectedProductIds.update(current=>{const next=new Set(current); this.derivedProducts().filter(p=>p.tipo.trim().toLocaleUpperCase('es-AR')===this.derivedRubro).forEach(p=>next.add(p._id)); return next;});
+    if (!this.derivedRubro) { this.selectedProductIds.set(new Set()); return; }
+    this.selectedProductIds.set(new Set(this.derivedProducts().filter(p=>p.tipo.trim().toLocaleUpperCase('es-AR')===this.derivedRubro).map(p=>p._id)));
   }
   onDerivedRubroChange(rubro: string) {
     this.derivedRubro = rubro;
@@ -129,17 +132,17 @@ export class PriceListsPage implements OnInit {
     if (!ids.size) { this.error.set('Seleccioná al menos un producto'); return; }
     const factor=1+(this.derivedDirection==='ADD'?percentage:-percentage)/100;
     if (factor<0) { this.error.set('El descuento no puede superar el 100%'); return; }
-    const pricesByProduct=new Map(source.items.map(item=>[item.productoId._id,item.precioCentavos]));
+    const pricesByProduct=new Map(source.items.map(item=>[item.productoId._id,this.exactFinalPrice(item.productoId,item)]));
     const items=[...ids].map(productId=>({productId,precioCentavos:pricesByProduct.get(productId)??0}));
     this.derivedSaving.set(true); this.error.set(null);
     this.prices.create({nombre:name,descripcion:`${this.derivedDirection==='ADD'?'+':'−'}${percentage}% sobre ${source.nombre}`}).pipe(
       switchMap(list=>forkJoin(items.map(item=>this.prices.setPrice(list._id,item.productId,Math.round(item.precioCentavos*factor)))).pipe(switchMap(()=>this.prices.findOne(list._id))))
-    ).subscribe({next:list=>{this.derivedSaving.set(false);this.derivedMode.set(null);this.success.set('Lista personalizada creada');this.reload();this.selected.set(list);},error:e=>{this.derivedSaving.set(false);this.error.set(e.error?.message??'No se pudo crear la lista personalizada');}});
+    ).subscribe({next:list=>{this.derivedSaving.set(false);this.derivedMode.set(null);this.success.set('Lista personalizada creada');this.lists.update(current=>[...current.filter(item=>item._id!==list._id),list].sort((a,b)=>a.codigo===1?-1:b.codigo===1?1:a.nombre.localeCompare(b.nombre,'es',{sensitivity:'base',numeric:true})));this.selected.set(list);},error:e=>{this.derivedSaving.set(false);this.error.set(e.error?.message??'No se pudo crear la lista personalizada');}});
   }
   supplierNames(product:Product) { const suppliers=product.proveedorIds?.length?product.proveedorIds:(product.proveedorId?[product.proveedorId]:[]); return suppliers.map(s=>s.nombre).join(' · ')||'Sin proveedor'; }
   exportPdf() {
     const list=this.selected(); if(!list) return;
-    const rows=this.visibleProducts().map(p=>{const price=this.currentPrice(p._id);return price===null?'':`<tr><td>${this.escape(p.nombre)}</td><td>${this.escape(this.supplierNames(p))}</td><td>${this.escape(p.tipo)}</td><td>${this.escape(this.money(this.finalPrice(p,price)))}</td></tr>`}).join('');
+    const rows=this.visibleProducts().map(p=>{const price=this.currentPrice(p._id);return price===null?'':`<tr><td>${this.escape(p.nombre)}</td><td>${this.escape(this.supplierNames(p))}</td><td>${this.escape(p.tipo)}</td><td>${this.escape(this.money(price))}</td></tr>`}).join('');
     const popup=window.open('','_blank','width=900,height=700'); if(!popup){this.error.set('El navegador bloqueó la ventana para generar el PDF');return;}
     popup.document.write(`<!doctype html><html><head><title>${this.escape(this.pdfDocumentTitle(list.nombre))}</title><style>body{font-family:Arial;padding:32px;color:#2d190e}h1{font-family:Georgia}table{width:100%;border-collapse:collapse}th,td{padding:10px;border-bottom:1px solid #d8c2b2;text-align:left}th{background:#f2e7dd}</style></head><body><h1>${this.escape(list.nombre)}</h1><p>${new Date().toLocaleDateString('es-AR')}</p><table><thead><tr><th>Producto</th><th>Proveedor</th><th>Rubro</th><th>Precio final</th></tr></thead><tbody>${rows}</tbody></table><script>window.onload=()=>window.print()<\/script></body></html>`); popup.document.close();
   }
@@ -153,7 +156,7 @@ export class PriceListsPage implements OnInit {
 
     const selectedProducts = this.derivedProducts().filter((product) => selectedIds.has(product._id));
     const pricesByProduct = new Map(
-      source.items.map((item) => [item.productoId._id, item.precioCentavos]),
+      source.items.map((item) => [item.productoId._id, this.exactFinalPrice(item.productoId, item)]),
     );
     const productsWithoutPrice = selectedProducts.filter(
       (product) => (pricesByProduct.get(product._id) ?? 0) <= 0,
@@ -178,8 +181,8 @@ export class PriceListsPage implements OnInit {
 
     const rows = selectedProducts
       .map((product) => {
-        const adjustedBasePrice = Math.round(pricesByProduct.get(product._id)! * factor);
-        return `<tr><td>${this.escape(product.nombre)}</td><td>${this.escape(this.supplierNames(product))}</td><td>${this.escape(product.tipo)}</td><td>${this.escape(this.money(this.finalPrice(product, adjustedBasePrice)))}</td></tr>`;
+        const adjustedFinalPrice = Math.round(pricesByProduct.get(product._id)! * factor);
+        return `<tr><td>${this.escape(product.nombre)}</td><td>${this.escape(this.supplierNames(product))}</td><td>${this.escape(product.tipo)}</td><td>${this.escape(this.money(adjustedFinalPrice))}</td></tr>`;
       })
       .join('');
     const title = this.derivedName.trim() || 'Lista personalizada de productos';
@@ -260,15 +263,13 @@ export class PriceListsPage implements OnInit {
     });
   }
   currentPrice(productId: string) {
-    return (
-      (this.selected()?.items ?? []).find((i) => i.productoId._id === productId)?.precioCentavos ??
-      null
-    );
+    const item = (this.selected()?.items ?? []).find((i) => i.productoId._id === productId);
+    return item ? this.exactFinalPrice(item.productoId, item) : null;
   }
   draftPrice(product: Product) {
     return (
       this.draftPrices()[product._id] ??
-      (this.finalPrice(product, this.currentPrice(product._id)) ?? 0) / 100
+      (this.currentPrice(product._id) ?? 0) / 100
     );
   }
   updateDraftPrice(productId: string, value: number) {
@@ -289,8 +290,7 @@ export class PriceListsPage implements OnInit {
     if (!list || !pending || this.savingPrice()) return;
     this.savingPrice.set(true);
     const finalCents = Math.round(pending.amount * 100);
-    const baseCents = this.basePrice(pending.product, finalCents);
-    this.prices.setPrice(list._id, pending.product._id, baseCents).subscribe({
+    this.prices.setPrice(list._id, pending.product._id, finalCents).subscribe({
       next: () => {
         this.success.set(`Precio de ${pending.product.nombre} actualizado`);
         this.pendingPrice.set(null);
@@ -313,6 +313,24 @@ export class PriceListsPage implements OnInit {
     return netCents === null
       ? null
       : Math.round(netCents * (1 + Number(product.alicuotaIva ?? 21) / 100));
+  }
+  historyFinalPrice(
+    product: Product,
+    netCents: number | null,
+    exactFinalCents?: number | null,
+  ): number | null {
+    if (exactFinalCents !== null && exactFinalCents !== undefined) return exactFinalCents;
+    if (netCents === null) return null;
+    return Math.round((netCents * (1 + Number(product.alicuotaIva ?? 21) / 100)) / 100) * 100;
+  }
+  private exactFinalPrice(product: Product, item: { precioCentavos: number; precioFinalCentavos?: number | null }): number {
+    if (item.precioFinalCentavos !== null && item.precioFinalCentavos !== undefined) {
+      return item.precioFinalCentavos;
+    }
+    // Los registros anteriores sólo guardaban el neto. Como la aplicación usa
+    // precios finales en pesos enteros, se recupera el valor histórico al peso
+    // más cercano (por ejemplo, 22.999,99 vuelve a mostrarse como 23.000).
+    return Math.round((item.precioCentavos * (1 + Number(product.alicuotaIva ?? 21) / 100)) / 100) * 100;
   }
   basePrice(product: Product, finalCents: number): number {
     return Math.round(finalCents / (1 + Number(product.alicuotaIva ?? 21) / 100));

@@ -16,10 +16,10 @@ export class PricesService {
   create(payload: { nombre: string; descripcion?: string }) {
     return this.http.post<PriceList>(this.base, payload, this.options);
   }
-  setPrice(listId: string, productId: string, precioCentavos: number) {
+  setPrice(listId: string, productId: string, precioFinalCentavos: number) {
     return this.http.put<PriceListItem>(
       `${this.base}/${listId}/products/${productId}`,
-      { precioCentavos },
+      { precioFinalCentavos },
       this.options,
     );
   }
@@ -40,7 +40,7 @@ export class PricesService {
 export interface PriceProductHistory {
   closingSnapshot: {
     date: string;
-    price: { precioCentavos: number } | null;
+    price: { precioCentavos: number; precioFinalCentavos?: number | null } | null;
     stock: { currentStock: number; currentAverageCostCents: number | null } | null;
   } | null;
   lots: {
@@ -56,6 +56,8 @@ export interface PriceProductHistory {
     _id: string;
     precioCentavos: number;
     precioAnteriorCentavos: number | null;
+    precioFinalCentavos?: number | null;
+    precioFinalAnteriorCentavos?: number | null;
     actorName: string;
     vigenteDesde: string;
   }[];
