@@ -1,6 +1,7 @@
 import {
   ChangeDetectionStrategy,
   Component,
+  OnDestroy,
   OnInit,
   computed,
   inject,
@@ -16,7 +17,7 @@ import { PriceProductHistory, PricesService } from '../../services/prices.servic
 import { ConfirmationModal } from '../../../../shared/components/confirmation-modal/confirmation-modal';
 import { CurrencyInput } from '../../../../shared/components/currency-input/currency-input';
 import { DatePipe } from '@angular/common';
-import { forkJoin, switchMap } from 'rxjs';
+import { forkJoin, of, switchMap } from 'rxjs';
 
 @Component({
   selector: 'app-price-lists',
@@ -26,7 +27,7 @@ import { forkJoin, switchMap } from 'rxjs';
   styleUrls: ['./price-lists.scss', './price-lists-adjustments.scss'],
   changeDetection: ChangeDetectionStrategy.OnPush,
 })
-export class PriceListsPage implements OnInit {
+export class PriceListsPage implements OnInit, OnDestroy {
   private readonly prices = inject(PricesService);
   private readonly stock = inject(StockService);
   private readonly auth = inject(AuthService);
@@ -36,6 +37,7 @@ export class PriceListsPage implements OnInit {
   readonly loading = signal(true);
   readonly error = signal<string | null>(null);
   readonly success = signal<string | null>(null);
+  readonly synchronizationNotice = signal<string[]>([]);
   readonly draftPrices = signal<Record<string, number>>({});
   readonly pendingPrice = signal<{ product: Product; amount: number } | null>(null);
   readonly pendingDeleteList = signal<PriceList | null>(null);
@@ -61,6 +63,13 @@ export class PriceListsPage implements OnInit {
   readonly historyData = signal<PriceProductHistory | null>(null);
   historyFrom = '';
   historyTo = '';
+  private synchronizationTimer: ReturnType<typeof setInterval> | null = null;
+  private synchronizationInProgress = false;
+  private synchronizationInitialized = false;
+  private readonly listSnapshots = new Map<string, { name: string; prices: Map<string, { name: string; value: number }> }>();
+  private readonly visibilityListener = () => {
+    if (document.visibilityState === 'visible') this.synchronizeLists();
+  };
   readonly visibleProducts = computed(() => {
     const q = this.search().trim().toLocaleLowerCase('es');
     const selected = this.selected();
@@ -74,9 +83,95 @@ export class PriceListsPage implements OnInit {
   });
   ngOnInit() {
     this.reload();
+    this.synchronizeLists();
     this.stock.findAll().subscribe({
       next: (p) => this.products.set(p),
       error: () => this.error.set('No se pudieron cargar los productos'),
+    });
+    this.synchronizationTimer = setInterval(() => this.synchronizeLists(), 10_000);
+    document.addEventListener('visibilitychange', this.visibilityListener);
+  }
+  ngOnDestroy() {
+    if (this.synchronizationTimer) clearInterval(this.synchronizationTimer);
+    document.removeEventListener('visibilitychange', this.visibilityListener);
+  }
+
+  dismissSynchronizationNotice() {
+    this.synchronizationNotice.set([]);
+  }
+
+  private synchronizeLists() {
+    if (this.synchronizationInProgress || document.visibilityState !== 'visible') return;
+    this.synchronizationInProgress = true;
+    this.prices.findAll().pipe(
+      switchMap((allLists) => {
+        const activeLists = allLists.filter((list) => list.activo);
+        return activeLists.length
+          ? forkJoin(activeLists.map((list) => this.prices.findOne(list._id)))
+          : of([] as PriceListDetail[]);
+      }),
+    ).subscribe({
+      next: (details) => {
+        const notices: string[] = [];
+        const nextSnapshots = new Map<string, { name: string; prices: Map<string, { name: string; value: number }> }>();
+
+        for (const detail of details) {
+          const prices = new Map<string, { name: string; value: number }>();
+          for (const item of detail.items) {
+            prices.set(item.productoId._id, {
+              name: item.productoId.nombre,
+              value: this.exactFinalPrice(item.productoId, item),
+            });
+          }
+          nextSnapshots.set(detail._id, { name: detail.nombre, prices });
+
+          const previous = this.listSnapshots.get(detail._id);
+          if (this.synchronizationInitialized && !previous) {
+            notices.push(`Lista “${detail.nombre}” creada.`);
+            continue;
+          }
+          if (!previous) continue;
+
+          const changedProducts: string[] = [];
+          for (const [productId, current] of prices) {
+            const before = previous.prices.get(productId);
+            if (!before || before.value !== current.value) changedProducts.push(current.name);
+          }
+          for (const [productId, before] of previous.prices) {
+            if (!prices.has(productId)) changedProducts.push(`${before.name} (quitado)`);
+          }
+          if (changedProducts.length) {
+            notices.push(`Lista “${detail.nombre}”: ${changedProducts.join(', ')} ${changedProducts.length === 1 ? 'fue actualizado' : 'fueron actualizados'}.`);
+          }
+        }
+
+        if (this.synchronizationInitialized) {
+          for (const [listId, previous] of this.listSnapshots) {
+            if (!nextSnapshots.has(listId)) notices.push(`Lista “${previous.name}” eliminada o desactivada.`);
+          }
+        }
+
+        this.listSnapshots.clear();
+        for (const [id, snapshot] of nextSnapshots) this.listSnapshots.set(id, snapshot);
+        this.synchronizationInitialized = true;
+
+        const sortedLists = details.sort((a, b) =>
+          a.codigo === 1 ? -1 : b.codigo === 1 ? 1 : a.nombre.localeCompare(b.nombre, 'es', { sensitivity: 'base', numeric: true }),
+        );
+        this.lists.set(sortedLists);
+
+        const selected = this.selected();
+        const refreshedSelected = selected ? details.find((detail) => detail._id === selected._id) : null;
+        const editing = Object.keys(this.draftPrices()).length > 0 || !!this.pendingPrice() || !!this.pendingDeleteList() || !!this.derivedMode();
+        if (refreshedSelected && !editing) this.selected.set(refreshedSelected);
+        else if (selected && !refreshedSelected && !editing) this.selected.set(null);
+
+        if (notices.length) this.synchronizationNotice.set(notices);
+        this.synchronizationInProgress = false;
+      },
+      error: () => {
+        this.synchronizationInProgress = false;
+      },
     });
   }
   openDerived(mode: 'ALL'|'SELECTED') {

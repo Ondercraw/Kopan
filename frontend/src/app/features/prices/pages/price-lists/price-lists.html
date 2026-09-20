@@ -12,6 +12,20 @@
   @if (success()) {
     <p class="message success">{{ success() }}</p>
   }
+  @if (synchronizationNotice().length) {
+    <section class="synchronization-notice" role="status" aria-live="polite">
+      <i class="ti ti-refresh-alert" aria-hidden="true"></i>
+      <div>
+        <strong>LISTAS DE PRECIOS ACTUALIZADAS</strong>
+        @for (notice of synchronizationNotice(); track notice) {
+          <p>{{ notice }}</p>
+        }
+      </div>
+      <button type="button" (click)="dismissSynchronizationNotice()" aria-label="Cerrar aviso de actualización">
+        <i class="ti ti-x" aria-hidden="true"></i>
+      </button>
+    </section>
+  }
   <div class="workspace">
     <aside class="lists">
       <h2>Listas de precios</h2>
