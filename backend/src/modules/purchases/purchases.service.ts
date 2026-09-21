@@ -28,6 +28,7 @@ import {
 } from '../finance/enums/financial-movement.enum';
 import { dateRange, purchaseDateTime } from './purchase-calculations';
 import { CreatePurchaseDto } from './dto/create-purchase.dto';
+import { UpdatePurchaseItemDto } from './dto/update-purchase-item.dto';
 import {
   PurchaseKind,
   PurchasePaymentMethod,
@@ -418,6 +419,157 @@ export class PurchasesService {
       });
       return purchase;
     }
+  }
+
+  updateItem(
+    id: string,
+    lineNumber: number,
+    dto: UpdatePurchaseItemDto,
+    actor: PurchaseActor,
+  ) {
+    return this.connection.transaction(() =>
+      this.updateItemInTransaction(id, lineNumber, dto, actor),
+    );
+  }
+
+  private async updateItemInTransaction(
+    id: string,
+    lineNumber: number,
+    dto: UpdatePurchaseItemDto,
+    actor: PurchaseActor,
+  ) {
+    if (!Number.isInteger(lineNumber) || lineNumber < 1)
+      throw new BadRequestException('Seleccioná un producto válido de la compra');
+
+    const purchase = await this.purchaseModel.findOne({
+      _id: id,
+      estado: PurchaseStatus.CONFIRMED,
+    }).exec();
+    if (!purchase) throw new NotFoundException('La compra no existe o está cancelada');
+
+    const item = purchase.items.find((value) => value.lineNumber === lineNumber);
+    if (!item) throw new NotFoundException('El producto no pertenece a esta compra');
+
+    const lot = await this.lotModel.findOne({
+      purchaseId: purchase._id,
+      lineNumber,
+      cancelled: false,
+    }).exec();
+    if (!lot) throw new ConflictException('No se encontró el lote asociado a este producto');
+
+    const consumedQuantity = lot.initialQuantity - lot.remainingQuantity;
+    if (consumedQuantity > 0)
+      throw new ConflictException(
+        `No se puede modificar ${item.productName}: ${consumedQuantity} unidades del lote ya fueron vendidas o retiradas`,
+      );
+
+    await this.productModel.updateOne({ _id: item.productId }, { $inc: { __v: 1 } }).exec();
+    const product = await this.productModel.findById(item.productId).exec();
+    if (!product) throw new NotFoundException('El producto ya no existe');
+
+    const previousQuantity = item.quantity;
+    const previousUnitCost = item.unitCostCents;
+    const quantityDelta = dto.quantity - previousQuantity;
+    const previousStock = product.cantidadStock;
+    const before = await this.lotsService.summary(product._id);
+
+    if (purchase.tipo === PurchaseKind.OPENING_STOCK && quantityDelta > 0) {
+      const unvalued = Math.max(0, product.cantidadStock - before.quantity);
+      if (quantityDelta > unvalued)
+        throw new ConflictException(
+          `Sólo quedan ${unvalued} unidades sin valorar de ${product.nombre}`,
+        );
+    }
+    if (purchase.tipo === PurchaseKind.PURCHASE) {
+      if (product.cantidadStock + quantityDelta < 0)
+        throw new ConflictException('No hay stock suficiente para reducir esta compra');
+      product.cantidadStock += quantityDelta;
+    }
+
+    lot.initialQuantity = dto.quantity;
+    lot.remainingQuantity = dto.quantity - consumedQuantity;
+    lot.unitCostCents = dto.unitCostCents;
+    await lot.save();
+
+    const after = await this.lotsService.summary(product._id);
+    product.costoCentavos = after.quantity ? after.averageCostCents : 0;
+    await product.save();
+
+    item.quantity = dto.quantity;
+    item.unitCostCents = dto.unitCostCents;
+    item.subtotalCents = dto.quantity * dto.unitCostCents;
+    item.currentStock = product.cantidadStock;
+    item.currentAverageCostCents = after.averageCostCents;
+
+    const newTotal = purchase.items.reduce((sum, value) => sum + value.subtotalCents, 0);
+    if (!Number.isSafeInteger(newTotal))
+      throw new BadRequestException('El importe corregido supera el máximo permitido');
+    const paidBefore = purchase.montoPagadoCentavos ?? 0;
+    const isCredit = purchase.medioPago === PurchasePaymentMethod.CREDIT;
+    if (isCredit && newTotal < paidBefore)
+      throw new ConflictException(
+        'El nuevo total no puede ser menor que el importe que ya fue pagado',
+      );
+
+    purchase.totalCentavos = newTotal;
+    if (!isCredit) {
+      purchase.montoPagadoCentavos = newTotal;
+      purchase.montoPagadoEfectivoCentavos =
+        purchase.medioPago === PurchasePaymentMethod.CASH ? newTotal : 0;
+      purchase.montoPagadoTransferenciaCentavos =
+        purchase.medioPago === PurchasePaymentMethod.TRANSFER ? newTotal : 0;
+      purchase.pagada = true;
+    } else {
+      purchase.pagada = paidBefore === newTotal;
+      purchase.pagadaAt = purchase.pagada ? new Date() : null;
+    }
+    await purchase.save();
+
+    const financeSet: Record<string, unknown> = {
+      montoCentavos: newTotal,
+      detalle: purchase.items
+        .map(
+          (value) =>
+            `${value.productName}: ${value.quantity} x $${(value.unitCostCents / 100).toLocaleString('es-AR')}`,
+        )
+        .join(' · ')
+        .slice(0, 500),
+      pagado: purchase.pagada,
+      pagadoAt: purchase.pagadaAt,
+      actorId: actor.id,
+      actorName: actor.name,
+    };
+    if (!isCredit) {
+      financeSet['montoPagadoCentavos'] = newTotal;
+      financeSet['montoPagadoEfectivoCentavos'] = purchase.montoPagadoEfectivoCentavos;
+      financeSet['montoPagadoTransferenciaCentavos'] = purchase.montoPagadoTransferenciaCentavos;
+    }
+    await this.financeModel.updateOne(
+      { sourceKey: `purchase:${purchase._id.toString()}:expense` },
+      { $set: financeSet },
+    ).exec();
+
+    await this.movementModel.create({
+      productId: product._id,
+      productCode: product.codigo,
+      productName: product.nombre,
+      type:
+        purchase.tipo === PurchaseKind.PURCHASE
+          ? StockMovementType.PURCHASE
+          : StockMovementType.OPENING_VALUATION,
+      previousStock,
+      currentStock: product.cantidadStock,
+      previousAverageCostCents: before.averageCostCents,
+      currentAverageCostCents: after.averageCostCents,
+      reason: `Corrección de ${purchase.tipo === PurchaseKind.PURCHASE ? 'compra' : 'valuación'} #${purchase.codigo}: ${previousQuantity} a ${dto.quantity} unidades; costo $${(previousUnitCost / 100).toLocaleString('es-AR')} a $${(dto.unitCostCents / 100).toLocaleString('es-AR')}`,
+      referenceType: 'PURCHASE',
+      referenceId: purchase._id,
+      referenceCode: purchase.codigo,
+      actorId: actor.id,
+      actorName: actor.name,
+    });
+
+    return purchase;
   }
 
   pay(

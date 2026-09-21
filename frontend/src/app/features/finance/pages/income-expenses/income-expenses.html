@@ -88,8 +88,8 @@
       ><input
         [(ngModel)]="search"
         placeholder="Buscar concepto, cliente, proveedor o cheque..."
-        (ngModelChange)="page = 1" /></label
-    ><select [(ngModel)]="kind" (ngModelChange)="page = 1">
+        (ngModelChange)="page.set(1)" /></label
+    ><select [(ngModel)]="kind" (ngModelChange)="page.set(1)">
       <option value="">Todos</option>
       <option value="INGRESO">Solo ingresos</option>
       <option value="GASTO">Solo gastos</option>
@@ -189,7 +189,7 @@
     }
   </div>
   @if (filtered().length > pageSize) {
-    <app-pagination-controls [page]="page" [totalPages]="pages()" (pageChange)="setPage($event)" />
+    <app-pagination-controls [page]="page()" [totalPages]="pages()" (pageChange)="setPage($event)" />
   }
 </section>
 @if (expenseOpen()) {

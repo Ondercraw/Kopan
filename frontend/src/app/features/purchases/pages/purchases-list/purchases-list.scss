@@ -119,6 +119,41 @@
   display: block;
   color: #826b5b;
 }
+.purchase-item-entry {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 30px;
+  align-items: center;
+  gap: 5px;
+  margin: 2px 0;
+}
+.edit-purchase-item {
+  display: grid;
+  place-items: center;
+  width: 30px;
+  height: 28px;
+  padding: 0;
+  border: 1px solid #d5bca9;
+  border-radius: 7px;
+  background: #fffdfa;
+  color: #713508;
+  cursor: pointer;
+}
+.edit-purchase-item:hover,
+.edit-purchase-item:focus-visible {
+  border-color: #8b4b10;
+  background: #f7e8da;
+}
+.locked-purchase-fields input:disabled,
+.locked-purchase-fields textarea:disabled {
+  opacity: 1;
+  background: #eee7e1;
+  color: #6e625a;
+  cursor: not-allowed;
+}
+.line-labels.edit-line-labels,
+.line-row.edit-line-row {
+  grid-template-columns: minmax(220px, 1.8fr) 130px minmax(190px, 1fr) 150px;
+}
 .debt {
   text-align: right;
 }
@@ -412,6 +447,13 @@
   }
   .line-row > *:first-child {
     grid-column: 1/-1;
+  }
+  .line-row.edit-line-row {
+    grid-template-columns: 1fr 1fr;
+  }
+  .line-row.edit-line-row > strong {
+    grid-column: 1/-1;
+    text-align: right;
   }
   .valuation-check {
     display: grid;

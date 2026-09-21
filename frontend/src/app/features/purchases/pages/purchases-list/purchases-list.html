@@ -76,9 +76,18 @@
         ><span data-label="Proveedor">{{ purchase.proveedorNombre }}</span>
         <div class="items" data-label="Productos">
           @for (item of purchase.items; track item.lineNumber) {
-            <small
-              >{{ item.productName }}: {{ item.quantity }} a {{ money(item.unitCostCents) }}</small
-            >
+            <div class="purchase-item-entry">
+              <small>{{ item.productName }}: {{ item.quantity }} a {{ money(item.unitCostCents) }}</small>
+              @if (purchase.estado === 'CONFIRMADA') {
+                <button
+                  type="button"
+                  class="edit-purchase-item"
+                  (click)="openPurchaseItemEdit(purchase, item)"
+                  [title]="'Modificar unidades y costo de ' + item.productName"
+                  [attr.aria-label]="'Modificar unidades y costo de ' + item.productName"
+                ><i class="ti ti-pencil"></i></button>
+              }
+            </div>
           }
         </div>
         <strong data-label="Total">{{ money(purchase.totalCentavos) }}</strong
@@ -124,6 +133,52 @@
     }
   </section>
 </section>
+
+@if (editingPurchaseLine(); as target) {
+  <div class="modal-overlay">
+    <section class="modal-card wide purchase-edit-modal" role="dialog" aria-modal="true">
+      <header>
+        <div>
+          <span>COMPRAS</span>
+          <h2>Modificar producto de {{ target.purchase.tipo === 'COMPRA' ? 'la compra' : 'la valuación' }} #{{ target.purchase.codigo }}</h2>
+          <p>Solamente se pueden corregir las unidades y el costo unitario.</p>
+        </div>
+        <button type="button" class="icon" (click)="closePurchaseItemEdit()"><i class="ti ti-x"></i></button>
+      </header>
+      <div class="form-grid locked-purchase-fields">
+        <label class="field"><span>Proveedor</span><input [value]="target.purchase.proveedorNombre" disabled /></label>
+        <label class="field"><span>Fecha</span><input [value]="date(target.purchase.fechaCompra)" disabled /></label>
+        <label class="field"><span>Forma de pago</span><input [value]="paymentLabel(target.purchase.medioPago)" disabled /></label>
+        <label class="field"><span>N.º comprobante</span><input [value]="target.purchase.numeroComprobante || 'Sin comprobante'" disabled /></label>
+        <label class="field span-2"><span>Observaciones</span><textarea rows="2" [value]="target.purchase.observaciones || 'Sin observaciones'" disabled></textarea></label>
+      </div>
+      <div class="lines-head">
+        <div><h3>Producto y costo</h3><p>El producto permanece vinculado al mismo lote.</p></div>
+      </div>
+      <div class="line-labels edit-line-labels">
+        <span>Producto</span><span>Unidades</span><span>Costo unitario con IVA</span><span>Subtotal</span>
+      </div>
+      <div class="line-row edit-line-row">
+        <div class="locked-product">#{{ target.item.productCode }} · {{ target.item.productName }}</div>
+        <input type="number" min="1" max="1000000" step="1" [(ngModel)]="editPurchaseQuantity" />
+        <app-currency-input
+          [(ngModel)]="editPurchaseUnitCostPesos"
+          [ngModelOptions]="{ standalone: true }"
+          ariaLabel="Costo unitario con IVA"
+        />
+        <strong>{{ money(editPurchaseQuantity * editPurchaseUnitCostPesos * 100) }}</strong>
+      </div>
+      @if (error()) { <p class="message error" role="alert">{{ error() }}</p> }
+      <footer>
+        <div class="grand-total"><small>Nuevo subtotal</small><strong>{{ money(editPurchaseQuantity * editPurchaseUnitCostPesos * 100) }}</strong></div>
+        <button type="button" class="secondary" (click)="closePurchaseItemEdit()">Cancelar</button>
+        <button type="button" class="primary" (click)="savePurchaseItemEdit()" [disabled]="saving()">
+          {{ saving() ? 'Guardando...' : 'Guardar cambios' }}
+        </button>
+      </footer>
+    </section>
+  </div>
+}
 
 @if (visibleModalMode(); as mode) {
   <div class="modal-overlay">

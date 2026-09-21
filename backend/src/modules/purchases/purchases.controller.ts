@@ -18,6 +18,7 @@ import type { JwtPayload } from '../auth/interfaces/jwt-payload.interface';
 import { CancelPurchaseDto } from './dto/cancel-purchase.dto';
 import { CreatePurchaseDto } from './dto/create-purchase.dto';
 import { PayPurchaseDto } from './dto/pay-purchase.dto';
+import { UpdatePurchaseItemDto } from './dto/update-purchase-item.dto';
 import { PurchasesService } from './purchases.service';
 
 @UseGuards(JwtAuthGuard, RolesGuard)
@@ -68,6 +69,17 @@ export class PurchasesController {
       },
       dto.amountCents,
     );
+  }
+  @Patch(':id/items/:lineNumber') updateItem(
+    @Param('id', MongoIdPipe) id: string,
+    @Param('lineNumber') lineNumber: string,
+    @Body() dto: UpdatePurchaseItemDto,
+    @CurrentUser() user: JwtPayload,
+  ) {
+    return this.service.updateItem(id, Number(lineNumber), dto, {
+      id: user.sub,
+      name: user.nombre,
+    });
   }
   @Patch(':id/cancel') cancel(
     @Param('id', MongoIdPipe) id: string,

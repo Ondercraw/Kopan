@@ -237,9 +237,9 @@ export class PriceListsPage implements OnInit, OnDestroy {
   supplierNames(product:Product) { const suppliers=product.proveedorIds?.length?product.proveedorIds:(product.proveedorId?[product.proveedorId]:[]); return suppliers.map(s=>s.nombre).join(' · ')||'Sin proveedor'; }
   exportPdf() {
     const list=this.selected(); if(!list) return;
-    const rows=this.visibleProducts().map(p=>{const price=this.currentPrice(p._id);return price===null?'':`<tr><td>${this.escape(p.nombre)}</td><td>${this.escape(this.supplierNames(p))}</td><td>${this.escape(p.tipo)}</td><td>${this.escape(this.money(price))}</td></tr>`}).join('');
+    const rows=this.visibleProducts().map(p=>{const price=this.currentPrice(p._id);return price===null?'':`<article><strong>${this.escape(p.nombre)}</strong><span>${this.escape(this.money(price))}</span></article>`}).join('');
     const popup=window.open('','_blank','width=900,height=700'); if(!popup){this.error.set('El navegador bloqueó la ventana para generar el PDF');return;}
-    popup.document.write(`<!doctype html><html><head><title>${this.escape(this.pdfDocumentTitle(list.nombre))}</title><style>body{font-family:Arial;padding:32px;color:#2d190e}h1{font-family:Georgia}table{width:100%;border-collapse:collapse}th,td{padding:10px;border-bottom:1px solid #d8c2b2;text-align:left}th{background:#f2e7dd}</style></head><body><h1>${this.escape(list.nombre)}</h1><p>${new Date().toLocaleDateString('es-AR')}</p><table><thead><tr><th>Producto</th><th>Proveedor</th><th>Rubro</th><th>Precio final</th></tr></thead><tbody>${rows}</tbody></table><script>window.onload=()=>window.print()<\/script></body></html>`); popup.document.close();
+    popup.document.write(`<!doctype html><html><head><title>${this.escape(this.pdfDocumentTitle(list.nombre))}</title><style>@page{size:A4;margin:0}*{box-sizing:border-box}body{margin:0;padding:12mm;font-family:Arial;color:#2d190e}h1{margin:0 0 4px;font-family:Georgia}.date{margin:0 0 18px;color:#765b4b}.product-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:0 10mm;border-top:2px solid #713508}.product-grid article{display:flex;align-items:baseline;justify-content:space-between;gap:10px;min-width:0;padding:8px 4px;border-bottom:1px solid #d8c2b2;break-inside:avoid}.product-grid strong{min-width:0;font-size:12px;overflow-wrap:anywhere}.product-grid span{flex:0 0 auto;color:#713508;font-size:12px;font-weight:800;white-space:nowrap}@media print{html,body{margin:0!important}body{padding:12mm}}@media(max-width:560px){.product-grid{grid-template-columns:1fr}}</style></head><body><h1>${this.escape(list.nombre)}</h1><p class="date">${new Date().toLocaleDateString('es-AR')}</p><section class="product-grid">${rows}</section><script>window.onload=()=>window.print()<\/script></body></html>`); popup.document.close();
   }
   exportSelectedProductsPdf() {
     const source = this.sourceDetail();
@@ -277,7 +277,7 @@ export class PriceListsPage implements OnInit, OnDestroy {
     const rows = selectedProducts
       .map((product) => {
         const adjustedFinalPrice = Math.round(pricesByProduct.get(product._id)! * factor);
-        return `<tr><td>${this.escape(product.nombre)}</td><td>${this.escape(this.supplierNames(product))}</td><td>${this.escape(product.tipo)}</td><td>${this.escape(this.money(adjustedFinalPrice))}</td></tr>`;
+        return `<article><strong>${this.escape(product.nombre)}</strong><span>${this.escape(this.money(adjustedFinalPrice))}</span></article>`;
       })
       .join('');
     const title = this.derivedName.trim() || 'Lista personalizada de productos';
@@ -287,7 +287,7 @@ export class PriceListsPage implements OnInit, OnDestroy {
       return;
     }
     this.derivedPdfError.set(null);
-    popup.document.write(`<!doctype html><html><head><title>${this.escape(this.pdfDocumentTitle(title))}</title><style>body{font-family:Arial;padding:32px;color:#2d190e}h1{font-family:Georgia}table{width:100%;border-collapse:collapse}th,td{padding:10px;border-bottom:1px solid #d8c2b2;text-align:left}th{background:#f2e7dd}</style></head><body><h1>${this.escape(title)}</h1><p>${new Date().toLocaleDateString('es-AR')} · Basada en ${this.escape(source.nombre)}</p><table><thead><tr><th>Producto</th><th>Proveedor</th><th>Rubro</th><th>Precio final</th></tr></thead><tbody>${rows}</tbody></table><script>window.onload=()=>window.print()<\/script></body></html>`);
+    popup.document.write(`<!doctype html><html><head><title>${this.escape(this.pdfDocumentTitle(title))}</title><style>@page{size:A4;margin:0}*{box-sizing:border-box}body{margin:0;padding:12mm;font-family:Arial;color:#2d190e}h1{margin:0 0 4px;font-family:Georgia}.date{margin:0 0 18px;color:#765b4b}.product-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:0 10mm;border-top:2px solid #713508}.product-grid article{display:flex;align-items:baseline;justify-content:space-between;gap:10px;min-width:0;padding:8px 4px;border-bottom:1px solid #d8c2b2;break-inside:avoid}.product-grid strong{min-width:0;font-size:12px;overflow-wrap:anywhere}.product-grid span{flex:0 0 auto;color:#713508;font-size:12px;font-weight:800;white-space:nowrap}@media print{html,body{margin:0!important}body{padding:12mm}}@media(max-width:560px){.product-grid{grid-template-columns:1fr}}</style></head><body><h1>${this.escape(title)}</h1><p class="date">${new Date().toLocaleDateString('es-AR')} · Basada en ${this.escape(source.nombre)}</p><section class="product-grid">${rows}</section><script>window.onload=()=>window.print()<\/script></body></html>`);
     popup.document.close();
   }
   private escape(value:unknown){return String(value??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#039;'}[c]!));}

@@ -22,6 +22,7 @@ import { Product } from '../../../stock/models/product.model';
 import {
   InventoryProduct,
   Purchase,
+  PurchaseItem,
   PurchaseKind,
   PurchasePaymentMethod,
   SupplierAccount,
@@ -68,6 +69,7 @@ export class PurchasesListPage implements OnInit {
   readonly editingProduct = signal<Product | null>(null);
   readonly productTargetLine = signal(0);
   readonly replenishmentSaleCode = signal<number | null>(null);
+  readonly editingPurchaseLine = signal<{ purchase: Purchase; item: PurchaseItem } | null>(null);
   readonly visibleModalMode = computed(() =>
     this.supplierModalOpen() || this.productModalOpen() ? null : this.modalMode(),
   );
@@ -81,6 +83,8 @@ export class PurchasesListPage implements OnInit {
   actionPayment: 'EFECTIVO' | 'TRANSFERENCIA' = 'EFECTIVO';
   cancellationReason = '';
   actionPaymentAmount = 0;
+  editPurchaseQuantity = 1;
+  editPurchaseUnitCostPesos = 0;
   from = '';
   to = '';
   readonly supplierOptions = computed<SearchableSelectOption[]>(() =>
@@ -396,6 +400,48 @@ export class PurchasesListPage implements OnInit {
     this.actionPayment = 'EFECTIVO';
     this.actionPaymentAmount = this.purchaseRemainingCents(purchase) / 100;
     this.cancellationReason = '';
+  }
+  openPurchaseItemEdit(purchase: Purchase, item: PurchaseItem) {
+    this.error.set(null);
+    this.editPurchaseQuantity = item.quantity;
+    this.editPurchaseUnitCostPesos = item.unitCostCents / 100;
+    this.editingPurchaseLine.set({ purchase, item });
+  }
+  closePurchaseItemEdit() {
+    if (!this.saving()) this.editingPurchaseLine.set(null);
+  }
+  savePurchaseItemEdit() {
+    const target = this.editingPurchaseLine();
+    const quantity = Number(this.editPurchaseQuantity);
+    const unitCostCents = Math.round(Number(this.editPurchaseUnitCostPesos) * 100);
+    if (
+      !target ||
+      !Number.isInteger(quantity) ||
+      quantity < 1 ||
+      quantity > 1_000_000 ||
+      !Number.isSafeInteger(unitCostCents) ||
+      unitCostCents < 0
+    ) {
+      this.error.set('Ingresá una cantidad entera mayor a cero y un costo válido');
+      return;
+    }
+    this.saving.set(true);
+    this.service
+      .updateItem(target.purchase._id, target.item.lineNumber, quantity, unitCostCents)
+      .subscribe({
+        next: () => {
+          this.success.set(
+            `${target.item.productName} actualizado en la ${target.purchase.tipo === 'COMPRA' ? 'compra' : 'valuación'} #${target.purchase.codigo}`,
+          );
+          this.saving.set(false);
+          this.editingPurchaseLine.set(null);
+          this.reload();
+        },
+        error: (e) => {
+          this.error.set(e.error?.message ?? 'No se pudo modificar el producto de la compra');
+          this.saving.set(false);
+        },
+      });
   }
   openAccountPayment(account: SupplierAccount) {
     this.accountToPay.set(account);

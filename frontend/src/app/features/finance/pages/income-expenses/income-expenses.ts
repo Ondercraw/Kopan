@@ -80,7 +80,7 @@ export class IncomeExpensesPage implements OnInit {
   readonly cancelling = signal<FinancialMovement | null>(null);
   readonly cancelAttempted = signal(false);
   readonly expenseAttempted = signal(false);
-  page = 1;
+  readonly page = signal(1);
   readonly pageSize = 10;
   from = argentinaToday();
   to = argentinaToday();
@@ -116,7 +116,7 @@ export class IncomeExpensesPage implements OnInit {
   });
   readonly pages = computed(() => Math.max(1, Math.ceil(this.filtered().length / this.pageSize)));
   readonly visible = computed(() =>
-    this.filtered().slice((this.page - 1) * this.pageSize, this.page * this.pageSize),
+    this.filtered().slice((this.page() - 1) * this.pageSize, this.page() * this.pageSize),
   );
   ngOnInit() {
     this.load();
@@ -128,7 +128,7 @@ export class IncomeExpensesPage implements OnInit {
       return;
     }
     this.loading.set(true);
-    this.page = 1;
+    this.page.set(1);
     this.api.findAll(argentinaRange(this.from, this.to)).subscribe({
       next: (r) => {
         this.items.set(r.items);
@@ -293,7 +293,7 @@ export class IncomeExpensesPage implements OnInit {
     });
   }
   setPage(value: number) {
-    this.page = Math.min(value, this.pages());
+    this.page.set(Math.max(1, Math.min(value, this.pages())));
   }
   money(c: number) {
     return new Intl.NumberFormat('es-AR', { style: 'currency', currency: 'ARS' }).format(c / 100);
