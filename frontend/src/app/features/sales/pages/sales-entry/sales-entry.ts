@@ -37,9 +37,11 @@ interface ReceiptView {
   date: Date;
   clientCode: number;
   clientName: string;
+  clientAddress: string;
+  clientLocation: string;
   sellerName: string;
-  priceListName: string;
   paymentMethod: PaymentMethod;
+  observations: string;
   items: Array<{ quantity: number; name: string; unitPriceCents: number; totalCents: number }>;
   totalCents: number;
 }
@@ -76,6 +78,7 @@ export class SalesEntryPage implements OnInit {
   paymentMethod: PaymentMethod = 'EFECTIVO';
   transferReference = '';
   observations = '';
+  reviewedAt = new Date();
   checkBank = '';
   checkPaymentAddress = '';
   checkHolder = '';
@@ -306,7 +309,16 @@ export class SalesEntryPage implements OnInit {
         return;
       }
     }
+    this.reviewedAt = new Date();
     this.reviewing.set(true);
+  }
+
+  reviewTime(): string {
+    return new Intl.DateTimeFormat('es-AR', {
+      timeZone: 'America/Argentina/Buenos_Aires',
+      hour: '2-digit',
+      minute: '2-digit',
+    }).format(this.reviewedAt);
   }
 
   invalidSaleSelection(value: unknown): boolean {
@@ -392,9 +404,11 @@ export class SalesEntryPage implements OnInit {
       date: new Date(),
       clientCode: client.codigo,
       clientName: client.nombre,
+      clientAddress: client.direccion,
+      clientLocation: client.localidad,
       sellerName: client.vendedorId?.nombre || this.auth.currentUser()?.nombre || 'Venta mostrador',
-      priceListName: list.nombre,
       paymentMethod: this.paymentMethod,
+      observations: this.observations.trim(),
       items: this.lines().map((line) => ({
         quantity: line.quantity,
         name: line.product.nombre,
@@ -411,9 +425,11 @@ export class SalesEntryPage implements OnInit {
     const date = new Intl.DateTimeFormat('es-AR', {
       timeZone: 'America/Argentina/Buenos_Aires',
       dateStyle: 'short',
-      timeStyle: 'short',
     }).format(receipt.date);
     const payment = this.receiptPaymentLabel(receipt.paymentMethod);
+    const observations = receipt.observations
+      ? `<section class="observations"><span>Observaciones</span><p>${this.escapeHtml(receipt.observations)}</p></section>`
+      : '';
     const fileDate = new Intl.DateTimeFormat('es-AR', {
       timeZone: 'America/Argentina/Buenos_Aires',
       day: '2-digit',
@@ -423,8 +439,8 @@ export class SalesEntryPage implements OnInit {
     const title = `${this.filenamePart(receipt.clientName)}-Comprobante-${fileDate}`;
     popup.document.open();
     popup.document.write(`<!doctype html><html lang="es"><head><meta charset="utf-8"><title>${this.escapeHtml(title)}</title><style>
-      @page{size:A4;margin:0}*{box-sizing:border-box}body{margin:0;background:#f4ece5;color:#2d190e;font-family:Arial,sans-serif}.ticket{width:min(100%,820px);min-height:calc(100vh - 48px);margin:24px auto;padding:34px;border:1px solid #d8c2b2;background:#fff;box-shadow:0 12px 34px #3f210f20}.brand{display:flex;justify-content:space-between;align-items:flex-start;gap:24px;padding-bottom:18px;border-bottom:3px solid #713508}.brand-mark{display:flex;align-items:center;gap:12px}.logo{display:grid;place-items:center;width:48px;height:48px;background:#713508;color:#fff;font:700 28px Georgia,serif}.brand h1{margin:0;font:700 25px Georgia,serif}.brand p{margin:4px 0 0;color:#8a654d;font-size:12px;letter-spacing:.08em}.number{text-align:right}.number strong{display:block;font:700 24px Georgia,serif;color:#713508}.number span{font-size:12px;color:#765d4d}.internal{margin:16px 0;padding:9px 12px;border-left:4px solid #b86719;background:#fbf1e7;color:#713508;font-size:12px;font-weight:700}.data{display:grid;grid-template-columns:1fr 1fr;gap:10px 28px;margin:18px 0 24px}.data div{display:grid;grid-template-columns:110px 1fr;gap:8px;padding-bottom:7px;border-bottom:1px solid #eaded5}.data span{color:#846b5b;font-size:11px;font-weight:700;text-transform:uppercase}.data strong{font-size:13px}table{width:100%;border-collapse:collapse}th{padding:10px 9px;background:#713508;color:#fff;font-size:11px;letter-spacing:.06em;text-align:left;text-transform:uppercase}td{padding:12px 9px;border-bottom:1px solid #eaded5;font-size:13px}.quantity{width:72px;text-align:center}.money{width:145px;text-align:right;font-variant-numeric:tabular-nums}.total-line{font-weight:700}.grand-total{display:flex;justify-content:flex-end;align-items:center;gap:30px;margin-top:28px;padding:20px 22px;background:#f1e2d4;border:2px solid #713508}.grand-total span{font-size:14px;font-weight:800;letter-spacing:.08em;text-transform:uppercase}.grand-total strong{font:700 32px Georgia,serif;color:#713508}.footer{margin-top:26px;padding-top:14px;border-top:1px dashed #cbb5a4;color:#806858;font-size:11px;text-align:center}@media(max-width:650px){.ticket{margin:0;padding:20px;box-shadow:none}.brand,.data{grid-template-columns:1fr;display:grid}.number{text-align:left}.data div{grid-template-columns:90px 1fr}.money{width:auto}.grand-total{justify-content:space-between}.grand-total strong{font-size:25px}}@media print{body{background:#fff}.ticket{width:100%;min-height:auto;margin:0;padding:12mm;border:0;box-shadow:none}.no-print{display:none!important}}
-    </style></head><body><main class="ticket"><header class="brand"><div class="brand-mark"><div class="logo">K</div><div><h1>Distribuidora Kopan</h1><p>COMPROBANTE DE VENTA</p></div></div><div class="number"><strong>COMPROBANTE</strong><span>${this.escapeHtml(date)}</span></div></header><p class="internal">COMPROBANTE INTERNO · NO VÁLIDO COMO FACTURA</p><section class="data"><div><span>Cliente</span><strong>#${receipt.clientCode} · ${this.escapeHtml(receipt.clientName)}</strong></div><div><span>Vendedor</span><strong>${this.escapeHtml(receipt.sellerName)}</strong></div><div><span>Lista</span><strong>${this.escapeHtml(receipt.priceListName)}</strong></div><div><span>Pago</span><strong>${this.escapeHtml(payment)}</strong></div></section><table><thead><tr><th class="quantity">Cantidad</th><th>Producto</th><th class="money">Precio unitario</th><th class="money">Total</th></tr></thead><tbody>${rows}</tbody></table><section class="grand-total"><span>Total de la compra</span><strong>${this.escapeHtml(this.money(receipt.totalCents))}</strong></section><p class="footer">Gracias por su compra · Distribuidora Kopan.</p></main><script>window.onload=()=>{document.title=${JSON.stringify(title)};setTimeout(()=>window.print(),150)};<\/script></body></html>`);
+      @page{size:A4;margin:0}*{box-sizing:border-box}body{margin:0;background:#f4ece5;color:#2d190e;font-family:Arial,sans-serif}.ticket{width:min(100%,820px);min-height:calc(100vh - 48px);margin:24px auto;padding:34px;border:1px solid #d8c2b2;background:#fff;box-shadow:0 12px 34px #3f210f20}.brand{display:flex;justify-content:space-between;align-items:flex-start;gap:24px;padding-bottom:18px;border-bottom:3px solid #713508}.brand-mark{display:flex;align-items:center;gap:12px}.logo{display:grid;place-items:center;width:48px;height:48px;background:#713508;color:#fff;font:700 28px Georgia,serif}.brand h1{margin:0;font:700 25px Georgia,serif}.brand p{margin:4px 0 0;color:#8a654d;font-size:12px;letter-spacing:.08em}.number{text-align:right}.number strong{display:block;font:700 24px Georgia,serif;color:#713508}.number .receipt-date{display:block;margin-top:5px;color:#4c2b18;font-size:20px;font-weight:800}.number .receipt-time{display:block;margin-top:3px;color:#765d4d;font-size:12px}.internal{margin:16px 0;padding:9px 12px;border-left:4px solid #b86719;background:#fbf1e7;color:#713508;font-size:12px;font-weight:700}.data{display:grid;grid-template-columns:1fr 1fr;gap:10px 28px;margin:18px 0 24px}.data div{display:grid;grid-template-columns:110px 1fr;gap:8px;padding-bottom:7px;border-bottom:1px solid #eaded5}.data span,.observations span{color:#846b5b;font-size:11px;font-weight:700;text-transform:uppercase}.data strong{font-size:13px;overflow-wrap:anywhere}.observations{margin:-8px 0 24px;padding:12px 14px;border-left:4px solid #b86719;background:#fbf6f1}.observations p{margin:5px 0 0;font-size:13px;line-height:1.45;white-space:pre-wrap;overflow-wrap:anywhere}table{width:100%;border-collapse:collapse}th{padding:10px 9px;background:#713508;color:#fff;font-size:11px;letter-spacing:.06em;text-align:left;text-transform:uppercase}td{padding:12px 9px;border-bottom:1px solid #eaded5;font-size:13px}.quantity{width:72px;text-align:center}.money{width:145px;text-align:right;font-variant-numeric:tabular-nums}.total-line{font-weight:700}.grand-total{display:flex;justify-content:flex-end;align-items:center;gap:30px;margin-top:28px;padding:20px 22px;background:#f1e2d4;border:2px solid #713508}.grand-total span{font-size:14px;font-weight:800;letter-spacing:.08em;text-transform:uppercase}.grand-total strong{font:700 32px Georgia,serif;color:#713508}.footer{margin-top:26px;padding-top:14px;border-top:1px dashed #cbb5a4;color:#806858;font-size:11px;text-align:center}@media(max-width:650px){.ticket{margin:0;padding:20px;box-shadow:none}.brand,.data{grid-template-columns:1fr;display:grid}.number{text-align:left}.data div{grid-template-columns:90px 1fr}.money{width:auto}.grand-total{justify-content:space-between}.grand-total strong{font-size:25px}}@media print{body{background:#fff}.ticket{width:100%;min-height:auto;margin:0;padding:12mm;border:0;box-shadow:none}.screen-only,.no-print{display:none!important}.number .receipt-date{font-size:22px}}
+    </style></head><body><main class="ticket"><header class="brand"><div class="brand-mark"><div class="logo">K</div><div><h1>Distribuidora Kopan</h1><p>COMPROBANTE DE VENTA</p></div></div><div class="number"><strong>COMPROBANTE</strong><span class="receipt-date">${this.escapeHtml(date)}</span></div></header><p class="internal">COMPROBANTE INTERNO · NO VÁLIDO COMO FACTURA</p><section class="data"><div><span>Cliente</span><strong>#${receipt.clientCode} · ${this.escapeHtml(receipt.clientName)}</strong></div><div><span>Vendedor</span><strong>${this.escapeHtml(receipt.sellerName)}</strong></div><div><span>Localidad</span><strong>${this.escapeHtml(receipt.clientLocation || 'Sin informar')}</strong></div><div><span>Pago</span><strong>${this.escapeHtml(payment)}</strong></div><div><span>Dirección</span><strong>${this.escapeHtml(receipt.clientAddress || 'Sin informar')}</strong></div></section>${observations}<table><thead><tr><th class="quantity">Cantidad</th><th>Producto</th><th class="money">Precio unitario</th><th class="money">Total</th></tr></thead><tbody>${rows}</tbody></table><section class="grand-total"><span>Total de la compra</span><strong>${this.escapeHtml(this.money(receipt.totalCents))}</strong></section><p class="footer">Gracias por su compra · Distribuidora Kopan.</p></main><script>window.onload=()=>{document.title=${JSON.stringify(title)};setTimeout(()=>window.print(),150)};<\/script></body></html>`);
     popup.document.close();
     popup.focus();
   }

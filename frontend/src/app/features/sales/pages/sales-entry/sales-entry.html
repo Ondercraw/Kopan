@@ -190,6 +190,10 @@
         Se descontará el stock de {{ lines().length }} productos y se registrará el pago por
         {{ paymentLabel() }}.
       </p>
+      <section class="review-context" aria-label="Datos de la venta">
+        <div><span>Lista de precios</span><strong>{{ priceList()?.nombre }}</strong></div>
+        <div><span>Horario</span><strong>{{ reviewTime() }}</strong></div>
+      </section>
       @if (paymentMethod === 'CREDITO') {
         <p class="credit-notice">
           Se descontarán {{ money(total()) }} del crédito disponible. Restarán

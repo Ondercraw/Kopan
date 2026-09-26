@@ -272,6 +272,27 @@
   border-radius: 18px;
   padding: 24px;
 }
+.review-context {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+  margin: 16px 0;
+}
+.review-context div {
+  display: grid;
+  gap: 4px;
+  padding: 10px 12px;
+  border: 1px solid #dfcabb;
+  background: #fbf6f1;
+}
+.review-context span {
+  color: #846b5b;
+  font-size: 0.72rem;
+  font-weight: 700;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+}
+.review-context strong { color: #4c2b18; }
 .sale-review {
   overflow: hidden;
   margin: 18px 0;
@@ -411,6 +432,7 @@
   }
 }
 @media (max-width: 600px) {
+  .review-context { grid-template-columns: 1fr; }
   .check-form>div{grid-template-columns:1fr}.check-form>header{align-items:start;flex-direction:column;gap:8px}
   .page > header {
     align-items: start;
