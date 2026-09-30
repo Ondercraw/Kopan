@@ -59,7 +59,7 @@ export class EmployeeFormModal implements OnChanges {
   readonly form = this.fb.nonNullable.group({
     nombre: ['', [Validators.required, Validators.pattern(/\S/), Validators.minLength(2)]],
     email: ['', [Validators.required, Validators.email]],
-    password: ['', [Validators.minLength(8)]],
+    password: ['', [Validators.minLength(5)]],
   });
 
   /**
@@ -96,7 +96,7 @@ export class EmployeeFormModal implements OnChanges {
         password: '',
       });
 
-      this.form.controls.password.setValidators([Validators.required, Validators.minLength(8)]);
+      this.form.controls.password.setValidators([Validators.required, Validators.minLength(5)]);
 
       this.form.controls.password.updateValueAndValidity();
 
@@ -113,7 +113,7 @@ export class EmployeeFormModal implements OnChanges {
     });
 
     // En edición la contraseña NO es obligatoria.
-    this.form.controls.password.setValidators([Validators.minLength(8)]);
+    this.form.controls.password.setValidators([Validators.minLength(5)]);
 
     this.form.controls.password.updateValueAndValidity();
 

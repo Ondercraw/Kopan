@@ -21,7 +21,7 @@ export class CreateEmployeeDto {
   email: string;
 
   @IsString()
-  @MinLength(8, { message: 'La contraseña debe tener al menos 8 caracteres' })
+  @MinLength(5, { message: 'La contraseña debe tener al menos 5 caracteres' })
   password: string;
 
   // Un empleado puede tener uno o varios roles a la vez.
