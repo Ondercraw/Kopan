@@ -267,10 +267,14 @@ export class SalesService {
       (sum, item) => sum + item.costoUnitarioCentavos * item.cantidad,
       0,
     );
-    const totalCentavos = items.reduce(
+    const subtotalProductosCentavos = items.reduce(
       (sum, item) => sum + item.totalCentavos,
       0,
     );
+    const transporteDescargaCentavos = dto.incluyeTransporteDescarga
+      ? (dto.transporteDescargaCentavos ?? 0)
+      : 0;
+    const totalCentavos = subtotalProductosCentavos + transporteDescargaCentavos;
     const sale = await this.saleModel.create({
       codigo: await this.nextCode(),
       clienteId: client._id,
@@ -285,6 +289,8 @@ export class SalesService {
       netoCentavos,
       ivaCentavos,
       costoCentavos,
+      incluyeTransporteDescarga: transporteDescargaCentavos > 0,
+      transporteDescargaCentavos,
       totalCentavos,
       medioPago: dto.medioPago,
       referenciaTransferencia: dto.referenciaTransferencia?.trim() ?? '',

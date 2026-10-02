@@ -62,6 +62,9 @@ export class Sale {
   @Prop({ required: true, min: 0, default: 0 }) netoCentavos: number;
   @Prop({ required: true, min: 0, default: 0 }) ivaCentavos: number;
   @Prop({ required: true, min: 0, default: 0 }) costoCentavos: number;
+  @Prop({ required: true, default: false }) incluyeTransporteDescarga: boolean;
+  @Prop({ required: true, min: 0, default: 0 })
+  transporteDescargaCentavos: number;
   @Prop({ required: true, min: 0 }) totalCentavos: number;
   @Prop({ required: true, type: String, enum: PaymentMethod })
   medioPago: PaymentMethod;

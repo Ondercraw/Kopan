@@ -42,6 +42,7 @@ interface ReceiptView {
   sellerName: string;
   paymentMethod: PaymentMethod;
   observations: string;
+  transportDownloadCents: number;
   items: Array<{ quantity: number; name: string; unitPriceCents: number; totalCents: number }>;
   totalCents: number;
 }
@@ -78,6 +79,10 @@ export class SalesEntryPage implements OnInit {
   paymentMethod: PaymentMethod = 'EFECTIVO';
   transferReference = '';
   observations = '';
+  includesTransportDownload = false;
+  transportDownloadAmount = 0;
+  transportDownloadInput = '';
+  transportDownloadEdited = false;
   reviewedAt = new Date();
   checkBank = '';
   checkPaymentAddress = '';
@@ -112,9 +117,17 @@ export class SalesEntryPage implements OnInit {
         meta: `#${p.codigo} · Stock ${p.cantidadStock} · ${this.productPriceLabel(p)}`,
       })),
   );
-  readonly total = computed(() =>
-    this.lines().reduce((sum, line) => sum + this.lineTotal(line), 0),
-  );
+  productsSubtotal(): number {
+    return this.lines().reduce((sum, line) => sum + this.lineTotal(line), 0);
+  }
+  transportDownloadCents(): number {
+    if (!this.includesTransportDownload) return 0;
+    const amount = Number(this.transportDownloadAmount);
+    return Number.isFinite(amount) && amount > 0 ? Math.round(amount * 100) : 0;
+  }
+  total(): number {
+    return this.productsSubtotal() + this.transportDownloadCents();
+  }
   readonly hasInvalidQuantities = computed(() =>
     this.lines().some((line) => this.quantityError(line) !== null),
   );
@@ -283,6 +296,10 @@ export class SalesEntryPage implements OnInit {
       this.error.set('Todos los productos deben tener un precio final mayor a $0');
       return;
     }
+    if (this.includesTransportDownload && this.transportDownloadCents() <= 0) {
+      this.error.set('Ingresá un costo de transporte y descarga mayor a $0');
+      return;
+    }
     if (this.paymentMethod === 'TRANSFERENCIA' && !this.transferReference.trim()) {
       this.error.set('Revisá la referencia de la transferencia antes de continuar');
       return;
@@ -327,6 +344,32 @@ export class SalesEntryPage implements OnInit {
   invalidTransferReference(): boolean {
     return this.reviewAttempted() && this.paymentMethod === 'TRANSFERENCIA' && !this.transferReference.trim();
   }
+  invalidTransportDownload(): boolean {
+    return this.includesTransportDownload
+      && (this.transportDownloadEdited || this.reviewAttempted())
+      && this.transportDownloadCents() <= 0;
+  }
+  onTransportDownloadAmountInput(event: Event): void {
+    const input = event.target as HTMLInputElement;
+    const cleaned = input.value.replace(/\./g, '').replace(/[^\d,]/g, '');
+    const [integerPart = '', ...decimalParts] = cleaned.split(',');
+    const decimals = decimalParts.join('').slice(0, 2);
+    const integer = Number(integerPart || 0);
+    this.transportDownloadInput = integerPart === '' && decimals === ''
+      ? ''
+      : `${new Intl.NumberFormat('es-AR', { maximumFractionDigits: 0 }).format(integer)}${cleaned.includes(',') ? `,${decimals}` : ''}`;
+    input.value = this.transportDownloadInput;
+    this.transportDownloadAmount = integer + (decimals ? Number(decimals) / 10 ** decimals.length : 0);
+    this.transportDownloadEdited = true;
+  }
+  onTransportDownloadToggle(enabled: boolean): void {
+    this.includesTransportDownload = enabled;
+    this.transportDownloadEdited = false;
+    if (!enabled) {
+      this.transportDownloadAmount = 0;
+      this.transportDownloadInput = '';
+    }
+  }
   invalidCheckRequired(value: string): boolean {
     return this.reviewAttempted() && this.paymentMethod === 'CHEQUE' && !value.trim();
   }
@@ -350,6 +393,10 @@ export class SalesEntryPage implements OnInit {
         referenciaTransferencia:
           this.paymentMethod === 'TRANSFERENCIA' ? this.transferReference.trim() : undefined,
         observaciones: this.observations.trim() || undefined,
+        incluyeTransporteDescarga: this.includesTransportDownload,
+        transporteDescargaCentavos: this.includesTransportDownload
+          ? this.transportDownloadCents()
+          : undefined,
         cheque: this.paymentMethod === 'CHEQUE' ? {
           banco: this.checkBank.trim(), domicilioPago: this.checkPaymentAddress.trim(),
           titular: this.checkHolder.trim(), domicilioTitular: this.checkHolderAddress.trim(),
@@ -375,6 +422,10 @@ export class SalesEntryPage implements OnInit {
           this.saving.set(false);
           this.transferReference = '';
           this.observations = '';
+          this.includesTransportDownload = false;
+          this.transportDownloadAmount = 0;
+          this.transportDownloadInput = '';
+          this.transportDownloadEdited = false;
           this.resetCheck();
           this.paymentMethod = 'EFECTIVO';
           this.reviewAttempted.set(false);
@@ -409,6 +460,7 @@ export class SalesEntryPage implements OnInit {
       sellerName: client.vendedorId?.nombre || this.auth.currentUser()?.nombre || 'Venta mostrador',
       paymentMethod: this.paymentMethod,
       observations: this.observations.trim(),
+      transportDownloadCents: this.transportDownloadCents(),
       items: this.lines().map((line) => ({
         quantity: line.quantity,
         name: line.product.nombre,
@@ -421,7 +473,9 @@ export class SalesEntryPage implements OnInit {
   private renderReceipt(receipt: ReceiptView, popup: Window): void {
     const rows = receipt.items.map((item) => {
       return `<tr><td class="quantity">${item.quantity}</td><td>${this.escapeHtml(item.name)}</td><td class="money">${this.escapeHtml(this.money(item.unitPriceCents))}</td><td class="money total-line">${this.escapeHtml(this.money(item.totalCents))}</td></tr>`;
-    }).join('');
+    }).join('') + (receipt.transportDownloadCents > 0
+      ? `<tr><td class="quantity">1</td><td>TRANSPORTE Y DESCARGA</td><td class="money">${this.escapeHtml(this.money(receipt.transportDownloadCents))}</td><td class="money total-line">${this.escapeHtml(this.money(receipt.transportDownloadCents))}</td></tr>`
+      : '');
     const date = new Intl.DateTimeFormat('es-AR', {
       timeZone: 'America/Argentina/Buenos_Aires',
       dateStyle: 'short',

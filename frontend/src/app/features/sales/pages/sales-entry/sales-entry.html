@@ -59,6 +59,41 @@
         </label>
       }
     </div>
+    <section class="delivery-option" [class.enabled]="includesTransportDownload">
+      <label class="delivery-toggle">
+        <input
+          type="checkbox"
+          [ngModel]="includesTransportDownload"
+          (ngModelChange)="onTransportDownloadToggle($event)"
+        />
+        <span class="toggle-track" aria-hidden="true"><span></span></span>
+        <span class="toggle-copy">
+          <strong>Transporte y descarga</strong>
+          <small>Agrega un costo adicional personalizado al total de la venta.</small>
+        </span>
+      </label>
+      @if (includesTransportDownload) {
+        <label class="delivery-cost">
+          <span>Costo adicional *</span>
+          <span class="delivery-money-input">
+            <span aria-hidden="true">ARS$</span>
+            <input
+              id="transportDownloadAmount"
+              type="text"
+              inputmode="decimal"
+              autocomplete="off"
+              placeholder="Ingresar importe"
+              aria-label="Costo adicional de transporte y descarga"
+              [value]="transportDownloadInput"
+              (input)="onTransportDownloadAmountInput($event)"
+            />
+          </span>
+          @if (invalidTransportDownload()) {
+            <small class="field-error">Ingresá un importe mayor a $0.</small>
+          }
+        </label>
+      }
+    </section>
     @if (paymentMethod === 'CHEQUE') {
       <section class="check-form" aria-label="Datos del cheque">
         <header><div><span>CHEQUE RECIBIDO</span><strong>El importe se completa con el total de la venta</strong></div><em>{{ money(total()) }}</em></header>
@@ -193,6 +228,9 @@
       <section class="review-context" aria-label="Datos de la venta">
         <div><span>Lista de precios</span><strong>{{ priceList()?.nombre }}</strong></div>
         <div><span>Horario</span><strong>{{ reviewTime() }}</strong></div>
+        @if (includesTransportDownload) {
+          <div><span>Transporte y descarga</span><strong>{{ money(transportDownloadCents()) }}</strong></div>
+        }
       </section>
       @if (paymentMethod === 'CREDITO') {
         <p class="credit-notice">
@@ -220,7 +258,11 @@
           }
         </div>
         <div class="review-total">
-          <span>Total de la venta</span><strong>{{ money(total()) }}</strong>
+          <span>Productos {{ money(productsSubtotal()) }}</span>
+          @if (includesTransportDownload) {
+            <span>Transporte y descarga {{ money(transportDownloadCents()) }}</span>
+          }
+          <strong>Total {{ money(total()) }}</strong>
         </div>
       </section>
       <p class="notice">

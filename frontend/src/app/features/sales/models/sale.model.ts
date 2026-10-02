@@ -14,6 +14,8 @@ export interface CreateSalePayload {
   medioPago: PaymentMethod;
   referenciaTransferencia?: string;
   observaciones?: string;
+  incluyeTransporteDescarga?: boolean;
+  transporteDescargaCentavos?: number;
   cheque?: SaveCheckPayload;
   items: SaleItemPayload[];
 }
@@ -42,6 +44,8 @@ export interface Sale {
   netoCentavos: number;
   ivaCentavos: number;
   costoCentavos: number;
+  incluyeTransporteDescarga?: boolean;
+  transporteDescargaCentavos?: number;
   totalCentavos: number;
   medioPago: PaymentMethod;
   referenciaTransferencia: string;
