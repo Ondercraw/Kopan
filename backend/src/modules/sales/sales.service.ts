@@ -32,6 +32,7 @@ import {
 } from '../stock/schemas/stock-movement.schema';
 import { StockMovementType } from '../stock/enums/stock-movement-type.enum';
 import { CreateSaleDto } from './dto/create-sale.dto';
+import { UpdateSaleDto } from './dto/update-sale.dto';
 import { PaymentMethod } from './enums/payment-method.enum';
 import { FiscalStatus, SaleStatus } from './enums/sale-status.enum';
 import { Sale, SaleDocument, SaleItem } from './schemas/sale.schema';
@@ -120,6 +121,171 @@ export class SalesService {
     return this.connection.transaction(() =>
       this.createInTransaction(dto, actor),
     );
+  }
+
+  update(id: string, dto: UpdateSaleDto, actor: SaleActor) {
+    return this.connection.transaction(() => this.updateInTransaction(id, dto, actor));
+  }
+
+  private async updateInTransaction(id: string, dto: UpdateSaleDto, actor: SaleActor) {
+    const sale = await this.saleModel.findOne({ _id: id, estado: SaleStatus.CONFIRMED }).exec();
+    if (!sale) throw new NotFoundException('Venta inexistente');
+    if (sale.medioPago === PaymentMethod.CHECK || dto.medioPago === PaymentMethod.CHECK) {
+      throw new BadRequestException('Las ventas con cheque se administran desde el módulo Cheques');
+    }
+    const alreadyCollected =
+      sale.montoCobradoCuentaCorrienteCentavos +
+      sale.montoCobradoEfectivoCentavos +
+      sale.montoCobradoTransferenciaCentavos;
+    if (alreadyCollected > 0) {
+      throw new ConflictException('No se puede modificar una venta que ya tiene pagos de cuenta corriente registrados');
+    }
+    if (dto.medioPago === PaymentMethod.TRANSFER && !dto.referenciaTransferencia?.trim()) {
+      throw new BadRequestException('Ingresá una referencia para la transferencia o Mercado Pago');
+    }
+    const client = await this.clientModel.findById(sale.clienteId).exec();
+    if (!client) throw new NotFoundException('El cliente de la venta ya no existe');
+    const requested = new Map(dto.items.map((item) => [item.productoId, item]));
+    const originalIds = sale.items.map((item) => item.productoId.toString());
+    if (requested.size !== sale.items.length || originalIds.some((productId) => !requested.has(productId))) {
+      throw new BadRequestException('La edición permite cambiar cantidades y precios, no reemplazar productos');
+    }
+    const products = await this.productModel.find({ _id: { $in: originalIds }, activo: true }).exec();
+    if (products.length !== originalIds.length) throw new ConflictException('Uno de los productos ya no está activo');
+    const productById = new Map(products.map((product) => [product._id.toString(), product]));
+
+    for (const oldItem of sale.items) {
+      const next = requested.get(oldItem.productoId.toString())!;
+      const product = productById.get(oldItem.productoId.toString())!;
+      if (product.cantidadStock + oldItem.cantidad < next.cantidad) {
+        throw new ConflictException(`Stock insuficiente para ${oldItem.productoNombre}`);
+      }
+    }
+
+    const nextItems: SaleItem[] = [];
+    for (const oldItem of sale.items) {
+      const next = requested.get(oldItem.productoId.toString())!;
+      const product = productById.get(oldItem.productoId.toString())!;
+      await this.inventoryLots.restoreConsumptions(oldItem.lotesConsumidos ?? []);
+      const stockBeforeNewSale = product.cantidadStock + oldItem.cantidad;
+      product.cantidadStock = stockBeforeNewSale - next.cantidad;
+      const fifo = await this.inventoryLots.consumeFifo(
+        product._id,
+        next.cantidad,
+        product.costoCentavos,
+        stockBeforeNewSale,
+      );
+      product.costoCentavos = fifo.remainingAverageCostCents;
+      await product.save();
+
+      const gross = next.precioFinalUnitarioCentavos * next.cantidad;
+      const total = Math.round((gross * (10000 - oldItem.bonificacionPuntosBase)) / 10000);
+      const net = Math.round(total / (1 + Number(oldItem.alicuotaIva) / 100));
+      nextItems.push({
+        productoId: oldItem.productoId,
+        productoCodigo: oldItem.productoCodigo,
+        productoNombre: oldItem.productoNombre,
+        cantidad: next.cantidad,
+        precioUnitarioCentavos: Math.round(next.precioFinalUnitarioCentavos / (1 + Number(oldItem.alicuotaIva) / 100)),
+        bonificacionPuntosBase: oldItem.bonificacionPuntosBase,
+        alicuotaIva: oldItem.alicuotaIva,
+        netoCentavos: net,
+        ivaCentavos: total - net,
+        costoUnitarioCentavos: fifo.averageUnitCostCents,
+        costoTotalCentavos: fifo.totalCostCents,
+        lotesConsumidos: fifo.consumptions,
+        proveedorId: oldItem.proveedorId,
+        proveedorNombre: oldItem.proveedorNombre,
+        totalCentavos: total,
+      } as SaleItem);
+
+      if (oldItem.cantidad !== next.cantidad) {
+        await this.movementModel.create({
+          productId: product._id,
+          productCode: product.codigo,
+          productName: product.nombre,
+          type: next.cantidad > oldItem.cantidad ? StockMovementType.DECREMENT : StockMovementType.INCREMENT,
+          previousStock: product.cantidadStock + next.cantidad - oldItem.cantidad,
+          currentStock: product.cantidadStock,
+          currentAverageCostCents: product.costoCentavos,
+          reason: `Modificación de venta #${sale.codigo}`,
+          referenceType: 'SALE_EDIT',
+          referenceId: sale._id,
+          referenceCode: sale.codigo,
+          actorId: actor.id,
+          actorName: actor.name,
+        });
+      }
+    }
+
+    const oldDebt = sale.medioPago === PaymentMethod.CREDIT ? sale.totalCentavos : 0;
+    const productsTotal = nextItems.reduce((sum, item) => sum + item.totalCentavos, 0);
+    const nextTotal = productsTotal + sale.transporteDescargaCentavos;
+    const newDebt = dto.medioPago === PaymentMethod.CREDIT ? nextTotal : 0;
+    const debtDelta = newDebt - oldDebt;
+    const convertingToCredit =
+      sale.medioPago !== PaymentMethod.CREDIT &&
+      dto.medioPago === PaymentMethod.CREDIT;
+
+    // Al corregir una venta que fue registrada con otro medio de pago, la
+    // cuenta corriente se habilita por el importe necesario para esa deuda.
+    // Esto evita obligar al dueño a salir de Ingresos y egresos, editar el
+    // cliente y volver a comenzar la corrección.
+    if (convertingToCredit) {
+      const requiredLimit =
+        client.saldoCuentaCorrienteCentavos + newDebt;
+      await this.clientModel.updateOne(
+        { _id: client._id },
+        {
+          $set: {
+            permiteCuentaCorriente: true,
+            limiteCreditoCentavos: Math.max(
+              client.limiteCreditoCentavos,
+              requiredLimit,
+            ),
+          },
+          $push: {
+            historialCambios: {
+              actorId: actor.id,
+              actorName: actor.name,
+              action: 'ENABLE_CREDIT_FROM_SALE_EDIT',
+              detail: `Cuenta corriente habilitada al corregir la venta #${sale.codigo}`,
+              date: new Date(),
+            },
+          },
+        },
+      ).exec();
+    }
+    if (debtDelta > 0) {
+      const updated = await this.clientModel.findOneAndUpdate(
+        {
+          _id: client._id,
+          activo: true,
+          ...(convertingToCredit ? {} : { permiteCuentaCorriente: true }),
+          $expr: { $lte: [{ $add: [{ $ifNull: ['$saldoCuentaCorrienteCentavos', 0] }, debtDelta] }, '$limiteCreditoCentavos'] },
+        },
+        { $inc: { saldoCuentaCorrienteCentavos: debtDelta } },
+        { new: true },
+      ).exec();
+      if (!updated) throw new ConflictException('La modificación supera el crédito disponible del cliente');
+    } else if (debtDelta < 0) {
+      await this.clientModel.updateOne({ _id: client._id }, { $inc: { saldoCuentaCorrienteCentavos: debtDelta } }).exec();
+    }
+
+    sale.items = nextItems;
+    sale.netoCentavos = nextItems.reduce((sum, item) => sum + item.netoCentavos, 0);
+    sale.ivaCentavos = nextItems.reduce((sum, item) => sum + item.ivaCentavos, 0);
+    sale.costoCentavos = nextItems.reduce((sum, item) => sum + (item.costoTotalCentavos ?? 0), 0);
+    sale.totalCentavos = nextTotal;
+    sale.medioPago = dto.medioPago;
+    sale.referenciaTransferencia = dto.medioPago === PaymentMethod.TRANSFER
+      ? dto.referenciaTransferencia!.trim()
+      : '';
+    sale.actorId = actor.id;
+    sale.actorName = actor.name;
+    const updatedSale = await sale.save();
+    await this.financeService.recordSale(updatedSale);
+    return updatedSale;
   }
 
   private async createInTransaction(dto: CreateSaleDto, actor: SaleActor) {

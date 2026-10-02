@@ -196,6 +196,16 @@ export class InventoryLotsService implements OnModuleInit {
     };
   }
 
+  /** Devuelve a sus lotes originales las unidades de una venta que será recalculada. */
+  async restoreConsumptions(consumptions: LotConsumption[]): Promise<void> {
+    for (const consumption of consumptions) {
+      await this.lotModel.updateOne(
+        { _id: consumption.lotId, cancelled: false },
+        { $inc: { remainingQuantity: consumption.quantity } },
+      ).exec();
+    }
+  }
+
   async adjust(
     productId: Types.ObjectId,
     delta: number,

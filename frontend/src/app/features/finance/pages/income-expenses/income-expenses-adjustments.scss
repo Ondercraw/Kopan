@@ -146,9 +146,49 @@
   gap: 6px;
 }
 
+.action .edit-sale,
+.action .sale-action {
+  display: inline-flex;
+  width: 148px;
+  min-height: 38px;
+  align-items: center;
+  justify-content: center;
+  gap: 5px;
+  box-sizing: border-box;
+  border: 1px solid #8a4b15;
+  border-radius: 10px;
+  background: #fff;
+  color: #713805;
+  padding: 7px 8px;
+  font-size: .72rem;
+  font-weight: 700;
+  line-height: 1.15;
+  text-align: center;
+  text-decoration: none;
+}
+
 .danger:disabled {
   cursor: wait;
   opacity: 0.65;
+}
+
+.sale-edit { width: min(920px, 100%); }
+.edit-warning { padding: 11px 13px; border-left: 4px solid #d26a13; border-radius: 8px; background: #fff0df; color: #7d3c08; }
+.sale-lines { display: grid; gap: 9px; }
+.sale-line { display: grid; grid-template-columns: minmax(180px, 1fr) 130px 210px; gap: 12px; align-items: end; padding: 12px; border: 1px solid #e2d1c4; border-radius: 11px; background: #fff; }
+.sale-line label, .sale-payment label { display: grid; gap: 5px; }
+.sale-line label span, .sale-payment label span { color: #704525; font-size: .72rem; font-weight: 750; }
+.sale-line input, .sale-payment input, .sale-payment select { width: 100%; padding: 10px 11px; border: 1px solid #d7c1b0; border-radius: 10px; background: #fff; color: #432915; }
+.sale-line .field-error { grid-column: 1 / -1; color: #a52c20; }
+.sale-payment { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-top: 14px; }
+.edit-total { display: flex; align-items: center; justify-content: space-between; margin-top: 14px; padding: 14px; border-radius: 10px; background: #f1e5db; }
+.edit-total strong { color: #713805; font: 1.35rem Georgia, serif; }
+.sale-review { padding: 25px 10px; text-align: center; }
+.sale-review > i { color: #d26a13; font-size: 2.2rem; }
+.sale-review h3 { margin: 8px 0; font: 1.5rem Georgia, serif; }
+
+@media (max-width: 700px) {
+  .sale-line, .sale-payment { grid-template-columns: 1fr; }
 }
 
 @media (max-width: 1050px) {
@@ -174,6 +214,11 @@
 
   .action a,
   .action button {
+    width: 100%;
+  }
+
+  .action .edit-sale,
+  .action .sale-action {
     width: 100%;
   }
 }

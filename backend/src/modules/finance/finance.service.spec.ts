@@ -88,7 +88,7 @@ describe('FinanceService', () => {
     await service.recordSale(sale as never);
 
     expect(movementModel.updateOne).toHaveBeenCalledTimes(1);
-    expect(movementModel.updateOne.mock.calls[0][1].$setOnInsert).toMatchObject(
+    expect(movementModel.updateOne.mock.calls[0][1].$set).toMatchObject(
       {
         tipo: FinancialMovementKind.INCOME,
         categoria: FinancialMovementCategory.SALE,

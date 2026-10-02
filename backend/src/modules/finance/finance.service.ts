@@ -80,8 +80,7 @@ export class FinanceService {
       this.movementModel.updateOne(
         { sourceKey: `sale:${sale._id.toString()}:income` },
         {
-          $setOnInsert: {
-            sourceKey: `sale:${sale._id.toString()}:income`,
+          $set: {
             tipo: FinancialMovementKind.INCOME,
             categoria:
               method === FinancialPaymentMethod.CHECK
@@ -100,7 +99,6 @@ export class FinanceService {
             medioPago: method,
             disponible: available,
             pagado: false,
-            fechaMovimiento: sale.createdAt ?? new Date(),
             ventaId: sale._id,
             ventaCodigo: sale.codigo,
             clienteId: sale.clienteId,
@@ -109,6 +107,10 @@ export class FinanceService {
             chequeNumero: sale.chequeNumero ?? '',
             actorId: sale.actorId,
             actorName: sale.actorName,
+          },
+          $setOnInsert: {
+            sourceKey: `sale:${sale._id.toString()}:income`,
+            fechaMovimiento: sale.createdAt ?? new Date(),
           },
         },
         { upsert: true },

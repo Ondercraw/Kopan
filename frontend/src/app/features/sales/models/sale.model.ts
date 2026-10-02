@@ -48,6 +48,9 @@ export interface Sale {
   transporteDescargaCentavos?: number;
   totalCentavos: number;
   medioPago: PaymentMethod;
+  montoCobradoCuentaCorrienteCentavos?: number;
+  montoCobradoEfectivoCentavos?: number;
+  montoCobradoTransferenciaCentavos?: number;
   referenciaTransferencia: string;
   chequeId?: string | null;
   chequeNumero?: string;
@@ -56,4 +59,14 @@ export interface Sale {
   estadoFiscal: string;
   actorName: string;
   createdAt: string;
+}
+
+export interface UpdateSalePayload {
+  medioPago: Exclude<PaymentMethod, 'CHEQUE'>;
+  referenciaTransferencia?: string;
+  items: Array<{
+    productoId: string;
+    cantidad: number;
+    precioFinalUnitarioCentavos: number;
+  }>;
 }

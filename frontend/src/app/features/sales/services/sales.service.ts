@@ -1,7 +1,7 @@
 import { HttpClient, HttpParams } from '@angular/common/http';
 import { Injectable, inject } from '@angular/core';
 import { environment } from '../../../../environments/environment';
-import { CreateSalePayload, PaymentMethod, Sale } from '../models/sale.model';
+import { CreateSalePayload, PaymentMethod, Sale, UpdateSalePayload } from '../models/sale.model';
 export interface SaleFilters {
   from?: string;
   to?: string;
@@ -23,6 +23,9 @@ export class SalesService {
   }
   findOne(id: string) {
     return this.http.get<Sale>(`${this.base}/${id}`, { withCredentials: true });
+  }
+  update(id: string, payload: UpdateSalePayload) {
+    return this.http.patch<Sale>(`${this.base}/${id}`, payload, { withCredentials: true });
   }
   findTransfers() {
     return this.http.get<Sale[]>(`${this.base}/transfers`, { withCredentials: true });

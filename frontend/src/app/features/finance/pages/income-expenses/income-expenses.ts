@@ -29,6 +29,15 @@ import {
 import { FinanceService } from '../../services/finance.service';
 import { ChecksService } from '../../../checks/services/checks.service';
 import { RouterLink } from '@angular/router';
+import { PaymentMethod, Sale } from '../../../sales/models/sale.model';
+import { SalesService } from '../../../sales/services/sales.service';
+
+interface EditableSaleLine {
+  productoId: string;
+  productoNombre: string;
+  cantidad: number | null;
+  precioFinalPesos: number | null;
+}
 
 const EMPTY: FinancialSummary = {
   ingresosCentavos: 0,
@@ -66,6 +75,7 @@ export class IncomeExpensesPage implements OnInit {
   private readonly api = inject(FinanceService);
   private readonly suppliersApi = inject(SuppliersService);
   private readonly checksApi = inject(ChecksService);
+  private readonly salesApi = inject(SalesService);
   readonly items = signal<FinancialMovement[]>([]);
   readonly period = signal<FinancialSummary>(EMPTY);
   readonly overall = signal<FinancialSummary>(EMPTY);
@@ -78,6 +88,9 @@ export class IncomeExpensesPage implements OnInit {
   readonly paying = signal<FinancialMovement | null>(null);
   readonly collecting = signal<FinancialMovement | null>(null);
   readonly cancelling = signal<FinancialMovement | null>(null);
+  readonly editingSale = signal<Sale | null>(null);
+  readonly editSaleReview = signal(false);
+  readonly editSaleAttempted = signal(false);
   readonly cancelAttempted = signal(false);
   readonly expenseAttempted = signal(false);
   readonly page = signal(1);
@@ -94,6 +107,9 @@ export class IncomeExpensesPage implements OnInit {
   payMethod: Extract<FinancialPaymentMethod, 'EFECTIVO' | 'TRANSFERENCIA'> = 'EFECTIVO';
   collectionDestination: Extract<FinancialPaymentMethod, 'EFECTIVO' | 'TRANSFERENCIA'> = 'EFECTIVO';
   cancelReason = '';
+  editSaleLines: EditableSaleLine[] = [];
+  editSalePayment: Exclude<PaymentMethod, 'CHEQUE'> = 'EFECTIVO';
+  editSaleTransferReference = '';
   readonly supplierOptions = computed<SearchableSelectOption[]>(() =>
     this.suppliers()
       .filter((s) => s.activo)
@@ -288,6 +304,93 @@ export class IncomeExpensesPage implements OnInit {
       error: (e) => {
         this.error.set(e.error?.message ?? 'No se pudo cobrar el cheque');
         this.collecting.set(null);
+        this.saving.set(false);
+      },
+    });
+  }
+
+  openSaleEdit(item: FinancialMovement) {
+    if (!item.ventaId) return;
+    this.saving.set(true);
+    this.error.set(null);
+    this.salesApi.findOne(item.ventaId).subscribe({
+      next: (sale) => {
+        this.editSalePayment = sale.medioPago === 'CHEQUE' ? 'EFECTIVO' : sale.medioPago;
+        this.editSaleTransferReference = sale.referenciaTransferencia ?? '';
+        this.editSaleLines = sale.items.map((line) => {
+          const discountFactor = (10000 - line.bonificacionPuntosBase) / 10000;
+          const finalUnitCents = Math.round(line.totalCentavos / line.cantidad / discountFactor);
+          return {
+            productoId: line.productoId,
+            productoNombre: line.productoNombre,
+            cantidad: line.cantidad,
+            precioFinalPesos: finalUnitCents / 100,
+          };
+        });
+        this.editSaleAttempted.set(false);
+        this.editSaleReview.set(false);
+        this.editingSale.set(sale);
+        this.saving.set(false);
+      },
+      error: (e) => {
+        this.error.set(e.error?.message ?? 'No se pudo cargar la venta');
+        this.saving.set(false);
+      },
+    });
+  }
+
+  invalidEditLine(line: EditableSaleLine) {
+    return !Number.isInteger(line.cantidad) || (line.cantidad ?? 0) < 1 ||
+      !Number.isFinite(line.precioFinalPesos) || (line.precioFinalPesos ?? 0) < 0;
+  }
+
+  editSaleTotalCents() {
+    const sale = this.editingSale();
+    return this.editSaleLines.reduce(
+      (sum, line, index) => {
+        const discount = sale?.items[index]?.bonificacionPuntosBase ?? 0;
+        return sum + Math.round(
+          (line.precioFinalPesos ?? 0) * 100 * (line.cantidad ?? 0) * (10000 - discount) / 10000,
+        );
+      },
+      sale?.transporteDescargaCentavos ?? 0,
+    );
+  }
+
+  reviewSaleEdit() {
+    this.editSaleAttempted.set(true);
+    if (
+      this.editSaleLines.some((line) => this.invalidEditLine(line)) ||
+      (this.editSalePayment === 'TRANSFERENCIA' && !this.editSaleTransferReference.trim())
+    ) return;
+    this.editSaleReview.set(true);
+  }
+
+  saveSaleEdit() {
+    const sale = this.editingSale();
+    if (!sale) return;
+    this.saving.set(true);
+    this.salesApi.update(sale._id, {
+      medioPago: this.editSalePayment,
+      referenciaTransferencia: this.editSalePayment === 'TRANSFERENCIA'
+        ? this.editSaleTransferReference.trim()
+        : undefined,
+      items: this.editSaleLines.map((line) => ({
+        productoId: line.productoId,
+        cantidad: line.cantidad!,
+        precioFinalUnitarioCentavos: Math.round(line.precioFinalPesos! * 100),
+      })),
+    }).subscribe({
+      next: () => {
+        this.editingSale.set(null);
+        this.editSaleReview.set(false);
+        this.saving.set(false);
+        this.success.set(`Venta #${sale.codigo} actualizada correctamente`);
+        this.load();
+      },
+      error: (e) => {
+        this.error.set(e.error?.message ?? 'No se pudo modificar la venta');
+        this.editSaleReview.set(false);
         this.saving.set(false);
       },
     });

@@ -1,4 +1,4 @@
-import { Body, Controller, Get, Param, Post, Query, UseGuards } from '@nestjs/common';
+import { Body, Controller, Get, Param, Patch, Post, Query, UseGuards } from '@nestjs/common';
 import { CurrentUser } from '../../common/decorators/current-user.decorator';
 import { Roles } from '../../common/decorators/roles.decorator';
 import { UserRole } from '../../common/enums/user-role.enum';
@@ -7,6 +7,7 @@ import { RolesGuard } from '../../common/guards/roles.guard';
 import { MongoIdPipe } from '../../common/pipes/mongo-id.pipe';
 import type { JwtPayload } from '../auth/interfaces/jwt-payload.interface';
 import { CreateSaleDto } from './dto/create-sale.dto';
+import { UpdateSaleDto } from './dto/update-sale.dto';
 import { SalesService } from './sales.service';
 
 const SALE_CREATORS = [UserRole.JEFE, UserRole.VENDEDOR];
@@ -32,6 +33,17 @@ export class SalesController {
     @CurrentUser() user: JwtPayload,
   ) {
     return this.service.create(dto, {
+      id: user.sub,
+      name: user.nombre,
+      roles: user.roles,
+    });
+  }
+  @Patch(':id') @Roles(UserRole.JEFE) update(
+    @Param('id', MongoIdPipe) id: string,
+    @Body() dto: UpdateSaleDto,
+    @CurrentUser() user: JwtPayload,
+  ) {
+    return this.service.update(id, dto, {
       id: user.sub,
       name: user.nombre,
       roles: user.roles,

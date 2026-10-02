@@ -169,7 +169,10 @@
           } @else if (item.categoria === 'COMPRA_PRODUCTOS') {
             <a routerLink="/compras">Gestionar compra</a>
           } @else if (item.categoria === 'VENTA' && item.ventaId) {
-            <a [routerLink]="['/compras']" [queryParams]="{ reponerVenta: item.ventaId }">Reponer productos</a>
+            <button type="button" class="edit-sale" (click)="openSaleEdit(item)">
+              <i class="ti ti-pencil"></i> Modificar venta
+            </button>
+            <a class="sale-action" [routerLink]="['/compras']" [queryParams]="{ reponerVenta: item.ventaId }">Reponer productos</a>
           } @else if (item.tipo === 'GASTO') {
             @if (!item.pagado) {
               <button type="button" (click)="openPay(item)">Pagar gasto</button>
@@ -250,6 +253,45 @@
           {{ saving() ? 'Guardando...' : 'Agregar gasto' }}
         </button>
       </footer>
+    </section>
+  </div>
+}
+@if (editingSale(); as sale) {
+  <div class="overlay">
+    <section class="modal sale-edit" role="dialog" aria-modal="true">
+      <header>
+        <div><span>VENTA #{{ sale.codigo }}</span><h2>Modificar venta confirmada</h2></div>
+        <button class="icon" type="button" (click)="editingSale.set(null)"><i class="ti ti-x"></i></button>
+      </header>
+      @if (!editSaleReview()) {
+        <p class="edit-warning"><i class="ti ti-alert-triangle"></i> Los cambios actualizarán el stock, el ingreso disponible y la cuenta corriente del cliente.</p>
+        <div class="sale-lines">
+          @for (line of editSaleLines; track line.productoId) {
+            <div class="sale-line">
+              <strong>{{ line.productoNombre }}</strong>
+              <label><span>Cantidad *</span><input type="number" min="1" step="1" [(ngModel)]="line.cantidad" [class.field-invalid]="editSaleAttempted() && invalidEditLine(line)" /></label>
+              <label><span>Precio final unitario *</span><app-currency-input [(ngModel)]="line.precioFinalPesos" [class.field-invalid]="editSaleAttempted() && invalidEditLine(line)" /></label>
+              @if (editSaleAttempted() && invalidEditLine(line)) { <small class="field-error">Ingresá una cantidad entera mayor a 0 y un precio válido.</small> }
+            </div>
+          }
+        </div>
+        <div class="sale-payment">
+          <label><span>Medio de pago *</span><select [(ngModel)]="editSalePayment"><option value="EFECTIVO">Efectivo</option><option value="TRANSFERENCIA">Transferencia / Mercado Pago</option><option value="CREDITO">Cuenta corriente</option></select></label>
+          @if (editSalePayment === 'TRANSFERENCIA') {
+            <label><span>Referencia *</span><input [(ngModel)]="editSaleTransferReference" maxlength="100" [class.field-invalid]="editSaleAttempted() && !editSaleTransferReference.trim()" /></label>
+          }
+        </div>
+        <div class="edit-total"><span>Nuevo total</span><strong>{{ money(editSaleTotalCents()) }}</strong></div>
+        <footer><button class="secondary" (click)="editingSale.set(null)">Cancelar</button><button class="primary" (click)="reviewSaleEdit()">Revisar cambios</button></footer>
+      } @else {
+        <div class="sale-review">
+          <i class="ti ti-alert-triangle"></i>
+          <h3>¿Confirmar modificación?</h3>
+          <p>La venta quedará en <strong>{{ method(editSalePayment) }}</strong> por <strong>{{ money(editSaleTotalCents()) }}</strong>.</p>
+          <p>Esta acción recalculará las existencias y los saldos relacionados.</p>
+        </div>
+        <footer><button class="secondary" (click)="editSaleReview.set(false)">Volver</button><button class="primary" (click)="saveSaleEdit()" [disabled]="saving()">{{ saving() ? 'Guardando...' : 'Confirmar cambios' }}</button></footer>
+      }
     </section>
   </div>
 }
