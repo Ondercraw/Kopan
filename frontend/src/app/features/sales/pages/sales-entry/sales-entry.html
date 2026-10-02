@@ -270,11 +270,24 @@
       </p>
       <footer>
         <button type="button" (click)="reviewing.set(false)" [disabled]="saving()">Volver</button
-        ><div class="confirmation-actions"><button class="receipt-action" type="button" (click)="exportDraftReceipt()" [disabled]="saving()">
-          <i class="ti ti-file-type-pdf"></i> Generar PDF
-        </button><button class="confirm" type="button" (click)="confirm()" [disabled]="saving()">
+        ><div class="confirmation-actions"><button class="confirm" type="button" (click)="confirm()" [disabled]="saving()">
           {{ saving() ? 'Confirmando...' : 'Confirmar venta' }}
         </button></div>
+      </footer>
+    </section>
+  </div>
+}
+@if (confirmedReceipt(); as receipt) {
+  <div class="overlay">
+    <section class="modal receipt-ready" role="dialog" aria-modal="true">
+      <span>VENTA CONFIRMADA</span>
+      <h2>Venta #{{ receipt.saleCode }} registrada</h2>
+      <p>El comprobante utilizará el número {{ receipt.saleCode.toString().padStart(8, '0') }}.</p>
+      <footer>
+        <button type="button" (click)="confirmedReceipt.set(null)">Cerrar</button>
+        <button class="receipt-action" type="button" (click)="exportConfirmedReceipt()">
+          <i class="ti ti-file-type-pdf"></i> Generar PDF
+        </button>
       </footer>
     </section>
   </div>
