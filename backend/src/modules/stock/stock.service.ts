@@ -266,12 +266,9 @@ export class StockService {
               ? ` · Lote de compra #${result.lot.purchaseCode} (${result.lot.supplierName || 'sin proveedor'})`
               : ` · Lote de ${result.lot.kind === 'AJUSTE' ? 'ajuste manual' : 'valuación inicial'} (${result.lot.supplierName || 'sin proveedor'})`;
       } else {
-        product.costoCentavos = await this.inventoryLots.adjust(
-          product._id,
-          stockDelta,
-          product.cantidadStock - stockDelta,
-          oldAverage,
-        );
+        product.costoCentavos = dto.motivoAjuste === 'RETURN'
+          ? await this.inventoryLots.recordReturn(product._id, stockDelta, product.cantidadStock, oldAverage)
+          : await this.inventoryLots.adjust(product._id, stockDelta, product.cantidadStock - stockDelta, oldAverage);
       }
       await product.save();
       const units = Math.abs(stockDelta);

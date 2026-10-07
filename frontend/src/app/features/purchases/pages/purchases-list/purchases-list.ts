@@ -227,7 +227,8 @@ export class PurchasesListPage implements OnInit {
     }
   }
   selectOpeningProduct(productId: string) {
-    this.lines = [{ productId, quantity: 0, unitCostPesos: 0 }];
+    const product = this.inventory().find((item) => item._id === productId);
+    this.lines = [{ productId, quantity: 0, unitCostPesos: (product?.ultimoCostoCentavos ?? 0) / 100 }];
     this.selectProductSupplier(productId);
   }
   onProductChange(index: number, productId: string) {
@@ -236,6 +237,8 @@ export class PurchasesListPage implements OnInit {
       return;
     }
     this.lines[index].productId = productId;
+    const product = this.inventory().find((item) => item._id === productId);
+    this.lines[index].unitCostPesos = (product?.ultimoCostoCentavos ?? 0) / 100;
     this.selectProductSupplier(productId);
   }
   onSupplierChange(supplierId: string) {

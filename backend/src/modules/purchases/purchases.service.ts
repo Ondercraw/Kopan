@@ -738,6 +738,8 @@ export class PurchasesService {
       .exec();
     if (!purchase)
       throw new ConflictException('La compra ya fue cancelada o no existe');
+    if ((purchase.montoPagadoCentavos ?? 0) > 0)
+      throw new ConflictException('Esta compra tiene pagos registrados. Revertí los pagos antes de anularla');
     const lots = await this.lotModel
       .find({ purchaseId: purchase._id, cancelled: false })
       .exec();
@@ -766,6 +768,8 @@ export class PurchasesService {
         throw new ConflictException(
           'No hay stock suficiente para cancelar la compra',
         );
+      if ((product.stockMostrador ?? 0) + (product.stockDeposito ?? 0) + (product.stockGalpon ?? 0) > product.cantidadStock)
+        throw new ConflictException('Primero devolvé a pendiente de asignación las unidades de esta compra que ya están ubicadas');
       changed.push({ product, quantity });
     }
     await this.lotModel

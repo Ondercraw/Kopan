@@ -27,3 +27,31 @@
 .confirmed-message i { font-size: 1.35rem; }
 .client-price-save { display:flex;align-items:center;gap:5px;margin-top:5px;color:#713508;font-size:.66rem;line-height:1.2;cursor:pointer; }
 .client-price-save input { width:15px;height:15px;flex:0 0 15px;accent-color:#713508; }
+.sale-card > footer > .document-actions {
+  display: flex;
+  flex-direction: row;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 10px;
+}
+
+.remittance-head,
+.remittance-line {
+  grid-template-columns: minmax(0, 1fr) 110px;
+}
+
+.remittance-line > span {
+  text-align: center;
+}
+
+@media (max-width: 600px) {
+  .sale-card > footer > .document-actions {
+    flex-direction: column;
+  }
+  .document-actions button {
+    width: 100%;
+  }
+  .remittance-line {
+    grid-template-columns: minmax(0, 1fr) 70px;
+  }
+}

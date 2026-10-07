@@ -74,6 +74,7 @@ export class SalesEntryPage implements OnInit {
   readonly lines = signal<DraftLine[]>([]);
   readonly saving = signal(false);
   readonly reviewing = signal(false);
+  readonly reviewingRemittance = signal(false);
   readonly clientModalOpen = signal(false);
   readonly editingClient = signal<Client | null>(null);
   readonly clientFormOptions = signal<ClientOptions>({groups:[],locations:[],sellers:[],priceLists:[]});
@@ -355,6 +356,20 @@ export class SalesEntryPage implements OnInit {
     this.reviewing.set(true);
   }
 
+  reviewRemittance() {
+    this.reviewAttempted.set(true);
+    if (!this.selectedClient() || !this.lines().length) {
+      this.error.set('Seleccioná un cliente y agregá al menos un producto para el remito');
+      return;
+    }
+    if (this.hasInvalidQuantities()) {
+      this.error.set('Las cantidades del remito deben ser enteras, mayores a cero y no superar el stock disponible');
+      return;
+    }
+    this.error.set(null);
+    this.reviewingRemittance.set(true);
+  }
+
   reviewTime(): string {
     return new Intl.DateTimeFormat('es-AR', {
       timeZone: 'America/Argentina/Buenos_Aires',
@@ -457,6 +472,15 @@ export class SalesEntryPage implements OnInit {
   confirmRemittance() {
     const client = this.selectedClient();
     if (!client || this.saving()) return;
+    // Debe abrirse durante el clic del usuario: si se espera a la API, el navegador
+    // puede bloquear la ventana emergente y el remito queda registrado sin PDF.
+    const popup = window.open('', '_blank', 'width=900,height=760');
+    if (!popup) {
+      this.error.set('El navegador bloqueó el remito. Habilitá las ventanas emergentes y volvé a intentarlo. No se registró ningún remito.');
+      return;
+    }
+    popup.document.write('<!doctype html><html lang="es"><head><meta charset="utf-8"><title>Preparando remito</title></head><body><p>Preparando el remito...</p></body></html>');
+    popup.document.close();
     const receiptSnapshot = this.receiptSnapshot('REMITTANCE');
     this.saving.set(true);
     this.remittancesApi.create({
@@ -470,14 +494,27 @@ export class SalesEntryPage implements OnInit {
         bonificacionPuntosBase: Math.round(line.discountPercent * 100),
       })),
     }).subscribe({
-      next: (remittance) => this.finishDocument({
-        ...receiptSnapshot,
-        documentCode: remittance.codigo,
-        date: new Date(remittance.createdAt),
-      }),
+      next: (remittance) => {
+        const receipt = { ...receiptSnapshot, documentCode: remittance.codigo, date: new Date(remittance.createdAt) };
+        this.finishDocument(receipt);
+        if (popup.closed) {
+          this.error.set('El remito quedó registrado, pero se cerró la ventana del PDF. Usá «Reimprimir remito» para abrirlo nuevamente.');
+        } else {
+          this.renderReceipt(receipt, popup);
+        }
+      },
       error: (e) => {
-        this.error.set(e.error?.message ?? 'No se pudo confirmar el remito');
-        this.reviewing.set(false);
+        const detail = e.error?.message;
+        const message = Array.isArray(detail)
+          ? detail.join('. ')
+          : typeof detail === 'string' ? detail : 'No se pudo confirmar el remito';
+        this.error.set(message);
+        if (!popup.closed) {
+          popup.document.open();
+          popup.document.write('<!doctype html><html lang="es"><head><meta charset="utf-8"><title>Remito no generado</title></head><body style="font:16px Arial,sans-serif;margin:32px;color:#713508"><h1>No se generó el remito</h1><p id="remittance-error"></p><p>Corregí el problema en la pantalla de Ventas y volvé a intentarlo. No se registró ningún remito.</p></body></html>');
+          popup.document.close();
+          popup.document.getElementById('remittance-error')!.textContent = message;
+        }
         this.saving.set(false);
       },
     });
@@ -513,6 +550,7 @@ export class SalesEntryPage implements OnInit {
     this.lines.set([]);
     this.confirmedReceipt.set(receipt);
     this.reviewing.set(false);
+    this.reviewingRemittance.set(false);
     this.saving.set(false);
     this.transferReference = '';
     this.observations = '';
@@ -536,9 +574,10 @@ export class SalesEntryPage implements OnInit {
     this.renderReceipt(receipt, popup);
   }
   private renderReceipt(receipt: ReceiptView, popup: Window): void {
+    const isRemittance = receipt.kind !== 'SALE';
     const rows = receipt.items.map((item) => {
-      return `<tr><td class="quantity">${item.quantity}</td><td>${this.escapeHtml(item.name)}</td><td class="money">${this.escapeHtml(this.money(item.unitPriceCents))}</td><td class="money total-line">${this.escapeHtml(this.money(item.totalCents))}</td></tr>`;
-    }).join('') + (receipt.transportDownloadCents > 0
+      return `<tr><td class="quantity">${item.quantity}</td><td>${this.escapeHtml(item.name)}</td>${isRemittance ? '' : `<td class="money">${this.escapeHtml(this.money(item.unitPriceCents))}</td><td class="money total-line">${this.escapeHtml(this.money(item.totalCents))}</td>`}</tr>`;
+    }).join('') + (!isRemittance && receipt.transportDownloadCents > 0
       ? `<tr><td class="quantity">1</td><td>TRANSPORTE Y DESCARGA</td><td class="money">${this.escapeHtml(this.money(receipt.transportDownloadCents))}</td><td class="money total-line">${this.escapeHtml(this.money(receipt.transportDownloadCents))}</td></tr>`
       : '');
     const date = new Intl.DateTimeFormat('es-AR', {
@@ -561,7 +600,7 @@ export class SalesEntryPage implements OnInit {
     popup.document.open();
     popup.document.write(`<!doctype html><html lang="es"><head><meta charset="utf-8"><title>${this.escapeHtml(title)}</title><style>
       @page{size:A4;margin:0}*{box-sizing:border-box}body{margin:0;background:#f4ece5;color:#2d190e;font-family:Arial,sans-serif}.ticket{width:min(100%,820px);min-height:calc(100vh - 48px);margin:24px auto;padding:34px;border:1px solid #d8c2b2;background:#fff;box-shadow:0 12px 34px #3f210f20}.brand{display:flex;justify-content:space-between;align-items:flex-start;gap:24px;padding-bottom:18px;border-bottom:3px solid #713508}.brand-mark{display:flex;align-items:center;gap:12px}.logo{display:grid;place-items:center;width:48px;height:48px;background:#713508;color:#fff;font:700 28px Georgia,serif}.brand h1{margin:0;font:700 25px Georgia,serif}.brand p{margin:4px 0 0;color:#8a654d;font-size:12px;letter-spacing:.08em}.number{text-align:right}.number strong{display:block;font:700 24px Georgia,serif;color:#713508}.number .receipt-date{display:block;margin-top:5px;color:#4c2b18;font-size:20px;font-weight:800}.internal{margin:16px 0;padding:9px 12px;border-left:4px solid #b86719;background:#fbf1e7;color:#713508;font-size:12px;font-weight:700}.data{display:grid;grid-template-columns:1fr;gap:10px;margin:18px 0 24px}.data div{display:grid;grid-template-columns:110px 1fr;gap:8px;padding-bottom:7px;border-bottom:1px solid #eaded5}.data span,.observations span{color:#846b5b;font-size:11px;font-weight:700;text-transform:uppercase}.data strong{font-size:13px;overflow-wrap:anywhere}.observations{margin:18px 0 0;padding:12px 14px;border-left:4px solid #b86719;background:#fbf6f1}.observations p{margin:5px 0 0;font-size:13px;line-height:1.45;white-space:pre-wrap;overflow-wrap:anywhere}table{width:100%;border-collapse:collapse}th{padding:10px 9px;background:#713508;color:#fff;font-size:11px;letter-spacing:.06em;text-align:left;text-transform:uppercase}td{padding:12px 9px;border-bottom:1px solid #eaded5;font-size:13px}.quantity{width:72px;text-align:center}.money{width:145px;text-align:right;font-variant-numeric:tabular-nums}.total-line{font-weight:700}.grand-total{display:flex;justify-content:flex-end;align-items:center;gap:30px;margin-top:28px;padding:20px 22px;background:#f1e2d4;border:2px solid #713508}.grand-total span{font-size:14px;font-weight:800;letter-spacing:.08em;text-transform:uppercase}.grand-total strong{font:700 32px Georgia,serif;color:#713508}.footer{margin-top:26px;padding-top:14px;border-top:1px dashed #cbb5a4;color:#806858;font-size:11px;text-align:center}@media(max-width:650px){.ticket{margin:0;padding:20px;box-shadow:none}.brand,.data{grid-template-columns:1fr;display:grid}.number{text-align:left}.data div{grid-template-columns:90px 1fr}.money{width:auto}.grand-total{justify-content:space-between}.grand-total strong{font-size:25px}}@media print{body{background:#fff}.ticket{width:100%;min-height:auto;margin:0;padding:12mm;border:0;box-shadow:none}.no-print{display:none!important}.number .receipt-date{font-size:22px}}
-    </style></head><body><main class="ticket"><header class="brand"><div class="brand-mark"><div class="logo">K</div><div><h1>Distribuidora Kopan</h1><p>${documentLabel}</p></div></div><div class="number"><strong>Numero: ${receiptNumber}</strong><span class="receipt-date">${this.escapeHtml(date)}</span></div></header><p class="internal">${receipt.kind === 'SALE' ? 'COMPROBANTE INTERNO' : 'REMITO INTERNO'} · NO VÁLIDO COMO FACTURA</p><section class="data"><div><span>Cliente</span><strong>#${receipt.clientCode} · ${this.escapeHtml(receipt.clientName)}</strong></div><div><span>Dirección</span><strong>${this.escapeHtml(receipt.clientAddress || 'Sin informar')}</strong></div><div><span>Localidad</span><strong>${this.escapeHtml(receipt.clientLocation || 'Sin informar')}</strong></div>${receipt.kind === 'SALE' ? `<div><span>Pago</span><strong>${this.escapeHtml(payment)}</strong></div>` : ''}<div><span>Vendedor</span><strong>${this.escapeHtml(receipt.sellerName)}</strong></div></section><table><thead><tr><th class="quantity">Cantidad</th><th>Producto</th><th class="money">Precio unitario</th><th class="money">Total</th></tr></thead><tbody>${rows}</tbody></table><section class="grand-total"><span>Total</span><strong>${this.escapeHtml(this.money(receipt.totalCents))}</strong></section><p class="footer">Gracias por su compra · Distribuidora Kopan.</p>${observations}</main><script>window.onload=()=>{document.title=${JSON.stringify(title)};setTimeout(()=>window.print(),150)};<\/script></body></html>`);
+    </style></head><body><button class="no-print" type="button" onclick="window.print()" style="display:block;margin:16px auto;padding:10px 16px;border:1px solid #713508;border-radius:9px;background:#fff7ef;color:#713508;font-weight:700;cursor:pointer">Imprimir o guardar PDF</button><main class="ticket"><header class="brand"><div class="brand-mark"><div class="logo">K</div><div><h1>Distribuidora Kopan</h1><p>${documentLabel}</p></div></div><div class="number"><strong>Numero: ${receiptNumber}</strong><span class="receipt-date">${this.escapeHtml(date)}</span></div></header><p class="internal">${receipt.kind === 'SALE' ? 'COMPROBANTE INTERNO' : 'REMITO INTERNO'} · NO VÁLIDO COMO FACTURA</p><section class="data"><div><span>Cliente</span><strong>#${receipt.clientCode} · ${this.escapeHtml(receipt.clientName)}</strong></div><div><span>Dirección</span><strong>${this.escapeHtml(receipt.clientAddress || 'Sin informar')}</strong></div><div><span>Localidad</span><strong>${this.escapeHtml(receipt.clientLocation || 'Sin informar')}</strong></div>${receipt.kind === 'SALE' ? `<div><span>Pago</span><strong>${this.escapeHtml(payment)}</strong></div>` : ''}<div><span>Vendedor</span><strong>${this.escapeHtml(receipt.sellerName)}</strong></div></section><table><thead><tr><th class="quantity">Cantidad</th><th>Producto</th>${isRemittance ? '' : '<th class="money">Precio unitario</th><th class="money">Total</th>'}</tr></thead><tbody>${rows}</tbody></table>${isRemittance ? '' : `<section class="grand-total"><span>Total</span><strong>${this.escapeHtml(this.money(receipt.totalCents))}</strong></section><p class="footer">Gracias por su compra · Distribuidora Kopan.</p>`}${observations}</main><script>window.onload=()=>{document.title=${JSON.stringify(title)};setTimeout(()=>window.print(),150)};<\/script></body></html>`);
     popup.document.close();
     popup.focus();
   }

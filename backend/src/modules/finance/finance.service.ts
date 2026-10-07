@@ -33,6 +33,7 @@ import {
 } from '../stock/schemas/stock-movement.schema';
 import { StockMovementType } from '../stock/enums/stock-movement-type.enum';
 import { InventoryLotsService } from '../purchases/inventory-lots.service';
+import { AccountPayment, AccountPaymentDocument } from '../accounts/schemas/account-payment.schema';
 
 interface FinanceActor {
   id: string;
@@ -66,6 +67,8 @@ export class FinanceService {
     @InjectModel(StockMovement.name)
     private readonly stockMovementModel: Model<StockMovementDocument>,
     private readonly inventoryLots: InventoryLotsService,
+    @InjectModel(AccountPayment.name)
+    private readonly accountPaymentModel: Model<AccountPaymentDocument>,
   ) {}
 
   async recordSale(sale: SaleDocument): Promise<void> {
@@ -120,6 +123,27 @@ export class FinanceService {
   }
 
   async cancelSaleRecord(sale: SaleDocument, reason: string, actor: FinanceActor): Promise<void> {
+    const cancelledAt = new Date();
+    const recordedPayments = await this.accountPaymentModel.find({
+      comprobanteTipo: 'VENTA', comprobanteId: sale._id, cancelado: { $ne: true },
+    }).lean().exec();
+    const recordedTotal = recordedPayments.reduce((sum, payment) => sum + payment.montoCentavos, 0);
+    if (recordedTotal !== (sale.montoCobradoCuentaCorrienteCentavos ?? 0))
+      throw new ConflictException('Los cobros de esta venta no coinciden con su historial. Revisalos antes de anularla');
+    const incomePayments = await this.movementModel.find({
+      ventaId: sale._id, categoria: FinancialMovementCategory.ACCOUNT_PAYMENT, cancelado: { $ne: true },
+    }).lean().exec();
+    if (incomePayments.reduce((sum, payment) => sum + payment.montoCentavos, 0) !== recordedTotal)
+      throw new ConflictException('Los ingresos de esta venta no coinciden con los cobros registrados. Revisalos antes de anularla');
+    await this.accountPaymentModel.updateMany(
+      { comprobanteTipo: 'VENTA', comprobanteId: sale._id, cancelado: { $ne: true } },
+      { $set: { cancelado: true, motivoCancelacion: reason } },
+    ).exec();
+    await this.movementModel.updateMany(
+      { ventaId: sale._id, categoria: FinancialMovementCategory.ACCOUNT_PAYMENT, cancelado: { $ne: true } },
+      { $set: { cancelado: true, disponible: false, motivoCancelacion: reason,
+        canceladoAt: cancelledAt, canceladoPorId: actor.id, canceladoPorNombre: actor.name } },
+    ).exec();
     await this.movementModel.updateOne(
       { sourceKey: `sale:${sale._id.toString()}:income`, cancelado: { $ne: true } },
       { $set: {
@@ -801,6 +825,7 @@ export class FinanceService {
               income,
               { $ne: ['$disponible', true] },
               eq('medioPago', FinancialPaymentMethod.CREDIT),
+              { $ne: ['$cancelado', true] },
             ),
             pendingExpenses: amountWhenValue(
               {

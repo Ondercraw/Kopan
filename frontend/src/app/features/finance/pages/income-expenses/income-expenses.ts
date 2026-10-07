@@ -31,6 +31,8 @@ import { ChecksService } from '../../../checks/services/checks.service';
 import { RouterLink } from '@angular/router';
 import { PaymentMethod, Sale } from '../../../sales/models/sale.model';
 import { SalesService } from '../../../sales/services/sales.service';
+import { PurchasesService } from '../../../purchases/services/purchases.service';
+import { ClientsService } from '../../../clients/services/clients.service';
 
 interface EditableSaleLine {
   productoId: string;
@@ -76,6 +78,8 @@ export class IncomeExpensesPage implements OnInit {
   private readonly suppliersApi = inject(SuppliersService);
   private readonly checksApi = inject(ChecksService);
   private readonly salesApi = inject(SalesService);
+  private readonly purchasesApi = inject(PurchasesService);
+  private readonly clientsApi = inject(ClientsService);
   readonly items = signal<FinancialMovement[]>([]);
   readonly period = signal<FinancialSummary>(EMPTY);
   readonly overall = signal<FinancialSummary>(EMPTY);
@@ -90,6 +94,67 @@ export class IncomeExpensesPage implements OnInit {
   readonly cancelling = signal<FinancialMovement | null>(null);
   readonly editingSale = signal<Sale | null>(null);
   readonly cancellingSale = signal<FinancialMovement | null>(null);
+  readonly saleToCancel = signal<Sale | null>(null);
+  readonly cancellingPurchase = signal<FinancialMovement | null>(null);
+  purchaseCancelReason = '';
+  openPurchaseCancellation(movement: FinancialMovement) {
+    this.error.set(null);
+    this.purchaseCancelReason = '';
+    this.cancellingPurchase.set(movement);
+  }
+  openSaleCancellation(movement: FinancialMovement) {
+    if (!movement.ventaId) return;
+    this.error.set(null);
+    this.saleToCancel.set(null);
+    this.saleCancelReason = '';
+    this.salesApi.findOne(movement.ventaId).subscribe({
+      next: (sale) => { this.saleToCancel.set(sale); this.cancellingSale.set(movement); },
+      error: (e) => this.error.set(e.error?.message ?? 'No se pudo consultar la venta'),
+    });
+  }
+  saleCollectedCents(): number {
+    const sale = this.saleToCancel();
+    return sale?.montoCobradoCuentaCorrienteCentavos ?? 0;
+  }
+  reprintSale(movement: FinancialMovement) {
+    if (!movement.ventaId) return;
+    const popup = window.open('', '_blank', 'width=900,height=760');
+    if (!popup) { this.error.set('Habilitá las ventanas emergentes para reimprimir el comprobante.'); return; }
+    this.salesApi.findOne(movement.ventaId).subscribe({
+      next: (sale) => this.clientsApi.findAll().subscribe({
+        next: (clients) => {
+          const client = clients.find((item) => item.codigo === sale.clienteCodigo);
+          const esc = (value: unknown) => String(value ?? '').replace(/[&<>"']/g, (char) =>
+            ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[char]!);
+          const amount = (cents: number) => this.money(cents);
+          const rows = sale.items.map((item) => `<tr><td>${item.cantidad}</td><td>${esc(item.productoNombre)}</td><td>${esc(amount(Math.round(item.totalCentavos / item.cantidad)))}</td><td>${esc(amount(item.totalCentavos))}</td></tr>`).join('');
+          const transport = (sale.transporteDescargaCentavos ?? 0) > 0
+            ? `<tr><td>1</td><td>TRANSPORTE Y DESCARGA</td><td>${esc(amount(sale.transporteDescargaCentavos!))}</td><td>${esc(amount(sale.transporteDescargaCentavos!))}</td></tr>` : '';
+          const date = new Intl.DateTimeFormat('es-AR', { timeZone: 'America/Argentina/Buenos_Aires', dateStyle: 'short' }).format(new Date(sale.createdAt));
+          const filename = `${sale.clienteNombre.normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/[^a-zA-Z0-9]+/g, '-')}-COMPROBANTE-${date.replaceAll('/', '-')}`;
+          popup.document.open();
+          popup.document.write(`<!doctype html><html lang="es"><head><meta charset="utf-8"><title>${esc(filename)}</title><style>@page{size:A4;margin:12mm}body{font:13px Arial,sans-serif;color:#2d190e}.ticket{max-width:820px;margin:auto}.brand{display:flex;justify-content:space-between;border-bottom:3px solid #713508;padding-bottom:16px}.brand h1{font:700 26px Georgia,serif;margin:0}.brand p{color:#713508}.date{text-align:right;font-size:20px;font-weight:700}.number{font-size:22px}.notice{background:#fbf1e7;border-left:4px solid #b86719;padding:10px;margin:16px 0}.details div{border-bottom:1px solid #eaded5;padding:7px 0}.details span{display:inline-block;width:100px;color:#846b5b;text-transform:uppercase;font-size:11px}table{width:100%;border-collapse:collapse;margin-top:22px}th{background:#713508;color:white;text-align:left;padding:10px}td{padding:10px;border-bottom:1px solid #eaded5}th:nth-child(n+3),td:nth-child(n+3){text-align:right}.total{text-align:right;background:#f1e2d4;border:2px solid #713508;padding:16px;margin-top:26px;font:700 28px Georgia,serif}.footer{text-align:center;margin-top:24px;color:#806858}.notes{margin-top:20px;padding:12px;background:#fbf6f1;white-space:pre-wrap}@media print{button{display:none}}</style></head><body><main class="ticket"><header class="brand"><div><h1>Distribuidora Kopan</h1><p>COMPROBANTE</p></div><div class="date"><div class="number">Numero: ${String(sale.codigo).padStart(8, '0')}</div>${esc(date)}</div></header><p class="notice">COMPROBANTE INTERNO · NO VÁLIDO COMO FACTURA</p><section class="details"><div><span>Cliente</span>${esc(sale.clienteNombre)}</div><div><span>Dirección</span>${esc(client?.direccion || 'Sin informar')}</div><div><span>Localidad</span>${esc(client?.localidad || 'Sin informar')}</div><div><span>Pago</span>${esc(sale.medioPago)}</div><div><span>Vendedor</span>${esc(sale.actorName)}</div></section><table><thead><tr><th>Cantidad</th><th>Producto</th><th>Precio unitario</th><th>Total</th></tr></thead><tbody>${rows}${transport}</tbody></table><div class="total">Total ${esc(amount(sale.totalCentavos))}</div><p class="footer">Gracias por su compra · Distribuidora Kopan.</p>${sale.observaciones ? `<section class="notes">Observaciones: ${esc(sale.observaciones)}</section>` : ''}</main><script>window.onload=()=>{setTimeout(()=>window.print(),150)};<\/script></body></html>`);
+          popup.document.close();
+        },
+        error: () => { popup.close(); this.error.set('No se pudieron cargar los datos del cliente para el comprobante'); },
+      }),
+      error: () => { popup.close(); this.error.set('No se pudo cargar la venta para reimprimir'); },
+    });
+  }
+  confirmPurchaseCancellation() {
+    const movement = this.cancellingPurchase();
+    if (!movement?.compraId || this.saving()) return;
+    this.saving.set(true);
+    this.purchasesApi.cancel(movement.compraId, this.purchaseCancelReason.trim()).subscribe({
+      next: () => {
+        this.cancellingPurchase.set(null);
+        this.saving.set(false);
+        this.success.set('Compra anulada. Se actualizó el stock y la cuenta del proveedor.');
+        this.load();
+      },
+      error: (e) => { this.saving.set(false); this.error.set(e.error?.message ?? 'No se pudo anular la compra'); },
+    });
+  }
   readonly editSaleReview = signal(false);
   readonly editSaleAttempted = signal(false);
   readonly cancelAttempted = signal(false);

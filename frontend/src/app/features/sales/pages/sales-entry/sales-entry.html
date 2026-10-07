@@ -217,9 +217,14 @@
       <div>
         <small>{{ lines().length }} productos</small><strong>Total {{ money(total()) }}</strong>
       </div>
-      <button class="confirm" type="button" (click)="review()" [disabled]="!lines().length || hasInvalidQuantities()">
-        Revisar y confirmar
-      </button>
+      <div class="document-actions">
+        <button class="receipt-action" type="button" (click)="reviewRemittance()" [disabled]="!lines().length || hasInvalidQuantities()">
+          <i class="ti ti-file-text"></i> Generar remito
+        </button>
+        <button class="confirm" type="button" (click)="review()" [disabled]="!lines().length || hasInvalidQuantities()">
+          Revisar y confirmar
+        </button>
+      </div>
     </footer>
   </div>
 </section>
@@ -280,14 +285,35 @@
       <p class="notice">
         <i class="ti ti-file-alert"></i> Los importes finales incluyen el IVA de cada producto.
       </p>
-      <p class="notice">Si confirmás un remito, quedará registrado sin descontar stock ni ingresar dinero.</p>
       <footer>
         <button type="button" (click)="reviewing.set(false)" [disabled]="saving()">Volver</button
-        ><div class="confirmation-actions"><button class="receipt-action" type="button" (click)="confirmRemittance()" [disabled]="saving()">
-          <i class="ti ti-file-text"></i> Confirmar remito
-        </button><button class="confirm" type="button" (click)="confirm()" [disabled]="saving()">
+        ><div class="confirmation-actions"><button class="confirm" type="button" (click)="confirm()" [disabled]="saving()">
           {{ saving() ? 'Confirmando...' : 'Confirmar venta' }}
         </button></div>
+      </footer>
+    </section>
+  </div>
+}
+@if (reviewingRemittance()) {
+  <div class="overlay">
+    <section class="modal" role="alertdialog" aria-modal="true">
+      <span>GENERAR REMITO</span>
+      <h2>Confirmar remito para {{ selectedClient()?.nombre }}</h2>
+      <p>El remito se registrará de forma independiente. No descontará stock ni ingresará dinero.</p>
+      <section class="sale-review" aria-label="Productos del remito">
+        <div class="review-head remittance-head"><span>Producto</span><span>Cantidad</span></div>
+        <div class="review-products">
+          @for (line of lines(); track line.lineId) {
+            <article class="review-line remittance-line"><strong>{{ line.product.nombre }}</strong><span>{{ line.quantity }}</span></article>
+          }
+        </div>
+      </section>
+      @if (error()) { <p class="credit-notice" role="alert">{{ error() }}</p> }
+      <footer>
+        <button type="button" (click)="reviewingRemittance.set(false)" [disabled]="saving()">Volver</button>
+        <button class="receipt-action" type="button" (click)="confirmRemittance()" [disabled]="saving()">
+          <i class="ti ti-file-type-pdf"></i> {{ saving() ? 'Generando...' : 'Confirmar y abrir PDF' }}
+        </button>
       </footer>
     </section>
   </div>
@@ -304,7 +330,7 @@
       <footer>
         <button type="button" (click)="confirmedReceipt.set(null)">Volver</button>
         <button class="receipt-action" type="button" (click)="exportConfirmedReceipt()">
-          <i class="ti ti-file-type-pdf"></i> {{ receipt.kind === 'SALE' ? 'Generar comprobante' : 'Generar remito' }}
+          <i class="ti ti-file-type-pdf"></i> {{ receipt.kind === 'SALE' ? 'Generar comprobante' : 'Reimprimir remito' }}
         </button>
       </footer>
     </section>

@@ -2,6 +2,18 @@ import { Types } from 'mongoose';
 import { InventoryLotsService } from './inventory-lots.service';
 
 describe('InventoryLotsService', () => {
+  it('valoriza una devolución con el costo del lote disponible más antiguo', async () => {
+    const productId = new Types.ObjectId();
+    const oldest = { remainingQuantity: 4, unitCostCents: 1000, supplierName: 'Molino' };
+    const newer = { remainingQuantity: 6, unitCostCents: 1500, supplierName: 'Otro' };
+    const create = jest.fn().mockResolvedValue({});
+    const find = jest.fn().mockReturnValue({ sort: () => ({ exec: () => Promise.resolve([
+      oldest, newer, ...(create.mock.calls.length ? [{ remainingQuantity: 2, unitCostCents: 1000 }] : []),
+    ]) }) });
+    const service = new InventoryLotsService({ find, create } as never);
+    await expect(service.recordReturn(productId, 2, 12, 1500)).resolves.toBe(1250);
+    expect(create).toHaveBeenCalledWith(expect.objectContaining({ kind: 'DEVOLUCION', unitCostCents: 1000, initialQuantity: 2 }));
+  });
   it('reemplaza el índice antiguo que bloqueaba múltiples ajustes manuales', async () => {
     const createIndex = jest
       .fn()

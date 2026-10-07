@@ -1,4 +1,4 @@
-import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
+import { Injectable, NotFoundException } from '@nestjs/common';
 import { InjectConnection, InjectModel } from '@nestjs/mongoose';
 import { Connection, Model, Types } from 'mongoose';
 import { Client, ClientDocument } from '../clients/schemas/client.schema';
@@ -21,8 +21,8 @@ export class RemittancesService {
     return this.connection.transaction(async () => {
       const client = await this.clients.findOne({ _id: dto.clienteId, activo: true }).lean().exec();
       if (!client) throw new NotFoundException('Cliente inexistente o inactivo');
-      const ids = dto.items.map((item) => item.productoId);
-      if (new Set(ids).size !== ids.length) throw new BadRequestException('Un producto está repetido en el remito');
+      // El mismo artículo puede figurar en varios renglones del remito, igual que en la venta.
+      const ids = [...new Set(dto.items.map((item) => item.productoId))];
       const products = await this.products.find({ _id: { $in: ids }, activo: true }).lean().exec();
       if (products.length !== ids.length) throw new NotFoundException('Uno de los productos ya no está activo');
       const byId = new Map(products.map((p) => [p._id.toString(), p]));

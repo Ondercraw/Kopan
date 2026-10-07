@@ -132,11 +132,6 @@ export class SalesService {
       const sale = await this.saleModel.findOne({ _id: id, estado: SaleStatus.CONFIRMED }).exec();
       if (!sale) throw new NotFoundException('La venta ya fue anulada o no existe');
       if (sale.chequeId) throw new ConflictException('La venta tiene un cheque asociado. Gestioná primero ese cheque');
-      if ((sale.montoCobradoCuentaCorrienteCentavos ?? 0) > 0 ||
-          (sale.montoCobradoEfectivoCentavos ?? 0) > 0 ||
-          (sale.montoCobradoTransferenciaCentavos ?? 0) > 0) {
-        throw new ConflictException('No se puede anular una venta que ya tiene cobros de cuenta corriente');
-      }
       for (const item of sale.items) {
         const product = await this.productModel.findOneAndUpdate(
           { _id: item.productoId },
@@ -165,9 +160,10 @@ export class SalesService {
         });
       }
       if (sale.medioPago === PaymentMethod.CREDIT) {
+        const remaining = Math.max(0, sale.totalCentavos - (sale.montoCobradoCuentaCorrienteCentavos ?? 0));
         const client = await this.clientModel.findOneAndUpdate(
-          { _id: sale.clienteId, saldoCuentaCorrienteCentavos: { $gte: sale.totalCentavos } },
-          { $inc: { saldoCuentaCorrienteCentavos: -sale.totalCentavos } },
+          { _id: sale.clienteId, saldoCuentaCorrienteCentavos: { $gte: remaining } },
+          { $inc: { saldoCuentaCorrienteCentavos: -remaining } },
           { new: true },
         ).exec();
         if (!client) throw new ConflictException('El saldo del cliente cambió. Revisalo antes de anular');

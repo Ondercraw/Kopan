@@ -46,7 +46,7 @@ export interface InventoryLot {
   remainingQuantity: number;
   unitCostCents: number;
   receivedAt: string;
-  kind: PurchaseKind;
+  kind: PurchaseKind | 'AJUSTE' | 'DEVOLUCION';
 }
 export interface InventoryProduct extends Product {
   trackedQuantity: number;

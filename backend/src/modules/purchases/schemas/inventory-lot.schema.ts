@@ -44,9 +44,9 @@ export class InventoryLot {
   @Prop({
     required: true,
     type: String,
-    enum: [...Object.values(PurchaseKind), 'AJUSTE'],
+    enum: [...Object.values(PurchaseKind), 'AJUSTE', 'DEVOLUCION'],
   })
-  kind: PurchaseKind | 'AJUSTE';
+  kind: PurchaseKind | 'AJUSTE' | 'DEVOLUCION';
   @Prop({ required: true, type: Date, index: true }) receivedAt: Date;
   @Prop({ required: true, default: false, index: true }) cancelled: boolean;
   declare createdAt: Date;

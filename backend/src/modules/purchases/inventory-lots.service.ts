@@ -7,6 +7,7 @@ import {
 } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
 import { Model, Types } from 'mongoose';
+import { PurchaseKind } from './enums/purchase.enum';
 import {
   InventoryLot,
   InventoryLotDocument,
@@ -61,7 +62,7 @@ export class InventoryLotsService implements OnModuleInit {
   }
 
   async latestUnitCost(productId: Types.ObjectId | string): Promise<number> {
-    const lot = await this.lotModel.findOne({ productId, cancelled: false })
+    const lot = await this.lotModel.findOne({ productId, cancelled: false, kind: { $in: [PurchaseKind.PURCHASE, PurchaseKind.OPENING_STOCK] } })
       .sort({ receivedAt: -1, createdAt: -1, lineNumber: -1 })
       .lean().exec();
     return lot?.unitCostCents ?? 0;
@@ -70,7 +71,7 @@ export class InventoryLotsService implements OnModuleInit {
   async latestUnitCosts(productIds: Types.ObjectId[]): Promise<Map<string, number>> {
     if (!productIds.length) return new Map();
     const rows = await this.lotModel.aggregate<{ _id: Types.ObjectId; cost: number }>([
-      { $match: { productId: { $in: productIds }, cancelled: false } },
+      { $match: { productId: { $in: productIds }, cancelled: false, kind: { $in: [PurchaseKind.PURCHASE, PurchaseKind.OPENING_STOCK] } } },
       { $sort: { receivedAt: -1, createdAt: -1, lineNumber: -1 } },
       { $group: { _id: '$productId', cost: { $first: '$unitCostCents' } } },
     ]).exec();
@@ -242,6 +243,17 @@ export class InventoryLotsService implements OnModuleInit {
     if (delta > 0) return cost;
     const summary = await this.summary(productId);
     return summary.quantity ? summary.averageCostCents : cost;
+  }
+
+  /** Una devolución recupera el costo del lote disponible más antiguo, sin crear una compra. */
+  async recordReturn(productId: Types.ObjectId, quantity: number, physicalStockAfter: number, fallbackCostCents: number): Promise<number> {
+    const oldest = (await this.activeLots(productId))[0];
+    const unitCostCents = oldest?.unitCostCents ?? fallbackCostCents;
+    await this.lotModel.create({ productId,
+      lineNumber: 1, ...(oldest?.supplierId ? { supplierId: oldest.supplierId } : {}),
+      supplierName: oldest?.supplierName ?? '', initialQuantity: quantity,
+      remainingQuantity: quantity, unitCostCents, kind: 'DEVOLUCION', receivedAt: new Date(), cancelled: false });
+    return this.averageIncludingUnvalued(productId, physicalStockAfter, fallbackCostCents);
   }
 
   /**

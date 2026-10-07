@@ -64,6 +64,7 @@ export interface Sale {
   estado: string;
   estadoFiscal: string;
   actorName: string;
+  observaciones?: string;
   createdAt: string;
 }
 

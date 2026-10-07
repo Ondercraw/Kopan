@@ -26,6 +26,7 @@ export interface FinancialMovement {
   fechaMovimiento: string;
   ventaCodigo: number | null;
   ventaId?: string | null;
+  compraId?: string | null;
   clienteNombre: string;
   proveedorNombre: string;
   chequeNumero: string;

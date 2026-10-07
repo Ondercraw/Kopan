@@ -7,21 +7,23 @@ export type AccountPaymentDocument = HydratedDocument<AccountPayment>;
 @Schema({ collection: 'account_payments', timestamps: true })
 export class AccountPayment {
   declare _id: Types.ObjectId;
-  @Prop({ required: true, enum: ['CLIENTE', 'PROVEEDOR'], index: true })
+  @Prop({ type: String, required: true, enum: ['CLIENTE', 'PROVEEDOR'], index: true })
   tipoCuenta: 'CLIENTE' | 'PROVEEDOR';
   @Prop({ required: true, type: MongooseSchema.Types.ObjectId, index: true })
   entidadId: Types.ObjectId;
   @Prop({ required: true, trim: true, maxlength: 120 }) entidadNombre: string;
-  @Prop({ required: true, enum: ['VENTA', 'COMPRA', 'SALDO_INICIAL'] }) comprobanteTipo: 'VENTA' | 'COMPRA' | 'SALDO_INICIAL';
+  @Prop({ type: String, required: true, enum: ['VENTA', 'COMPRA', 'SALDO_INICIAL'] }) comprobanteTipo: 'VENTA' | 'COMPRA' | 'SALDO_INICIAL';
   @Prop({ required: true, type: MongooseSchema.Types.ObjectId, index: true })
   comprobanteId: Types.ObjectId;
   @Prop({ required: true, min: 0 }) comprobanteCodigo: number;
   @Prop({ required: true, min: 1 }) montoCentavos: number;
-  @Prop({ required: true, enum: [FinancialPaymentMethod.CASH, FinancialPaymentMethod.TRANSFER] })
+  @Prop({ type: String, required: true, enum: [FinancialPaymentMethod.CASH, FinancialPaymentMethod.TRANSFER] })
   medioPago: FinancialPaymentMethod.CASH | FinancialPaymentMethod.TRANSFER;
   @Prop({ required: true, default: Date.now, index: true }) fecha: Date;
   @Prop({ required: true }) actorId: string;
   @Prop({ required: true, trim: true }) actorName: string;
+  @Prop({ default: false }) cancelado: boolean;
+  @Prop({ trim: true, default: '' }) motivoCancelacion: string;
   declare createdAt: Date;
 }
 

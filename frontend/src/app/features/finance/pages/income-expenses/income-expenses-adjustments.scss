@@ -225,3 +225,28 @@
     width: 100%;
   }
 }
+.collected-warning {
+  padding: 1rem;
+  border: 2px solid #b75223;
+  border-radius: 12px;
+  background: #fff0dc;
+  color: #7a2f13;
+  line-height: 1.55;
+}
+
+.collected-warning strong {
+  display: inline-block;
+  margin-bottom: .4rem;
+  font-size: 1.4rem;
+}
+
+.receipt-action {
+  cursor: pointer;
+  border: 1px solid #b98a67;
+  border-radius: 9px;
+  background: #fffaf5;
+  color: #713508;
+  padding: .4rem .65rem;
+  font: inherit;
+  white-space: nowrap;
+}

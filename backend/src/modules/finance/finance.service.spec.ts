@@ -8,6 +8,30 @@ import {
 import { Types } from 'mongoose';
 
 describe('FinanceService', () => {
+  it('anula los cobros parciales vinculados y los quita del dinero disponible', async () => {
+    const saleId = new Types.ObjectId();
+    const payments = [{ montoCentavos: 6000 }, { montoCentavos: 4000 }];
+    const accountPayments = {
+      find: jest.fn().mockReturnValue({ lean: () => ({ exec: () => Promise.resolve(payments) }) }),
+      updateMany: jest.fn().mockReturnValue({ exec: () => Promise.resolve({}) }),
+    };
+    const movements = {
+      find: jest.fn().mockReturnValue({ lean: () => ({ exec: () => Promise.resolve(payments) }) }),
+      updateMany: jest.fn().mockReturnValue({ exec: () => Promise.resolve({}) }),
+      updateOne: jest.fn().mockReturnValue({ exec: () => Promise.resolve({}) }),
+    };
+    const service = new FinanceService(movements as never, {} as never, {} as never,
+      {} as never, {} as never, {} as never, {} as never, accountPayments as never);
+    await service.cancelSaleRecord({ _id: saleId, montoCobradoCuentaCorrienteCentavos: 10000 } as never,
+      'Error de carga', { id: 'owner', name: 'Dueño' });
+    expect(accountPayments.updateMany).toHaveBeenCalledWith(
+      expect.objectContaining({ comprobanteId: saleId }), expect.objectContaining({ $set: expect.objectContaining({ cancelado: true }) }),
+    );
+    expect(movements.updateMany).toHaveBeenCalledWith(
+      expect.objectContaining({ ventaId: saleId, categoria: FinancialMovementCategory.ACCOUNT_PAYMENT }),
+      expect.objectContaining({ $set: expect.objectContaining({ cancelado: true, disponible: false }) }),
+    );
+  });
   it('consulta movimientos sin ejecutar conciliaciones masivas en cada apertura', async () => {
     const movementQuery = {
       sort: jest.fn(),

@@ -135,7 +135,11 @@
             <small>Cancelado por: {{ item.canceladoPorNombre || 'Sistema' }}</small>
           }
         </div>
-        <span data-label="Comprobante">{{ item.ventaCodigo ? 'Venta #' + item.ventaCodigo : '—' }}</span
+        <span data-label="Comprobante">
+          @if (item.ventaId && !item.cancelado && item.categoria === 'VENTA') {
+            <button type="button" class="receipt-action" (click)="reprintSale(item)"><i class="ti ti-printer"></i> Reimprimir</button>
+          } @else { — }
+        </span
         ><span data-label="Fecha">{{ date(item.fechaMovimiento) }}</span
         ><span data-label="Estado"
           ><strong>{{ method(item.medioPago) }}</strong
@@ -169,12 +173,15 @@
             <button type="button" (click)="openCheckCollection(item)">Cobrar cheque</button>
           } @else if (item.categoria === 'COMPRA_PRODUCTOS') {
             <a routerLink="/compras">Gestionar compra</a>
+            @if (item.compraId) {
+              <button type="button" class="sale-cancel-action" (click)="openPurchaseCancellation(item)">Anular compra</button>
+            }
           } @else if (item.categoria === 'VENTA' && item.ventaId) {
             <button type="button" class="edit-sale" (click)="openSaleEdit(item)">
               <i class="ti ti-pencil"></i> Modificar venta
             </button>
             <a class="sale-action" [routerLink]="['/compras']" [queryParams]="{ reponerVenta: item.ventaId }">Reponer productos</a>
-            <button type="button" class="sale-cancel-action" (click)="saleCancelReason = ''; cancellingSale.set(item)">Anular venta</button>
+            <button type="button" class="sale-cancel-action" (click)="openSaleCancellation(item)">Anular venta</button>
           } @else if (item.tipo === 'GASTO') {
             @if (!item.pagado) {
               <button type="button" (click)="openPay(item)">Pagar gasto</button>
@@ -376,11 +383,31 @@
     <section class="modal pay" role="alertdialog" aria-modal="true">
       <span>ANULAR VENTA</span>
       <h2>¿Anular la venta #{{ item.ventaCodigo }}?</h2>
-      <p>Se devolverán sus unidades al stock y se revertirá el ingreso o la deuda. El registro quedará visible en gris como historial. Una venta con cobros de cuenta corriente o cheque no puede anularse desde aquí.</p>
+      @if (saleCollectedCents() > 0) {
+        <p class="collected-warning"><strong>YA SE COBRÓ {{ money(saleCollectedCents()) }}</strong><br />Si anulás la venta, este importe se descontará del efectivo o transferencia disponible según los cobros registrados. La deuda restante también se eliminará.</p>
+      } @else {
+        <p>Se devolverán sus unidades al stock y se revertirá el ingreso o la deuda. El registro quedará visible en gris como historial.</p>
+      }
+      @if (error()) { <p class="warning" role="alert">{{ error() }}</p> }
       <label><span>Motivo <small>(opcional)</small></span><textarea [(ngModel)]="saleCancelReason" maxlength="300"></textarea></label>
       <footer>
         <button type="button" class="secondary" (click)="cancellingSale.set(null)">Volver</button>
         <button type="button" class="danger" (click)="confirmSaleCancellation()" [disabled]="saving()">{{ saving() ? 'Anulando...' : 'Confirmar anulación' }}</button>
+      </footer>
+    </section>
+  </div>
+}
+@if (cancellingPurchase(); as item) {
+  <div class="overlay">
+    <section class="modal pay" role="alertdialog" aria-modal="true">
+      <span>ANULAR COMPRA</span>
+      <h2>¿Anular esta compra?</h2>
+      <p>Se descontarán del stock las unidades de esta compra y se cancelará la deuda. Si ya se vendieron unidades o hay pagos registrados, la anulación se bloqueará.</p>
+      @if (error()) { <p class="warning" role="alert">{{ error() }}</p> }
+      <label><span>Motivo <small>(opcional)</small></span><textarea [(ngModel)]="purchaseCancelReason" maxlength="300"></textarea></label>
+      <footer>
+        <button type="button" class="secondary" (click)="cancellingPurchase.set(null)">Volver</button>
+        <button type="button" class="danger" (click)="confirmPurchaseCancellation()" [disabled]="saving()">{{ saving() ? 'Anulando...' : 'Confirmar anulación' }}</button>
       </footer>
     </section>
   </div>
