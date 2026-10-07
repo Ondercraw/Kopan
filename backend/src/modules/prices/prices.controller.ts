@@ -19,6 +19,7 @@ import type { JwtPayload } from '../auth/interfaces/jwt-payload.interface';
 import { SavePriceListDto } from './dto/save-price-list.dto';
 import { SetPriceDto } from './dto/set-price.dto';
 import { PricesService } from './prices.service';
+import { SetListProductsDto } from './dto/set-list-products.dto';
 
 const PRICE_VIEWERS = [UserRole.JEFE, UserRole.VENDEDOR];
 
@@ -72,5 +73,12 @@ export class PricesController {
       { id: user.sub, name: user.nombre },
       dto.precioCentavos,
     );
+  }
+
+  @Put(':id/products')
+  @Roles(UserRole.JEFE)
+  setProducts(@Param('id', MongoIdPipe) id: string, @Body() dto: SetListProductsDto,
+    @CurrentUser() user: JwtPayload) {
+    return this.service.setProducts(id, dto.productIds, { id: user.sub, name: user.nombre });
   }
 }

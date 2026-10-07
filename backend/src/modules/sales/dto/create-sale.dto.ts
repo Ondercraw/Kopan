@@ -9,10 +9,12 @@ export class CreateSaleItemDto {
   @IsOptional() @IsInt() @Min(0) precioUnitarioCentavos?: number;
   @IsOptional() @IsInt() @Min(0) precioFinalUnitarioCentavos?: number;
   @IsOptional() @IsInt() @Min(0) @Max(10000) bonificacionPuntosBase?: number;
+  @IsOptional() @IsBoolean() guardarPrecioCliente?: boolean;
 }
 
 export class CreateSaleDto {
   @IsMongoId() clienteId: string;
+  @IsOptional() @IsEnum(['MOSTRADOR', 'REPARTO']) modalidadEntrega?: 'MOSTRADOR' | 'REPARTO';
   @IsOptional() @IsMongoId() vendedorId?: string;
   @IsMongoId() listaPreciosId: string;
   @IsEnum(PaymentMethod) medioPago: PaymentMethod;

@@ -42,13 +42,16 @@ export class StockService {
     @InjectConnection() private readonly connection: Connection,
   ) {}
 
-  findAll() {
-    return this.productModel
+  async findAll() {
+    const products = await this.productModel
       .find({ activo: true })
       .populate('proveedorId proveedorIds', 'codigo nombre activo')
       .sort({ nombre: 1, codigo: 1 })
       .lean()
       .exec();
+    const latestCosts = await this.inventoryLots.latestUnitCosts(products.map((product) => product._id));
+    return products.map((product) => ({ ...product,
+      ultimoCostoCentavos: latestCosts.get(product._id.toString()) ?? product.ultimoCostoCentavos ?? 0 }));
   }
 
   findInactive() {

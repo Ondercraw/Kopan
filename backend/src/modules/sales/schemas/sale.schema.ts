@@ -19,6 +19,7 @@ export class SaleItem {
   @Prop({ required: true, min: 0, default: 0 }) netoCentavos: number;
   @Prop({ required: true, min: 0, default: 0 }) ivaCentavos: number;
   @Prop({ required: true, min: 0, default: 0 }) costoUnitarioCentavos: number;
+  @Prop({ type: Number, min: 0, default: null }) costoPromedioUnitarioCentavos: number | null;
   @Prop({ type: Number, min: 0, default: null }) costoTotalCentavos:
     number | null;
   @Prop({
@@ -62,12 +63,17 @@ export class Sale {
   @Prop({ required: true, min: 0, default: 0 }) netoCentavos: number;
   @Prop({ required: true, min: 0, default: 0 }) ivaCentavos: number;
   @Prop({ required: true, min: 0, default: 0 }) costoCentavos: number;
+  @Prop({ type: Number, min: 0, default: null }) costoPromedioCentavos: number | null;
   @Prop({ required: true, default: false }) incluyeTransporteDescarga: boolean;
   @Prop({ required: true, min: 0, default: 0 })
   transporteDescargaCentavos: number;
   @Prop({ required: true, min: 0 }) totalCentavos: number;
   @Prop({ required: true, type: String, enum: PaymentMethod })
   medioPago: PaymentMethod;
+  @Prop({ type: String, enum: ['MOSTRADOR', 'REPARTO'], default: 'MOSTRADOR' })
+  modalidadEntrega: 'MOSTRADOR' | 'REPARTO';
+  @Prop({ type: String, enum: PaymentMethod, default: null })
+  medioPagoInformado: PaymentMethod | null;
   @Prop({ required: true, min: 0, default: 0 })
   montoCobradoCuentaCorrienteCentavos: number;
   @Prop({ required: true, min: 0, default: 0 })
@@ -104,6 +110,10 @@ export class Sale {
   })
   estadoFiscal: FiscalStatus;
   @Prop({ trim: true, maxlength: 500, default: '' }) observaciones: string;
+  @Prop({ type: Date, default: null }) fechaFacturacion: Date | null;
+  @Prop({ trim: true, maxlength: 300, default: '' }) motivoAnulacion: string;
+  @Prop({ type: Date, default: null }) anuladaAt: Date | null;
+  @Prop({ trim: true, default: '' }) anuladaPorNombre: string;
   @Prop({ required: true }) actorId: string;
   @Prop({ required: true }) actorName: string;
   declare createdAt: Date;

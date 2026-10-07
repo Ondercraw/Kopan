@@ -31,6 +31,17 @@ export class Product {
   @Prop({ required: true, min: 0, default: 0 })
   cantidadStock: number;
 
+  // Las existencias previas a este módulo quedan en "pendiente de asignación".
+  // La suma de estas tres ubicaciones nunca debe superar cantidadStock.
+  @Prop({ type: Number, min: 0, default: 0 })
+  stockMostrador: number;
+  @Prop({ type: Number, min: 0, default: 0 })
+  stockDeposito: number;
+  @Prop({ type: Number, min: 0, default: 0 })
+  stockGalpon: number;
+  @Prop({ type: Number, min: 0, default: null })
+  stockUbicacionesSincronizado: number | null;
+
   @Prop({ required: true, min: 0, default: 0 })
   stockMinimo: number;
 
@@ -47,6 +58,8 @@ export class Product {
   // Los importes monetarios se guardan en centavos para evitar errores de punto flotante.
   @Prop({ required: true, min: 0, default: 0 })
   costoCentavos: number;
+  @Prop({ required: true, min: 0, default: 0 })
+  ultimoCostoCentavos: number;
 
   // Campo heredado: sólo se conserva para migrar instalaciones que guardaban
   // el proveedor como texto. Las operaciones nuevas usan proveedorId.

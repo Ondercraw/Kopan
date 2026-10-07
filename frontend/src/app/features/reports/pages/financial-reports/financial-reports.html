@@ -24,6 +24,7 @@
       </select></label
     >
     <button class="apply" type="button" (click)="load()">Generar informe</button>
+    <button class="apply" type="button" (click)="printSales()" [disabled]="loading() || !sales().length"><i class="ti ti-printer"></i> Imprimir ventas</button>
   </section>
   @if (error()) {
     <p class="error">{{ error() }}</p>
@@ -45,8 +46,8 @@
         ><small>Según alícuota de cada producto</small>
       </article>
       <article>
-        <span>Costo registrado</span><strong>{{ money(cost()) }}</strong
-        ><small>Costo histórico de mercadería</small>
+        <span>Costo promedio registrado</span><strong>{{ money(cost()) }}</strong
+        ><small>Promedio al confirmar la venta; las ventas antiguas usan el costo disponible en su registro</small>
       </article>
       <article [class.negative]="margin() < 0">
         <span>Margen bruto estimado</span><strong>{{ money(margin()) }}</strong

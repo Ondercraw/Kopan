@@ -31,6 +31,11 @@
         <span>Lista de precios</span
         ><strong>{{ priceList()?.nombre || 'Sin lista seleccionada' }}</strong
         ><small>{{ selectedClient()?.condicionIva?.replaceAll('_', ' ') || '' }}</small>
+        @if (canChangePrice() && selectedClient()) {
+          <select [ngModel]="selectedListId" (ngModelChange)="choosePriceList($event)" aria-label="Lista de precios para esta venta">
+            @for (list of availableLists(); track list._id) { <option [value]="list._id">{{ list.nombre }}</option> }
+          </select>
+        }
         @if (selectedClient(); as client) {
           <em [class.enabled]="client.permiteCuentaCorriente">
             Cuenta corriente {{ client.permiteCuentaCorriente ? 'habilitada' : 'no habilitada' }}
@@ -40,18 +45,22 @@
           }
         }
       </div>
+      <label><span>Modalidad *</span><select [(ngModel)]="deliveryMode" (ngModelChange)="onDeliveryModeChange()">
+        <option value="MOSTRADOR">Mostrador · ingresa a caja</option>
+        <option value="REPARTO">Reparto · queda en cuenta corriente</option>
+      </select></label>
       <label
         ><span>Medio de pago *</span
         ><select [(ngModel)]="paymentMethod" (ngModelChange)="onPaymentMethod()">
           <option value="EFECTIVO">Efectivo</option>
           <option value="TRANSFERENCIA">Transferencia / Mercado Pago</option>
-          <option value="CREDITO" [disabled]="!selectedClient()?.permiteCuentaCorriente">
-            Crédito / cuenta corriente
-          </option>
-          <option value="CHEQUE">Cheque</option>
+          @if (deliveryMode === 'MOSTRADOR') { <option value="CHEQUE">Cheque</option> }
         </select></label
       >
-      @if (paymentMethod === 'TRANSFERENCIA') {
+      @if (deliveryMode === 'REPARTO') {
+        <p class="notice">El medio de pago es informativo. El importe ingresará a caja al registrar su cobro en Cuentas corrientes.</p>
+      }
+      @if (deliveryMode === 'MOSTRADOR' && paymentMethod === 'TRANSFERENCIA') {
         <label
           ><span>Referencia *</span
           ><input [(ngModel)]="transferReference" maxlength="100" placeholder="Nº de operación o referencia" [class.field-invalid]="invalidTransferReference()" />
@@ -94,7 +103,7 @@
         </label>
       }
     </section>
-    @if (paymentMethod === 'CHEQUE') {
+    @if (deliveryMode === 'MOSTRADOR' && paymentMethod === 'CHEQUE') {
       <section class="check-form" aria-label="Datos del cheque">
         <header><div><span>CHEQUE RECIBIDO</span><strong>El importe se completa con el total de la venta</strong></div><em>{{ money(total()) }}</em></header>
         <div>
@@ -142,7 +151,7 @@
       <span>Producto</span><span>Cantidad</span><span>Precio final</span><span>Descuento</span
       ><span>Total (IVA INCL.)</span><span></span>
     </div>
-    @for (line of lines(); track line.product._id) {
+    @for (line of lines(); track line.lineId) {
       <article class="line">
         <div>
           <strong>#{{ line.product.codigo }} · {{ line.product.nombre }}</strong
@@ -160,7 +169,7 @@
             [value]="line.quantityInput"
             [class.field-invalid]="quantityError(line)"
             [attr.aria-invalid]="quantityError(line) ? 'true' : null"
-            (input)="updateQuantity(line.product._id, $event)"
+            (input)="updateQuantity(line.lineId, $event)"
           />
           @if (quantityError(line); as quantityMessage) {
             <small class="line-field-error">{{ quantityMessage }}</small>
@@ -169,24 +178,24 @@
           type="text"
           inputmode="numeric"
           autocomplete="off"
-          [disabled]="!canChangePrice()"
+          [disabled]="!canEditLinePrice(line)"
           [value]="line.priceInput"
-          (input)="updatePrice(line.product._id, $event)"
+          (input)="updatePrice(line.lineId, $event)"
           [attr.aria-label]="'Precio final de ' + line.product.nombre"
-        /></label><label class="discount"
+        /><small class="client-price-save"><input type="checkbox" [checked]="line.saveClientPrice" (change)="setSaveClientPrice(line.lineId, $any($event.target).checked)" /> Guardar precio para este cliente</small></label><label class="discount"
           ><input
             type="number"
             min="0"
             max="100"
             step="0.01"
             [value]="line.discountPercent"
-            (input)="updateDiscount(line.product._id, $event)"
+            (input)="updateDiscount(line.lineId, $event)"
           /><span>%</span></label
         ><strong>{{ money(lineTotal(line)) }}</strong
         ><div class="line-actions">@if (canChangePrice()) { <button class="edit" type="button" (click)="openProductEdit(line.product)" aria-label="Modificar producto"><i class="ti ti-pencil"></i></button> }<button
           class="remove"
           type="button"
-          (click)="remove(line.product._id)"
+          (click)="remove(line.lineId)"
           aria-label="Quitar"
         >
           <i class="ti ti-trash"></i>
@@ -222,8 +231,8 @@
       <span>CONFIRMACIÓN</span>
       <h2>Confirmar venta por {{ money(total()) }}</h2>
       <p>
-        Se descontará el stock de {{ lines().length }} productos y se registrará el pago por
-        {{ paymentLabel() }}.
+        Se descontará el stock de {{ lines().length }} productos.
+        {{ deliveryMode === 'REPARTO' ? 'La venta quedará pendiente en cuenta corriente y no ingresará a caja hasta cobrarse.' : 'Se registrará el pago por ' + paymentLabel() + '.' }}
       </p>
       <section class="review-context" aria-label="Datos de la venta">
         <div><span>Lista de precios</span><strong>{{ priceList()?.nombre }}</strong></div>
@@ -232,7 +241,10 @@
           <div><span>Transporte y descarga</span><strong>{{ money(transportDownloadCents()) }}</strong></div>
         }
       </section>
-      @if (paymentMethod === 'CREDITO') {
+      @if (deliveryMode === 'REPARTO' && total() > creditAvailable()) {
+        <p class="credit-notice">Atención: esta venta supera el límite de crédito en {{ money(total() - creditAvailable()) }}. Se permitirá y el saldo quedará pendiente.</p>
+      }
+      @if (deliveryMode === 'MOSTRADOR' && paymentMethod === 'CREDITO') {
         <p class="credit-notice">
           Se descontarán {{ money(total()) }} del crédito disponible. Restarán
           {{ money(creditAvailable() - total()) }}.
@@ -244,7 +256,7 @@
           ><span>Subtotal</span>
         </div>
         <div class="review-products">
-          @for (line of lines(); track line.product._id) {
+          @for (line of lines(); track line.lineId) {
             <article class="review-line">
               <div>
                 <strong>#{{ line.product.codigo }} · {{ line.product.nombre }}</strong>
@@ -268,9 +280,12 @@
       <p class="notice">
         <i class="ti ti-file-alert"></i> Los importes finales incluyen el IVA de cada producto.
       </p>
+      <p class="notice">Si confirmás un remito, quedará registrado sin descontar stock ni ingresar dinero.</p>
       <footer>
         <button type="button" (click)="reviewing.set(false)" [disabled]="saving()">Volver</button
-        ><div class="confirmation-actions"><button class="confirm" type="button" (click)="confirm()" [disabled]="saving()">
+        ><div class="confirmation-actions"><button class="receipt-action" type="button" (click)="confirmRemittance()" [disabled]="saving()">
+          <i class="ti ti-file-text"></i> Confirmar remito
+        </button><button class="confirm" type="button" (click)="confirm()" [disabled]="saving()">
           {{ saving() ? 'Confirmando...' : 'Confirmar venta' }}
         </button></div>
       </footer>
@@ -280,13 +295,16 @@
 @if (confirmedReceipt(); as receipt) {
   <div class="overlay">
     <section class="modal receipt-ready" role="dialog" aria-modal="true">
-      <span>VENTA CONFIRMADA</span>
-      <h2>Venta #{{ receipt.saleCode }} registrada</h2>
-      <p>El comprobante utilizará el número {{ receipt.saleCode.toString().padStart(8, '0') }}.</p>
+      <span>{{ receipt.kind === 'SALE' ? 'VENTA CONFIRMADA' : 'REMITO CONFIRMADO' }}</span>
+      <h2>{{ receipt.kind === 'SALE' ? 'Venta' : 'Remito' }} #{{ receipt.documentCode }} registrado</h2>
+      <p class="confirmed-message"><i class="ti ti-circle-check"></i>
+        {{ receipt.kind === 'SALE' ? 'La venta se confirmó correctamente y sus movimientos ya están registrados.' : 'El remito se confirmó sin modificar stock, caja ni cuentas corrientes.' }}
+      </p>
+      <p>Número del {{ receipt.kind === 'SALE' ? 'comprobante' : 'remito' }}: {{ receipt.documentCode.toString().padStart(8, '0') }}.</p>
       <footer>
-        <button type="button" (click)="confirmedReceipt.set(null)">Cerrar</button>
+        <button type="button" (click)="confirmedReceipt.set(null)">Volver</button>
         <button class="receipt-action" type="button" (click)="exportConfirmedReceipt()">
-          <i class="ti ti-file-type-pdf"></i> Generar PDF
+          <i class="ti ti-file-type-pdf"></i> {{ receipt.kind === 'SALE' ? 'Generar comprobante' : 'Generar remito' }}
         </button>
       </footer>
     </section>

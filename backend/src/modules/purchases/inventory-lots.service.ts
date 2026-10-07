@@ -60,6 +60,23 @@ export class InventoryLotsService implements OnModuleInit {
       .exec();
   }
 
+  async latestUnitCost(productId: Types.ObjectId | string): Promise<number> {
+    const lot = await this.lotModel.findOne({ productId, cancelled: false })
+      .sort({ receivedAt: -1, createdAt: -1, lineNumber: -1 })
+      .lean().exec();
+    return lot?.unitCostCents ?? 0;
+  }
+
+  async latestUnitCosts(productIds: Types.ObjectId[]): Promise<Map<string, number>> {
+    if (!productIds.length) return new Map();
+    const rows = await this.lotModel.aggregate<{ _id: Types.ObjectId; cost: number }>([
+      { $match: { productId: { $in: productIds }, cancelled: false } },
+      { $sort: { receivedAt: -1, createdAt: -1, lineNumber: -1 } },
+      { $group: { _id: '$productId', cost: { $first: '$unitCostCents' } } },
+    ]).exec();
+    return new Map(rows.map((row) => [row._id.toString(), row.cost]));
+  }
+
   async summary(productId: Types.ObjectId | string) {
     const lots = await this.activeLots(productId);
     const quantity = lots.reduce((sum, lot) => sum + lot.remainingQuantity, 0);

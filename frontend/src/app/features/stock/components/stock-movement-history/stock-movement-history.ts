@@ -63,6 +63,7 @@ export class StockMovementHistory implements OnChanges {
       OPENING_VALUATION: 'Valuación inicial',
       PURCHASE_CANCELLATION: 'Cancelación de compra',
       VALUATION_CANCELLATION: 'Cancelación de valuación',
+      SALE_CANCELLATION: 'Anulación de venta',
       INITIAL: 'Carga inicial',
       INCREMENT: 'Ingreso',
       DECREMENT: 'Egreso',

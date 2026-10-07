@@ -91,7 +91,8 @@ li small {
 .movement-icon[data-type='DECREMENT'],
 .movement-icon[data-type='DEACTIVATION'],
 .movement-icon[data-type='PURCHASE_CANCELLATION'],
-.movement-icon[data-type='VALUATION_CANCELLATION'] {
+.movement-icon[data-type='VALUATION_CANCELLATION'],
+.movement-icon[data-type='SALE_CANCELLATION'] {
   background: #fbe8e5;
   color: #a1362d;
 }

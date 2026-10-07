@@ -23,6 +23,7 @@ import { ChecksModule } from './modules/checks/checks.module';
 import { FinanceModule } from './modules/finance/finance.module';
 import { PurchasesModule } from './modules/purchases/purchases.module';
 import { AccountsModule } from './modules/accounts/accounts.module';
+import { RemittancesModule } from './modules/remittances/remittances.module';
 
 @Module({
   imports: [
@@ -51,6 +52,7 @@ import { AccountsModule } from './modules/accounts/accounts.module';
     FinanceModule,
     PurchasesModule,
     AccountsModule,
+    RemittancesModule,
   ],
   providers: [
     {

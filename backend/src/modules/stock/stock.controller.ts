@@ -22,6 +22,8 @@ import { DeactivateProductsDto } from './dto/deactivate-products.dto';
 import { ReactivateProductsDto } from './dto/reactivate-products.dto';
 import { UpdateProductDto } from './dto/update-product.dto';
 import { StockService } from './stock.service';
+import { StockLocationsService } from './stock-locations.service';
+import { TransferStockDto } from './dto/transfer-stock.dto';
 
 const STOCK_MANAGERS = [UserRole.JEFE, UserRole.EMPLEADO_STOCK];
 const STOCK_VIEWERS = [...STOCK_MANAGERS, UserRole.VENDEDOR];
@@ -34,12 +36,32 @@ const STOCK_VIEWERS = [...STOCK_MANAGERS, UserRole.VENDEDOR];
 export class StockController {
   constructor(
     private readonly stockService: StockService,
+    private readonly locationsService: StockLocationsService,
     private readonly auditService: AuditService,
   ) {}
 
   @Get()
   findAll() {
     return this.stockService.findAll();
+  }
+
+  @Get('locations')
+  @Roles(...STOCK_MANAGERS)
+  locations() {
+    return this.locationsService.list();
+  }
+
+  @Post(':id/locations/transfer')
+  @Roles(...STOCK_MANAGERS)
+  async transferStock(
+    @Param('id', MongoIdPipe) id: string,
+    @Body() dto: TransferStockDto,
+    @CurrentUser() user: JwtPayload,
+  ) {
+    const result = await this.locationsService.transfer(id, dto.source, dto.destination, dto.quantity);
+    await this.auditService.record({ actorId: user.sub, action: 'stock.location_transferred',
+      entity: 'product', entityId: id, metadata: { source: dto.source, destination: dto.destination, quantity: dto.quantity } });
+    return result;
   }
 
   @Get('inactive')

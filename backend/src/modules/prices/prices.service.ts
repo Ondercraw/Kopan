@@ -1,4 +1,5 @@
 import {
+  BadRequestException,
   ConflictException,
   Injectable,
   NotFoundException,
@@ -60,6 +61,24 @@ export class PricesService {
 
   findAll() {
     return this.listModel.find().sort({ activo: -1, nombre: 1, codigo: 1 }).lean().exec();
+  }
+
+  setProducts(listId: string, productIds: string[], actor: PriceActor) {
+    return this.connection.transaction(async () => {
+      const list = await this.listModel.findOne({ _id: listId, activo: true }).exec();
+      if (!list) throw new NotFoundException('Lista inexistente o inactiva');
+      if (list.codigo === 1) throw new BadRequestException('La lista General incluye todos los productos activos');
+      const ids = [...new Set(productIds)];
+      const products = await this.productModel.find({ _id: { $in: ids }, activo: true }).select('_id').lean().exec();
+      if (products.length !== ids.length) throw new BadRequestException('Uno o más productos no están activos');
+      await this.itemModel.deleteMany({ listaId: list._id, productoId: { $nin: ids.map((id) => new Types.ObjectId(id)) } }).exec();
+      if (ids.length) await this.itemModel.bulkWrite(ids.map((id) => ({ updateOne: {
+        filter: { listaId: list._id, productoId: new Types.ObjectId(id) },
+        update: { $setOnInsert: { precioCentavos: 0, precioFinalCentavos: 0, actorId: actor.id, actorName: actor.name } },
+        upsert: true,
+      } })));
+      return this.findOne(listId);
+    });
   }
 
   async findOne(id: string) {

@@ -1,7 +1,7 @@
-export type AccountStatus = 'PENDIENTE' | 'PARCIAL' | 'PAGADO';
+export type AccountStatus = 'PENDIENTE' | 'PARCIAL' | 'PAGADO' | 'CANCELADO';
 export interface AccountPayment { id: string; montoCentavos: number; medioPago: 'EFECTIVO' | 'TRANSFERENCIA' | 'CHEQUE' | 'PAGADO_ANTES_SISTEMA'; fecha: string; actorName: string }
 export interface AccountDocument {
-  id: string; codigo: number; tipo: 'VENTA' | 'COMPRA'; fecha: string; totalCentavos: number;
+  id: string; codigo: number; tipo: 'VENTA' | 'COMPRA' | 'SALDO_INICIAL'; fecha: string; totalCentavos: number;
   pagadoCentavos: number; saldoCentavos: number; estado: AccountStatus; detalle: string; pagos: AccountPayment[];
 }
 export interface CurrentAccount {

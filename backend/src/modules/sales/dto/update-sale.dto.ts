@@ -2,6 +2,7 @@ import { Type } from 'class-transformer';
 import {
   ArrayMinSize,
   IsArray,
+  IsDateString,
   IsEnum,
   IsInt,
   IsMongoId,
@@ -21,6 +22,7 @@ export class UpdateSaleItemDto {
 
 export class UpdateSaleDto {
   @IsEnum(PaymentMethod) medioPago: PaymentMethod;
+  @IsOptional() @IsDateString() fechaFacturacion?: string;
   @IsOptional() @IsString() @MaxLength(100) referenciaTransferencia?: string;
   @IsArray()
   @ArrayMinSize(1)

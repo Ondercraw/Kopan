@@ -49,6 +49,12 @@ export const routes: Routes = [
         canActivate: [roleGuard([UserRole.JEFE, UserRole.EMPLEADO_STOCK])],
       },
       {
+        path: 'movimientos-mercaderia',
+        loadComponent: () => import('./features/stock/pages/stock-locations/stock-locations').then((m) => m.StockLocationsPage),
+        data: { titulo: 'Movimientos de mercadería' },
+        canActivate: [roleGuard([UserRole.JEFE, UserRole.EMPLEADO_STOCK])],
+      },
+      {
         path: 'precios',
         loadComponent: () =>
           import('./features/prices/pages/price-lists/price-lists').then((m) => m.PriceListsPage),

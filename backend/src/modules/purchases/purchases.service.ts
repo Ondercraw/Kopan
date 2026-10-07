@@ -226,17 +226,7 @@ export class PurchasesService {
       throw new BadRequestException(
         'El vencimiento no puede ser anterior a la compra',
       );
-    if (dto.kind === PurchaseKind.PURCHASE) {
-      for (const product of products) {
-        const valued = await this.lotsService.summary(product._id);
-        if (valued.quantity < product.cantidadStock)
-          throw new ConflictException(
-            'Primero valorá el stock existente de ' +
-              product.nombre +
-              ' desde Compras',
-          );
-      }
-    }
+    // Una compra nueva puede convivir con unidades anteriores aún sin valorar.
     if (dto.kind === PurchaseKind.OPENING_STOCK) {
       for (const product of products) {
         const requested = dto.items
@@ -244,9 +234,9 @@ export class PurchasesService {
           .reduce((s, x) => s + x.quantity, 0);
         const tracked = (await this.lotsService.summary(product._id)).quantity;
         const unvalued = Math.max(0, product.cantidadStock - tracked);
-        if (requested !== unvalued)
+        if (requested > unvalued)
           throw new ConflictException(
-            `Debés valorar exactamente ${unvalued} unidades de ${product.nombre}`,
+            `Solo quedan ${unvalued} unidades sin valorar de ${product.nombre}`,
           );
       }
     }
@@ -297,6 +287,7 @@ export class PurchasesService {
 
         const after = await this.lotsService.summary(product._id);
         product.costoCentavos = after.averageCostCents;
+        product.ultimoCostoCentavos = await this.lotsService.latestUnitCost(product._id);
         const supplierIds = new Set((product.proveedorIds ?? []).map(String));
         supplierIds.add(supplier._id.toString());
         product.proveedorIds = [...supplierIds].map(
@@ -324,7 +315,14 @@ export class PurchasesService {
         (s, x) => s + x.subtotalCents,
         0,
       );
-      const paid = dto.paymentMethod !== PurchasePaymentMethod.CREDIT;
+      // Las compras nuevas se saldan desde Cuentas corrientes; la valuación
+      // histórica conserva su modalidad para no recontabilizar inventario previo.
+      const paid = dto.kind === PurchaseKind.PURCHASE
+        ? false
+        : dto.paymentMethod !== PurchasePaymentMethod.CREDIT;
+      const paymentMethod = dto.kind === PurchaseKind.PURCHASE
+        ? PurchasePaymentMethod.CREDIT
+        : dto.paymentMethod;
       const purchase = await this.purchaseModel.create({
         _id: purchaseId,
         codigo,
@@ -333,13 +331,13 @@ export class PurchasesService {
         proveedorNombre: supplier.nombre,
         items: purchaseItems,
         totalCentavos,
-        medioPago: dto.paymentMethod,
+        medioPago: paymentMethod,
         pagada: paid,
         montoPagadoCentavos: paid ? totalCentavos : 0,
         montoPagadoEfectivoCentavos:
-          dto.paymentMethod === PurchasePaymentMethod.CASH ? totalCentavos : 0,
+          paymentMethod === PurchasePaymentMethod.CASH ? totalCentavos : 0,
         montoPagadoTransferenciaCentavos:
-          dto.paymentMethod === PurchasePaymentMethod.TRANSFER
+          paymentMethod === PurchasePaymentMethod.TRANSFER
             ? totalCentavos
             : 0,
         pagadaAt: paid ? purchaseDate : null,
@@ -397,15 +395,15 @@ export class PurchasesService {
           .join(' · ')
           .slice(0, 500),
         medioPago: paid
-          ? (dto.paymentMethod as unknown as FinancialPaymentMethod)
+          ? (paymentMethod as unknown as FinancialPaymentMethod)
           : null,
         disponible: false,
         pagado: paid,
         montoPagadoCentavos: paid ? totalCentavos : 0,
         montoPagadoEfectivoCentavos:
-          dto.paymentMethod === PurchasePaymentMethod.CASH ? totalCentavos : 0,
+          paymentMethod === PurchasePaymentMethod.CASH ? totalCentavos : 0,
         montoPagadoTransferenciaCentavos:
-          dto.paymentMethod === PurchasePaymentMethod.TRANSFER
+          paymentMethod === PurchasePaymentMethod.TRANSFER
             ? totalCentavos
             : 0,
         pagadoAt: paid ? purchaseDate : null,
@@ -493,6 +491,7 @@ export class PurchasesService {
 
     const after = await this.lotsService.summary(product._id);
     product.costoCentavos = after.quantity ? after.averageCostCents : 0;
+    product.ultimoCostoCentavos = await this.lotsService.latestUnitCost(product._id);
     await product.save();
 
     item.quantity = dto.quantity;
@@ -779,6 +778,7 @@ export class PurchasesService {
       const summary = await this.lotsService.summary(product._id);
       const previousCost = product.costoCentavos;
       product.costoCentavos = summary.averageCostCents;
+      product.ultimoCostoCentavos = await this.lotsService.latestUnitCost(product._id);
       await product.save();
       await this.movementModel.create({
         productId: product._id,

@@ -46,11 +46,15 @@ export class PriceListsPage implements OnInit, OnDestroy {
   readonly derivedMode = signal<'ALL' | 'SELECTED' | null>(null);
   readonly sourceDetail = signal<PriceListDetail | null>(null);
   readonly selectedProductIds = signal<Set<string>>(new Set());
+  readonly editingProducts = signal(false);
+  readonly editingProductIds = signal<Set<string>>(new Set());
+  readonly editingProductsSaving = signal(false);
   readonly derivedSaving = signal(false);
   readonly derivedPdfError = signal<string | null>(null);
   derivedName = '';
   derivedPercentage = 0;
   derivedDirection: 'ADD' | 'SUBTRACT' = 'ADD';
+  derivedBase: 'SALE' | 'COST' = 'SALE';
   derivedSourceId = '';
   derivedRubro = '';
   readonly canEdit = computed(() =>
@@ -177,7 +181,7 @@ export class PriceListsPage implements OnInit, OnDestroy {
   openDerived(mode: 'ALL'|'SELECTED') {
     const source=this.lists().find(l=>l.nombre.trim().toLocaleLowerCase('es-AR')==='general') ?? this.lists().find(l=>l.activo) ?? this.lists()[0];
     if (!source) { this.error.set('Primero creá una lista general'); return; }
-    this.derivedMode.set(mode); this.derivedSourceId=source._id; this.derivedName=''; this.derivedPercentage=0; this.derivedDirection='ADD'; this.derivedRubro=''; this.selectedProductIds.set(new Set()); this.derivedPdfError.set(null); this.loadDerivedSource();
+    this.derivedMode.set(mode); this.derivedSourceId=source._id; this.derivedName=''; this.derivedPercentage=0; this.derivedDirection='ADD'; this.derivedBase='SALE'; this.derivedRubro=''; this.selectedProductIds.set(new Set()); this.derivedPdfError.set(null); this.loadDerivedSource();
   }
   loadDerivedSource() {
     if (!this.derivedSourceId) return;
@@ -187,7 +191,12 @@ export class PriceListsPage implements OnInit, OnDestroy {
     return [...this.products()].sort((a,b)=>a.nombre.localeCompare(b.nombre,'es',{sensitivity:'base',numeric:true}));
   }
   pricedDerivedProducts() {
-    return this.derivedProducts().filter((product) => (this.derivedSourcePrice(product._id) ?? 0) > 0);
+    return this.derivedProducts().filter((product) => this.derivedBasePrice(product) > 0);
+  }
+  derivedBasePrice(product: Product) {
+    return this.derivedMode() === 'ALL' && this.derivedBase === 'COST'
+      ? product.costoCentavos ?? 0
+      : this.derivedSourcePrice(product._id) ?? 0;
   }
   derivedRubros() { return [...new Set(this.derivedProducts().map(p=>p.tipo.trim().toLocaleUpperCase('es-AR'))) ].sort((a,b)=>a.localeCompare(b,'es')); }
   derivedSourcePrice(productId:string) {
@@ -195,7 +204,7 @@ export class PriceListsPage implements OnInit, OnDestroy {
     return item ? this.exactFinalPrice(item.productoId, item) : null;
   }
   derivedDisplayPrice(product: Product) {
-    const sourcePrice = this.derivedSourcePrice(product._id);
+    const sourcePrice = this.derivedBasePrice(product);
     if (sourcePrice === null || sourcePrice <= 0) return 'Sin precio';
     const percentage = Math.abs(Number(this.derivedPercentage));
     const validPercentage = Number.isFinite(percentage) ? percentage : 0;
@@ -205,12 +214,31 @@ export class PriceListsPage implements OnInit, OnDestroy {
       : this.money(Math.round(sourcePrice * factor));
   }
   derivedCurrentPrice(product: Product) {
-    const sourcePrice = this.derivedSourcePrice(product._id);
+    const sourcePrice = this.derivedBasePrice(product);
     return sourcePrice === null || sourcePrice <= 0
       ? 'Sin precio'
       : this.money(sourcePrice);
   }
   toggleDerivedProduct(id:string) { this.selectedProductIds.update(current=>{const next=new Set(current); next.has(id)?next.delete(id):next.add(id); return next;}); }
+  selectAllDerivedProducts() { this.selectedProductIds.set(new Set(this.derivedProducts().map(product=>product._id))); }
+  openProductEditor() {
+    const list = this.selected(); if (!list || list.codigo === 1) return;
+    this.editingProductIds.set(new Set(list.items.map(item => item.productoId._id)));
+    this.editingProducts.set(true); this.error.set(null);
+  }
+  toggleEditedProduct(id: string) {
+    this.editingProductIds.update(current => { const next = new Set(current); next.has(id) ? next.delete(id) : next.add(id); return next; });
+  }
+  selectAllEditedProducts() { this.editingProductIds.set(new Set(this.products().map(product => product._id))); }
+  clearEditedProducts() { this.editingProductIds.set(new Set()); }
+  saveEditedProducts() {
+    const list = this.selected(); if (!list) return;
+    this.editingProductsSaving.set(true);
+    this.prices.setProducts(list._id, [...this.editingProductIds()]).subscribe({
+      next: updated => { this.selected.set(updated); this.editingProducts.set(false); this.editingProductsSaving.set(false); this.success.set(`Productos de ${list.nombre} actualizados`); },
+      error: err => { this.editingProductsSaving.set(false); this.error.set(err.error?.message ?? 'No se pudieron actualizar los productos'); },
+    });
+  }
   selectRubro() {
     if (!this.derivedRubro) { this.selectedProductIds.set(new Set()); return; }
     this.selectedProductIds.set(new Set(this.derivedProducts().filter(p=>p.tipo.trim().toLocaleUpperCase('es-AR')===this.derivedRubro).map(p=>p._id)));
@@ -221,16 +249,16 @@ export class PriceListsPage implements OnInit, OnDestroy {
   }
   selectDerivedDirection(direction:'ADD'|'SUBTRACT') { this.derivedDirection=direction; }
   createDerived() {
-    const source=this.sourceDetail(), name=this.derivedName.trim(), percentage=Math.abs(Number(this.derivedPercentage));
+    const source=this.sourceDetail(), name=this.derivedName.trim(), percentage=this.derivedMode()==='SELECTED' ? 0 : Math.abs(Number(this.derivedPercentage));
     if (!source || name.length<2 || !Number.isFinite(percentage) || percentage>1000) { this.error.set('Completá un nombre y un porcentaje válido'); return; }
     const ids=this.derivedMode()==='ALL' ? new Set(this.pricedDerivedProducts().map(p=>p._id)) : this.selectedProductIds();
     if (!ids.size) { this.error.set('Seleccioná al menos un producto'); return; }
     const factor=1+(this.derivedDirection==='ADD'?percentage:-percentage)/100;
     if (factor<0) { this.error.set('El descuento no puede superar el 100%'); return; }
-    const pricesByProduct=new Map(source.items.map(item=>[item.productoId._id,this.exactFinalPrice(item.productoId,item)]));
+    const pricesByProduct=new Map(this.derivedProducts().map(product=>[product._id,this.derivedBasePrice(product)]));
     const items=[...ids].map(productId=>({productId,precioCentavos:pricesByProduct.get(productId)??0}));
     this.derivedSaving.set(true); this.error.set(null);
-    this.prices.create({nombre:name,descripcion:`${this.derivedDirection==='ADD'?'+':'−'}${percentage}% sobre ${source.nombre}`}).pipe(
+    this.prices.create({nombre:name,descripcion:this.derivedMode()==='SELECTED' ? `Productos seleccionados de ${source.nombre}` : `${this.derivedDirection==='ADD'?'+':'−'}${percentage}% sobre ${this.derivedBase==='COST'?'costo promedio':source.nombre}`}).pipe(
       switchMap(list=>forkJoin(items.map(item=>this.prices.setPrice(list._id,item.productId,Math.round(item.precioCentavos*factor)))).pipe(switchMap(()=>this.prices.findOne(list._id))))
     ).subscribe({next:list=>{this.derivedSaving.set(false);this.derivedMode.set(null);this.success.set('Lista personalizada creada');this.lists.update(current=>[...current.filter(item=>item._id!==list._id),list].sort((a,b)=>a.codigo===1?-1:b.codigo===1?1:a.nombre.localeCompare(b.nombre,'es',{sensitivity:'base',numeric:true})));this.selected.set(list);},error:e=>{this.derivedSaving.set(false);this.error.set(e.error?.message??'No se pudo crear la lista personalizada');}});
   }
@@ -243,7 +271,7 @@ export class PriceListsPage implements OnInit, OnDestroy {
       .sort((a, b) => a.nombre.localeCompare(b.nombre, 'es', { sensitivity: 'base', numeric: true }));
     const rows=pdfProducts.map(p=>{const price=this.currentPrice(p._id);const hasPrice=price!==null&&price>0;return `<article><strong>${this.escape(p.nombre)}</strong><span class="${hasPrice?'':'no-price'}">${hasPrice?this.escape(this.money(price)):'SIN PRECIO'}</span></article>`}).join('');
     const popup=window.open('','_blank','width=900,height=700'); if(!popup){this.error.set('El navegador bloqueó la ventana para generar el PDF');return;}
-    popup.document.write(`<!doctype html><html><head><title>${this.escape(this.pdfDocumentTitle(list.nombre))}</title><style>@page{size:A4;margin:0}*{box-sizing:border-box}body{margin:0;padding:12mm;font-family:Arial;color:#2d190e}h1{margin:0 0 4px;font-family:Georgia}.date{margin:0 0 18px;color:#765b4b}.product-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:0 10mm;border-top:2px solid #713508}.product-grid article{display:flex;align-items:baseline;justify-content:space-between;gap:10px;min-width:0;padding:8px 4px;border-bottom:1px solid #d8c2b2;break-inside:avoid}.product-grid strong{min-width:0;font-size:12px;overflow-wrap:anywhere}.product-grid span{flex:0 0 auto;color:#713508;font-size:12px;font-weight:800;white-space:nowrap}.product-grid .no-price{color:#a1362d}@media print{html,body{margin:0!important}body{padding:12mm}}@media(max-width:560px){.product-grid{grid-template-columns:1fr}}</style></head><body><h1>${this.escape(list.nombre)}</h1><p class="date">${new Date().toLocaleDateString('es-AR')}</p><section class="product-grid">${rows}</section><script>window.onload=()=>window.print()<\/script></body></html>`); popup.document.close();
+popup.document.write(`<!doctype html><html><head><title>${this.escape(this.pdfDocumentTitle(list.nombre))}</title><style>@page{size:A4;margin:12mm 12mm 17mm;@bottom-right{content:'Página ' counter(page);font-size:10px;color:#765b4b}}*{box-sizing:border-box}body{margin:0;padding:12mm;font-family:Arial;color:#2d190e}h1{margin:0 0 4px;font-family:Georgia}.date{margin:0 0 18px;color:#765b4b}.product-grid{display:grid;grid-template-columns:minmax(0,1fr);gap:0;border-top:2px solid #713508}.product-grid article{display:flex;align-items:baseline;justify-content:space-between;gap:10px;min-width:0;padding:8px 4px;border-bottom:1px solid #d8c2b2;break-inside:avoid}.product-grid strong{min-width:0;font-size:12px;overflow-wrap:anywhere}.product-grid span{flex:0 0 auto;color:#713508;font-size:12px;font-weight:800;white-space:nowrap}.product-grid .no-price{color:#a1362d}@media print{html,body{margin:0!important}body{padding:0}}@media(max-width:560px){.product-grid{grid-template-columns:1fr}}</style></head><body><h1>${this.escape(list.nombre)}</h1><p class="date">${new Date().toLocaleDateString('es-AR')}</p><section class="product-grid">${rows}</section><script>window.onload=()=>window.print()<\/script></body></html>`); popup.document.close();
   }
   exportSelectedProductsPdf() {
     const source = this.sourceDetail();
@@ -257,7 +285,7 @@ export class PriceListsPage implements OnInit, OnDestroy {
     const pricesByProduct = new Map(
       source.items.map((item) => [item.productoId._id, this.exactFinalPrice(item.productoId, item)]),
     );
-    const percentage = Math.abs(Number(this.derivedPercentage));
+    const percentage = 0;
     if (!Number.isFinite(percentage) || percentage > 1000) {
       this.derivedPdfError.set('Ingresá un porcentaje válido.');
       return;
@@ -283,7 +311,7 @@ export class PriceListsPage implements OnInit, OnDestroy {
       return;
     }
     this.derivedPdfError.set(null);
-    popup.document.write(`<!doctype html><html><head><title>${this.escape(this.pdfDocumentTitle(title))}</title><style>@page{size:A4;margin:0}*{box-sizing:border-box}body{margin:0;padding:12mm;font-family:Arial;color:#2d190e}h1{margin:0 0 4px;font-family:Georgia}.date{margin:0 0 18px;color:#765b4b}.product-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:0 10mm;border-top:2px solid #713508}.product-grid article{display:flex;align-items:baseline;justify-content:space-between;gap:10px;min-width:0;padding:8px 4px;border-bottom:1px solid #d8c2b2;break-inside:avoid}.product-grid strong{min-width:0;font-size:12px;overflow-wrap:anywhere}.product-grid span{flex:0 0 auto;color:#713508;font-size:12px;font-weight:800;white-space:nowrap}.product-grid .no-price{color:#a1362d}@media print{html,body{margin:0!important}body{padding:12mm}}@media(max-width:560px){.product-grid{grid-template-columns:1fr}}</style></head><body><h1>${this.escape(title)}</h1><p class="date">${new Date().toLocaleDateString('es-AR')} · Basada en ${this.escape(source.nombre)}</p><section class="product-grid">${rows}</section><script>window.onload=()=>window.print()<\/script></body></html>`);
+    popup.document.write(`<!doctype html><html><head><title>${this.escape(this.pdfDocumentTitle(title))}</title><style>@page{size:A4;margin:12mm 12mm 17mm;@bottom-right{content:'Página ' counter(page);font-size:10px;color:#765b4b}}*{box-sizing:border-box}body{margin:0;padding:12mm;font-family:Arial;color:#2d190e}h1{margin:0 0 4px;font-family:Georgia}.date{margin:0 0 18px;color:#765b4b}.product-grid{display:grid;grid-template-columns:minmax(0,1fr);gap:0;border-top:2px solid #713508}.product-grid article{display:flex;align-items:baseline;justify-content:space-between;gap:10px;min-width:0;padding:8px 4px;border-bottom:1px solid #d8c2b2;break-inside:avoid}.product-grid strong{min-width:0;font-size:12px;overflow-wrap:anywhere}.product-grid span{flex:0 0 auto;color:#713508;font-size:12px;font-weight:800;white-space:nowrap}.product-grid .no-price{color:#a1362d}@media print{html,body{margin:0!important}body{padding:0}}@media(max-width:560px){.product-grid{grid-template-columns:1fr}}</style></head><body><h1>${this.escape(title)}</h1><p class="date">${new Date().toLocaleDateString('es-AR')} · Basada en ${this.escape(source.nombre)}</p><section class="product-grid">${rows}</section><script>window.onload=()=>window.print()<\/script></body></html>`);
     popup.document.close();
   }
   private escape(value:unknown){return String(value??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#039;'}[c]!));}

@@ -27,6 +27,9 @@ export class SalesService {
   update(id: string, payload: UpdateSalePayload) {
     return this.http.patch<Sale>(`${this.base}/${id}`, payload, { withCredentials: true });
   }
+  cancel(id: string, motivo = '') {
+    return this.http.patch<Sale>(`${this.base}/${id}/cancel`, { motivo }, { withCredentials: true });
+  }
   findTransfers() {
     return this.http.get<Sale[]>(`${this.base}/transfers`, { withCredentials: true });
   }

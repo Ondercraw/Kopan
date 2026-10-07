@@ -8,6 +8,7 @@ import { MongoIdPipe } from '../../common/pipes/mongo-id.pipe';
 import type { JwtPayload } from '../auth/interfaces/jwt-payload.interface';
 import { CreateSaleDto } from './dto/create-sale.dto';
 import { UpdateSaleDto } from './dto/update-sale.dto';
+import { CancelSaleDto } from './dto/cancel-sale.dto';
 import { SalesService } from './sales.service';
 
 const SALE_CREATORS = [UserRole.JEFE, UserRole.VENDEDOR];
@@ -47,6 +48,15 @@ export class SalesController {
       id: user.sub,
       name: user.nombre,
       roles: user.roles,
+    });
+  }
+  @Patch(':id/cancel') @Roles(UserRole.JEFE) cancel(
+    @Param('id', MongoIdPipe) id: string,
+    @Body() dto: CancelSaleDto,
+    @CurrentUser() user: JwtPayload,
+  ) {
+    return this.service.cancel(id, dto.motivo ?? '', {
+      id: user.sub, name: user.nombre, roles: user.roles,
     });
   }
 }

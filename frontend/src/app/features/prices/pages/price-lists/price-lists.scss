@@ -243,6 +243,8 @@
   color: #fffaf4;
   font-weight: 800;
 }
+.cost-column:not(.cost-header){flex-direction:column;gap:3px;text-align:center;white-space:normal}
+.cost-column small{font-size:.68rem;font-weight:600;color:#fff2e2}
 .cost-header {
   border-radius: 6px;
   background: #6f3f18;
@@ -407,3 +409,4 @@
     display: grid;
   }
 }
+.edit-products-tools{display:flex;flex-wrap:wrap;align-items:center;gap:.5rem;padding:.7rem 1rem}.edit-products-tools strong{margin-left:auto}.edit-products-list{max-height:min(55vh,540px);overflow:auto}.edit-product-choice{display:flex;align-items:center;gap:.7rem;padding:.65rem 1rem;border-bottom:1px solid #e4d4c5;cursor:pointer}.edit-product-choice.chosen{background:#f7e9dc}.edit-product-choice input{width:18px;height:18px;accent-color:#784011}.edit-product-choice span{display:grid;gap:.15rem}.edit-product-choice small{color:#806350}

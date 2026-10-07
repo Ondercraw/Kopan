@@ -9,6 +9,7 @@ import {
 } from './schemas/stock-movement.schema';
 import { StockController } from './stock.controller';
 import { StockService } from './stock.service';
+import { StockLocationsService } from './stock-locations.service';
 import { SuppliersModule } from '../suppliers/suppliers.module';
 import { PurchasesModule } from '../purchases/purchases.module';
 
@@ -24,6 +25,6 @@ import { PurchasesModule } from '../purchases/purchases.module';
     ]),
   ],
   controllers: [StockController],
-  providers: [StockService],
+  providers: [StockService, StockLocationsService],
 })
 export class StockModule {}

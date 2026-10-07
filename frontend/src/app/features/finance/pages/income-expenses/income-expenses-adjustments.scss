@@ -147,7 +147,8 @@
 }
 
 .action .edit-sale,
-.action .sale-action {
+.action .sale-action,
+.action .sale-cancel-action {
   display: inline-flex;
   width: 148px;
   min-height: 38px;
@@ -166,6 +167,7 @@
   text-align: center;
   text-decoration: none;
 }
+.action .sale-cancel-action { border-color:#b64438; color:#a52c20; background:#fff5f3; }
 
 .danger:disabled {
   cursor: wait;
@@ -218,7 +220,8 @@
   }
 
   .action .edit-sale,
-  .action .sale-action {
+  .action .sale-action,
+  .action .sale-cancel-action {
     width: 100%;
   }
 }

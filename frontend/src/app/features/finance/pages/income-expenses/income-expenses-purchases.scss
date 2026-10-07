@@ -48,3 +48,10 @@
     grid-template-columns: 1fr;
   }
 }
+/* El comprobante tiene columna propia sin desplazar las acciones fuera del panel. */
+@media (min-width: 1401px) {
+  .head,
+  .movement-list > article {
+    grid-template-columns: 120px minmax(170px, 1fr) 104px 125px 125px 115px 170px;
+  }
+}

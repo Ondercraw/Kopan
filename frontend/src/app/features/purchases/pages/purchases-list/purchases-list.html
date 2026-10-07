@@ -36,8 +36,8 @@
             ><small
               >{{ account.compras }}
               {{ account.compras === 1 ? 'compra pendiente' : 'compras pendientes' }}</small
-            ><button type="button" class="pay-account" (click)="openAccountPayment(account)">
-              Pagar deuda completa
+            ><button type="button" class="pay-account" (click)="goToAccounts()">
+              Ver cuenta corriente
             </button>
           </div>
           <div class="debt">
@@ -114,7 +114,7 @@
         </span>
         <div class="row-actions">
           @if (purchase.estado === 'CONFIRMADA' && !purchase.pagada) {
-            <button type="button" (click)="openAction(purchase, 'PAY')">Pagar</button>
+            <button type="button" (click)="goToAccounts()">Ver cuenta</button>
           }
           @if (purchase.estado === 'CONFIRMADA') {
             <button type="button" class="danger" (click)="openAction(purchase, 'CANCEL')">
@@ -209,6 +209,7 @@
         <label class="field date-field"
           ><span>Fecha *</span><input type="date" [(ngModel)]="purchaseDate"
         /></label>
+        @if (mode === 'STOCK_INICIAL') {
         <label class="field"
           ><span>Forma de pago *</span
           ><app-searchable-select
@@ -216,6 +217,7 @@
             [options]="paymentOptions()"
             [clearable]="false"
         /></label>
+        }
         @if (paymentMethod === 'CUENTA_CORRIENTE') {
           <label class="field"
             ><span>Vencimiento <small>(opcional)</small></span
@@ -239,7 +241,7 @@
             {{
               mode === 'COMPRA'
                 ? 'Podés repetir un producto si distintas unidades tuvieron costos diferentes.'
-                : 'Distribuí todas las unidades sin valorar entre sus distintos costos.'
+                : 'Podés valorar una parte ahora y dejar el resto pendiente.'
             }}
           </p>
         </div>
@@ -280,8 +282,8 @@
         </div>
       }
       @if (mode === 'STOCK_INICIAL' && lines[0]?.productId) {
-        <div class="valuation-check" [class.invalid]="openingAssigned() !== openingTarget()">
-          <span>Asignadas {{ openingAssigned() }} de {{ openingTarget() }} unidades</span
+        <div class="valuation-check" [class.invalid]="openingAssigned() > openingTarget()">
+          <span>Valorar {{ openingAssigned() }} de {{ openingTarget() }} unidades pendientes</span
           ><strong>Promedio ponderado: {{ money(weightedAverageCents()) }}</strong>
         </div>
       }

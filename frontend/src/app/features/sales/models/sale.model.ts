@@ -6,12 +6,14 @@ export interface SaleItemPayload {
   precioUnitarioCentavos?: number;
   precioFinalUnitarioCentavos?: number;
   bonificacionPuntosBase?: number;
+  guardarPrecioCliente?: boolean;
 }
 export interface CreateSalePayload {
   clienteId: string;
   vendedorId?: string;
   listaPreciosId: string;
   medioPago: PaymentMethod;
+  modalidadEntrega?: 'MOSTRADOR' | 'REPARTO';
   referenciaTransferencia?: string;
   observaciones?: string;
   incluyeTransporteDescarga?: boolean;
@@ -44,14 +46,18 @@ export interface Sale {
   netoCentavos: number;
   ivaCentavos: number;
   costoCentavos: number;
+  costoPromedioCentavos?: number | null;
   incluyeTransporteDescarga?: boolean;
   transporteDescargaCentavos?: number;
   totalCentavos: number;
   medioPago: PaymentMethod;
+  modalidadEntrega?: 'MOSTRADOR' | 'REPARTO';
+  medioPagoInformado?: PaymentMethod | null;
   montoCobradoCuentaCorrienteCentavos?: number;
   montoCobradoEfectivoCentavos?: number;
   montoCobradoTransferenciaCentavos?: number;
   referenciaTransferencia: string;
+  fechaFacturacion?: string | null;
   chequeId?: string | null;
   chequeNumero?: string;
   chequeCobradoAt?: string | null;
@@ -63,6 +69,7 @@ export interface Sale {
 
 export interface UpdateSalePayload {
   medioPago: Exclude<PaymentMethod, 'CHEQUE'>;
+  fechaFacturacion?: string;
   referenciaTransferencia?: string;
   items: Array<{
     productoId: string;

@@ -39,6 +39,7 @@ export interface Client {
   permiteCuentaCorriente: boolean;
   limiteCreditoCentavos: number;
   saldoCuentaCorrienteCentavos: number;
+  preciosEspeciales?: Array<{ productoId: string; precioFinalCentavos: number }>;
   createdAt: string;
   updatedAt: string;
 }

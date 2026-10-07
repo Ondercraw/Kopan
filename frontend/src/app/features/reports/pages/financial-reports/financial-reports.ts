@@ -40,14 +40,14 @@ export class FinancialReports implements OnInit {
     this.sales().reduce((sum, sale) => sum + (sale.ivaCentavos ?? 0), 0),
   );
   readonly cost = computed(() =>
-    this.sales().reduce((sum, sale) => sum + (sale.costoCentavos ?? 0), 0),
+    this.sales().reduce((sum, sale) => sum + (sale.costoPromedioCentavos ?? sale.costoCentavos ?? 0), 0),
   );
   readonly detailedSales = computed(() =>
     this.sales().filter(
       (sale) =>
         (sale.netoCentavos ?? 0) > 0 ||
         (sale.ivaCentavos ?? 0) > 0 ||
-        (sale.costoCentavos ?? 0) > 0,
+        (sale.costoPromedioCentavos ?? sale.costoCentavos ?? 0) > 0,
     ),
   );
   readonly legacyCount = computed(() => this.sales().length - this.detailedSales().length);
@@ -57,7 +57,7 @@ export class FinancialReports implements OnInit {
   readonly margin = computed(
     () =>
       this.detailedRevenue() -
-      this.detailedSales().reduce((sum, sale) => sum + (sale.costoCentavos ?? 0), 0),
+      this.detailedSales().reduce((sum, sale) => sum + (sale.costoPromedioCentavos ?? sale.costoCentavos ?? 0), 0),
   );
   readonly average = computed(() =>
     this.sales().length ? Math.round(this.revenue() / this.sales().length) : 0,
@@ -200,5 +200,19 @@ export class FinancialReports implements OnInit {
       month: '2-digit',
       day: '2-digit',
     }).format(new Date(value));
+  }
+  printSales() {
+    if (!this.sales().length) { this.error.set('No hay ventas en el período elegido para imprimir'); return; }
+    const popup = window.open('', '_blank', 'width=900,height=760');
+    if (!popup) { this.error.set('El navegador bloqueó la ventana del informe'); return; }
+    const escape = (value: unknown) => String(value ?? '').replace(/[&<>"']/g, (char) =>
+      ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[char]!);
+    const rows = [...this.sales()].sort((a, b) => a.createdAt.localeCompare(b.createdAt)).map((sale) =>
+      `<tr><td>${escape(this.dateKey(sale.createdAt))}</td><td>#${sale.codigo}</td><td>${escape(sale.clienteNombre)}</td><td>${escape(sale.modalidadEntrega === 'REPARTO' ? 'Reparto · cuenta corriente' : sale.medioPago)}</td><td class="amount">${escape(this.money(sale.totalCentavos))}</td></tr>`,
+    ).join('');
+    const title = `Ventas-${this.from}-${this.to}`;
+    popup.document.open();
+    popup.document.write(`<!doctype html><html lang="es"><head><meta charset="utf-8"><title>${escape(title)}</title><style>@page{size:A4;margin:14mm 12mm 18mm;@bottom-right{content:'Página ' counter(page);font-size:10px;color:#7b6251}}*{box-sizing:border-box}body{margin:0;color:#2d190e;font:12px Arial,sans-serif}header{border-bottom:3px solid #713508;margin-bottom:18px;padding-bottom:12px}h1{margin:4px 0;font:700 25px Georgia,serif}small{color:#765b4b}.summary{padding:12px;background:#f5e8dc;margin-bottom:18px;font-weight:700}table{width:100%;border-collapse:collapse}thead{display:table-header-group}th{background:#713508;color:#fff;text-align:left;padding:9px}td{border-bottom:1px solid #e6d6ca;padding:8px;overflow-wrap:anywhere}tr{break-inside:avoid}.amount{text-align:right;white-space:nowrap}tfoot td{background:#ead6c4;font-weight:800}</style></head><body><header><small>DISTRIBUIDORA KOPAN</small><h1>Ventas del período</h1><small>${escape(this.from)} al ${escape(this.to)}</small></header><div class="summary">${this.sales().length} ventas · Total ${escape(this.money(this.revenue()))}</div><table><thead><tr><th>Fecha</th><th>Número</th><th>Cliente</th><th>Modalidad / pago</th><th class="amount">Total</th></tr></thead><tbody>${rows}</tbody><tfoot><tr><td colspan="4">TOTAL</td><td class="amount">${escape(this.money(this.revenue()))}</td></tr></tfoot></table><script>window.onload=()=>setTimeout(()=>window.print(),150);<\/script></body></html>`);
+    popup.document.close();
   }
 }

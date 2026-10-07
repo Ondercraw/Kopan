@@ -89,6 +89,7 @@ export class IncomeExpensesPage implements OnInit {
   readonly collecting = signal<FinancialMovement | null>(null);
   readonly cancelling = signal<FinancialMovement | null>(null);
   readonly editingSale = signal<Sale | null>(null);
+  readonly cancellingSale = signal<FinancialMovement | null>(null);
   readonly editSaleReview = signal(false);
   readonly editSaleAttempted = signal(false);
   readonly cancelAttempted = signal(false);
@@ -97,8 +98,12 @@ export class IncomeExpensesPage implements OnInit {
   readonly pageSize = 10;
   from = argentinaToday();
   to = argentinaToday();
-  search = '';
-  kind = '';
+  private readonly searchTerm = signal('');
+  private readonly kindFilter = signal('');
+  get search() { return this.searchTerm(); }
+  set search(value: string) { this.searchTerm.set(value); this.page.set(1); }
+  get kind() { return this.kindFilter(); }
+  set kind(value: string) { this.kindFilter.set(value); this.page.set(1); }
   concept = '';
   amount = 0;
   detail = '';
@@ -107,9 +112,28 @@ export class IncomeExpensesPage implements OnInit {
   payMethod: Extract<FinancialPaymentMethod, 'EFECTIVO' | 'TRANSFERENCIA'> = 'EFECTIVO';
   collectionDestination: Extract<FinancialPaymentMethod, 'EFECTIVO' | 'TRANSFERENCIA'> = 'EFECTIVO';
   cancelReason = '';
+  saleCancelReason = '';
+  confirmSaleCancellation() {
+    const movement = this.cancellingSale();
+    if (!movement?.ventaId || this.saving()) return;
+    this.saving.set(true);
+    this.salesApi.cancel(movement.ventaId, this.saleCancelReason.trim()).subscribe({
+      next: () => {
+        this.cancellingSale.set(null);
+        this.saving.set(false);
+        this.success.set(`Venta #${movement.ventaCodigo} anulada. Se devolvió el stock y se revirtió el saldo.`);
+        this.load();
+      },
+      error: (e) => {
+        this.saving.set(false);
+        this.error.set(e.error?.message ?? 'No se pudo anular la venta');
+      },
+    });
+  }
   editSaleLines: EditableSaleLine[] = [];
   editSalePayment: Exclude<PaymentMethod, 'CHEQUE'> = 'EFECTIVO';
   editSaleTransferReference = '';
+  editSaleBillingDate = '';
   readonly supplierOptions = computed<SearchableSelectOption[]>(() =>
     this.suppliers()
       .filter((s) => s.activo)
@@ -120,10 +144,10 @@ export class IncomeExpensesPage implements OnInit {
       })),
   );
   readonly filtered = computed(() => {
-    const t = this.normalize(this.search);
+    const t = this.normalize(this.searchTerm());
     return this.items().filter(
       (i) =>
-        (!this.kind || i.tipo === this.kind) &&
+        (!this.kindFilter() || i.tipo === this.kindFilter()) &&
         (!t ||
           this.normalize(
             `${i.concepto} ${i.detalle} ${i.clienteNombre} ${i.proveedorNombre} ${i.chequeNumero}`,
@@ -317,6 +341,7 @@ export class IncomeExpensesPage implements OnInit {
       next: (sale) => {
         this.editSalePayment = sale.medioPago === 'CHEQUE' ? 'EFECTIVO' : sale.medioPago;
         this.editSaleTransferReference = sale.referenciaTransferencia ?? '';
+        this.editSaleBillingDate = sale.fechaFacturacion?.slice(0, 10) ?? '';
         this.editSaleLines = sale.items.map((line) => {
           const discountFactor = (10000 - line.bonificacionPuntosBase) / 10000;
           const finalUnitCents = Math.round(line.totalCentavos / line.cantidad / discountFactor);
@@ -372,6 +397,7 @@ export class IncomeExpensesPage implements OnInit {
     this.saving.set(true);
     this.salesApi.update(sale._id, {
       medioPago: this.editSalePayment,
+      fechaFacturacion: this.editSaleBillingDate || undefined,
       referenciaTransferencia: this.editSalePayment === 'TRANSFERENCIA'
         ? this.editSaleTransferReference.trim()
         : undefined,

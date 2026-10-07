@@ -119,6 +119,20 @@ export class FinanceService {
     // El gasto real pertenece a la compra; vender no crea otra deuda al proveedor.
   }
 
+  async cancelSaleRecord(sale: SaleDocument, reason: string, actor: FinanceActor): Promise<void> {
+    await this.movementModel.updateOne(
+      { sourceKey: `sale:${sale._id.toString()}:income`, cancelado: { $ne: true } },
+      { $set: {
+        cancelado: true,
+        motivoCancelacion: reason,
+        canceladoAt: new Date(),
+        canceladoPorId: actor.id,
+        canceladoPorNombre: actor.name,
+        disponible: false,
+      } },
+    ).exec();
+  }
+
   /**
    * Registra el costo histórico de una entrada manual de mercadería.
    * El total se calcula una sola vez con el costo vigente en ese ingreso;

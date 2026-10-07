@@ -51,6 +51,7 @@ export class PurchasesListPage implements OnInit {
   private readonly salesService = inject(SalesService);
   private readonly route = inject(ActivatedRoute);
   private readonly router = inject(Router);
+  goToAccounts() { void this.router.navigate(['/cuentas-corrientes']); }
   readonly purchases = signal<Purchase[]>([]);
   readonly inventory = signal<InventoryProduct[]>([]);
   readonly suppliers = signal<Supplier[]>([]);
@@ -207,7 +208,7 @@ export class PurchasesListPage implements OnInit {
     this.error.set(null);
     this.modalMode.set(mode);
     this.supplierId = '';
-    this.paymentMethod = mode === 'STOCK_INICIAL' ? '' : 'EFECTIVO';
+    this.paymentMethod = mode === 'STOCK_INICIAL' ? '' : 'CUENTA_CORRIENTE';
     this.purchaseDate = argentinaToday();
     this.dueDate = '';
     this.documentNumber = '';
@@ -338,8 +339,8 @@ export class PurchasesListPage implements OnInit {
       );
       return;
     }
-    if (this.modalMode() === 'STOCK_INICIAL' && this.openingAssigned() !== this.openingTarget()) {
-      this.error.set(`La suma debe ser exactamente ${this.openingTarget()} unidades`);
+    if (this.modalMode() === 'STOCK_INICIAL' && this.openingAssigned() > this.openingTarget()) {
+      this.error.set(`Solo hay ${this.openingTarget()} unidades pendientes de valorar`);
       return;
     }
     if (!this.purchaseDate || this.purchaseDate > argentinaToday()) {

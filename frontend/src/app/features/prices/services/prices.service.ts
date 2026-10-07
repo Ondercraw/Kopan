@@ -23,6 +23,9 @@ export class PricesService {
       this.options,
     );
   }
+  setProducts(listId: string, productIds: string[]) {
+    return this.http.put<PriceListDetail>(`${this.base}/${listId}/products`, { productIds }, this.options);
+  }
   setActive(id: string, activo: boolean) {
     return this.http.patch<PriceList>(`${this.base}/${id}/active`, { activo }, this.options);
   }

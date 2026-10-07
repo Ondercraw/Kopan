@@ -35,6 +35,12 @@ const NAV_GROUPS: NavGroup[] = [
         rolesPermitidos: [UserRole.JEFE, UserRole.EMPLEADO_STOCK],
       },
       {
+        label: 'Movimientos de mercadería',
+        icon: 'ti-arrows-move',
+        path: '/movimientos-mercaderia',
+        rolesPermitidos: [UserRole.JEFE, UserRole.EMPLEADO_STOCK],
+      },
+      {
         label: 'Precios y costos',
         icon: 'ti-tag',
         path: '/precios',

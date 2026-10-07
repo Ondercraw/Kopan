@@ -11,6 +11,8 @@ import { PaymentMethod } from '../sales/enums/payment-method.enum';
 import { SaleStatus } from '../sales/enums/sale-status.enum';
 import { Sale, SaleDocument } from '../sales/schemas/sale.schema';
 import { AccountPayment, AccountPaymentDocument } from './schemas/account-payment.schema';
+import { AccountOpeningDebt, AccountOpeningDebtDocument } from './schemas/account-opening-debt.schema';
+import { Supplier, SupplierDocument } from '../suppliers/schemas/supplier.schema';
 
 interface Actor { id: string; name: string }
 
@@ -23,6 +25,8 @@ export class AccountsService implements OnModuleInit {
     @InjectModel(Purchase.name) private readonly purchaseModel: Model<PurchaseDocument>,
     @InjectModel(Client.name) private readonly clientModel: Model<ClientDocument>,
     @InjectModel(AccountPayment.name) private readonly paymentModel: Model<AccountPaymentDocument>,
+    @InjectModel(AccountOpeningDebt.name) private readonly openingDebtModel: Model<AccountOpeningDebtDocument>,
+    @InjectModel(Supplier.name) private readonly supplierModel: Model<SupplierDocument>,
     @InjectModel(FinancialMovement.name) private readonly financeModel: Model<FinancialMovementDocument>,
     private readonly purchasesService: PurchasesService,
   ) {}
@@ -85,10 +89,13 @@ export class AccountsService implements OnModuleInit {
   }
 
   async statement() {
-    const [sales, purchases, payments] = await Promise.all([
+    const [sales, purchases, payments, openingDebts, clientEntities, supplierEntities] = await Promise.all([
       this.saleModel.find({ estado: SaleStatus.CONFIRMED, medioPago: { $in: [PaymentMethod.CASH, PaymentMethod.TRANSFER, PaymentMethod.CREDIT, PaymentMethod.CHECK] } }).sort({ createdAt: -1 }).lean().exec(),
       this.purchaseModel.find({ estado: PurchaseStatus.CONFIRMED, medioPago: { $in: [PurchasePaymentMethod.CASH, PurchasePaymentMethod.TRANSFER, PurchasePaymentMethod.CREDIT, PurchasePaymentMethod.HISTORICAL] } }).sort({ fechaCompra: -1 }).lean().exec(),
       this.paymentModel.find().sort({ fecha: -1 }).lean().exec(),
+      this.openingDebtModel.find().sort({ fecha: -1 }).lean().exec(),
+      this.clientModel.find({ activo: true }).select('_id nombre').lean().exec(),
+      this.supplierModel.find({ activo: true }).select('_id nombre').lean().exec(),
     ]);
     const paymentMap = new Map<string, typeof payments>();
     for (const payment of payments) {
@@ -97,7 +104,7 @@ export class AccountsService implements OnModuleInit {
     }
     const status = (total: number, paid: number) => paid <= 0 ? 'PENDIENTE' : paid < total ? 'PARCIAL' : 'PAGADO';
     const clients = this.group(
-      sales.map((sale) => {
+      [...sales.map((sale) => {
         const isCredit = sale.medioPago === PaymentMethod.CREDIT;
         const paid = isCredit ? (sale.montoCobradoCuentaCorrienteCentavos ?? 0) : sale.totalCentavos;
         const directPayments = isCredit ? [] : [{ id: `sale-initial-${sale._id.toString()}`, montoCentavos: sale.totalCentavos, medioPago: sale.medioPago, fecha: sale.createdAt, actorName: sale.actorName }];
@@ -108,10 +115,10 @@ export class AccountsService implements OnModuleInit {
           detalle: sale.items.map((item) => `${item.productoNombre} x${item.cantidad}`).join(', '),
           pagos: directPayments.concat((paymentMap.get(sale._id.toString()) ?? []).map(this.serializePayment)),
         };
-      }),
+      }), ...openingDebts.filter((debt) => debt.tipoCuenta === 'CLIENTE').map((debt) => this.openingDocument(debt, paymentMap.get(debt._id.toString()) ?? [], status))],
     );
     const suppliers = this.group(
-      purchases.map((purchase) => {
+      [...purchases.map((purchase) => {
         const isCredit = purchase.medioPago === PurchasePaymentMethod.CREDIT;
         const paid = isCredit ? (purchase.montoPagadoCentavos ?? 0) : purchase.totalCentavos;
         const paymentDate = purchase.pagadaAt ?? purchase.fechaCompra;
@@ -137,9 +144,78 @@ export class AccountsService implements OnModuleInit {
             ),
           ),
         };
-      }),
+      }), ...openingDebts.filter((debt) => debt.tipoCuenta === 'PROVEEDOR').map((debt) => this.openingDocument(debt, paymentMap.get(debt._id.toString()) ?? [], status))],
     );
-    return { clients, suppliers };
+    return { clients: this.withEmptyEntities(clients, clientEntities), suppliers: this.withEmptyEntities(suppliers, supplierEntities) };
+  }
+
+  private openingDocument(debt: AccountOpeningDebt, payments: AccountPayment[], status: (total: number, paid: number) => string) {
+    return { id: debt._id.toString(), codigo: 0, entidadId: debt.entidadId.toString(), entidadNombre: debt.entidadNombre,
+      tipo: 'SALDO_INICIAL', fecha: debt.fecha, totalCentavos: debt.montoCentavos,
+      pagadoCentavos: debt.pagadoCentavos, saldoCentavos: debt.cancelada ? 0 : debt.montoCentavos - debt.pagadoCentavos,
+      estado: debt.cancelada ? 'CANCELADO' : status(debt.montoCentavos, debt.pagadoCentavos),
+      detalle: `${debt.detalle || 'Saldo del sistema anterior'}${debt.cancelada ? ` · Cancelada: ${debt.motivoCancelacion}` : ''}`,
+      pagos: payments.map(this.serializePayment) };
+  }
+
+  private withEmptyEntities(groups: any[], entities: Array<{ _id: Types.ObjectId; nombre: string }>) {
+    const ids = new Set(groups.map((group) => group.entidadId));
+    return [...groups, ...entities.filter((entity) => !ids.has(entity._id.toString())).map((entity) => ({
+      entidadId: entity._id.toString(), entidadNombre: entity.nombre, totalCentavos: 0,
+      pagadoCentavos: 0, saldoCentavos: 0, documentos: [],
+    }))].sort((a, b) => a.entidadNombre.localeCompare(b.entidadNombre, 'es', { sensitivity: 'base' }));
+  }
+
+  addOpeningDebt(side: 'clients' | 'suppliers', entityId: string, amountCents: number, detail: string, actor: Actor) {
+    if (!['clients', 'suppliers'].includes(side)) throw new BadRequestException('Tipo de cuenta inválido');
+    if (!Number.isSafeInteger(amountCents) || amountCents <= 0) throw new BadRequestException('Ingresá un importe válido');
+    return this.connection.transaction(async () => {
+      const isClient = side === 'clients';
+      const entity = isClient ? await this.clientModel.findById(entityId).exec() : await this.supplierModel.findById(entityId).exec();
+      if (!entity?.activo) throw new NotFoundException('Cuenta no encontrada');
+      const debt = await this.openingDebtModel.create({ tipoCuenta: isClient ? 'CLIENTE' : 'PROVEEDOR',
+        entidadId: entity._id, entidadNombre: entity.nombre, montoCentavos: amountCents, pagadoCentavos: 0,
+        detalle: detail.trim(), fecha: new Date(), actorId: actor.id, actorName: actor.name });
+      if (isClient) await this.clientModel.updateOne({ _id: entityId }, { $inc: { saldoCuentaCorrienteCentavos: amountCents } }).exec();
+      return debt;
+    });
+  }
+
+  cancelOpeningDebt(id: string, reason: string, actor: Actor) {
+    return this.connection.transaction(async () => {
+      const debt = await this.openingDebtModel.findById(id).exec();
+      if (!debt || debt.cancelada) throw new NotFoundException('Deuda histórica no encontrada');
+      if (debt.pagadoCentavos > 0) throw new ConflictException('No se puede cancelar una deuda que ya tiene pagos registrados');
+      debt.cancelada = true; debt.canceladaAt = new Date(); debt.motivoCancelacion = reason.trim() || `Cancelada por ${actor.name}`;
+      await debt.save();
+      if (debt.tipoCuenta === 'CLIENTE') await this.clientModel.updateOne({ _id: debt.entidadId }, { $inc: { saldoCuentaCorrienteCentavos: -debt.montoCentavos } }).exec();
+      return debt;
+    });
+  }
+
+  payOpeningDebt(id: string, amountCents: number, method: FinancialPaymentMethod.CASH | FinancialPaymentMethod.TRANSFER, actor: Actor) {
+    return this.connection.transaction(async () => {
+      const debt = await this.openingDebtModel.findById(id).exec();
+      if (!debt || debt.cancelada) throw new NotFoundException('Deuda histórica no encontrada');
+      this.validateAmount(amountCents, debt.montoCentavos - debt.pagadoCentavos);
+      debt.pagadoCentavos += amountCents;
+      await debt.save();
+      if (debt.tipoCuenta === 'CLIENTE') await this.clientModel.updateOne({ _id: debt.entidadId }, { $inc: { saldoCuentaCorrienteCentavos: -amountCents } }).exec();
+      const payment = await this.paymentModel.create({ tipoCuenta: debt.tipoCuenta, entidadId: debt.entidadId,
+        entidadNombre: debt.entidadNombre, comprobanteTipo: 'SALDO_INICIAL', comprobanteId: debt._id,
+        comprobanteCodigo: 0, montoCentavos: amountCents, medioPago: method, fecha: new Date(), actorId: actor.id, actorName: actor.name });
+      await this.financeModel.create({ sourceKey: `opening-debt-payment:${payment._id.toString()}`,
+        tipo: debt.tipoCuenta === 'CLIENTE' ? FinancialMovementKind.INCOME : FinancialMovementKind.EXPENSE,
+        categoria: debt.tipoCuenta === 'CLIENTE' ? FinancialMovementCategory.ACCOUNT_PAYMENT : FinancialMovementCategory.SUPPLIER_ACCOUNT_PAYMENT,
+        montoCentavos: amountCents, concepto: `${debt.tipoCuenta === 'CLIENTE' ? 'Cobro' : 'Pago'} de saldo anterior`,
+        detalle: debt.entidadNombre, medioPago: method, acreditadoEn: debt.tipoCuenta === 'CLIENTE' ? method : null,
+        disponible: debt.tipoCuenta === 'CLIENTE', pagado: debt.tipoCuenta === 'PROVEEDOR',
+        fechaMovimiento: payment.fecha, clienteId: debt.tipoCuenta === 'CLIENTE' ? debt.entidadId : null,
+        clienteNombre: debt.tipoCuenta === 'CLIENTE' ? debt.entidadNombre : '',
+        proveedorId: debt.tipoCuenta === 'PROVEEDOR' ? debt.entidadId : null,
+        proveedorNombre: debt.tipoCuenta === 'PROVEEDOR' ? debt.entidadNombre : '', actorId: actor.id, actorName: actor.name });
+      return debt;
+    });
   }
 
   payClientSale(saleId: string, amountCents: number, method: FinancialPaymentMethod.CASH | FinancialPaymentMethod.TRANSFER, actor: Actor) {
@@ -216,9 +292,11 @@ export class AccountsService implements OnModuleInit {
     const groups = new Map<string, any>();
     for (const document of documents) {
       const current = groups.get(document.entidadId) ?? { entidadId: document.entidadId, entidadNombre: document.entidadNombre, totalCentavos: 0, pagadoCentavos: 0, saldoCentavos: 0, documentos: [] };
-      current.totalCentavos += document.totalCentavos;
-      current.pagadoCentavos += document.pagadoCentavos;
-      current.saldoCentavos += document.saldoCentavos;
+      if (document.estado !== 'CANCELADO') {
+        current.totalCentavos += document.totalCentavos;
+        current.pagadoCentavos += document.pagadoCentavos;
+        current.saldoCentavos += document.saldoCentavos;
+      }
       current.documentos.push(document);
       groups.set(document.entidadId, current);
     }

@@ -11,3 +11,19 @@
 .check-form > p {
   border-radius: 0 9px 9px 0;
 }
+
+.confirmed-message {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 16px;
+  border: 1px solid #84b48a;
+  border-radius: 10px;
+  background: #e9f6e9;
+  color: #206433;
+  font-size: 1rem;
+  font-weight: 800;
+}
+.confirmed-message i { font-size: 1.35rem; }
+.client-price-save { display:flex;align-items:center;gap:5px;margin-top:5px;color:#713508;font-size:.66rem;line-height:1.2;cursor:pointer; }
+.client-price-save input { width:15px;height:15px;flex:0 0 15px;accent-color:#713508; }

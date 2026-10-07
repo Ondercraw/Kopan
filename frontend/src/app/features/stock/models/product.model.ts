@@ -50,6 +50,7 @@ export interface Product {
   stockMinimo: number;
   alicuotaIva: VatRate;
   costoCentavos: number;
+  ultimoCostoCentavos?: number;
   // El backend entrega la relación poblada bajo proveedorId.
   proveedorId: ProductSupplier | null;
   proveedorIds?: ProductSupplier[];
@@ -96,7 +97,8 @@ export type StockMovementType =
   | 'PURCHASE'
   | 'OPENING_VALUATION'
   | 'PURCHASE_CANCELLATION'
-  | 'VALUATION_CANCELLATION';
+  | 'VALUATION_CANCELLATION'
+  | 'SALE_CANCELLATION';
 
 export interface StockMovement {
   _id: string;

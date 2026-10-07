@@ -1,0 +1,22 @@
+<section class="locations-page">
+  <header class="page-head"><div><small>INVENTARIO</small><h1>Movimientos de mercadería</h1><p>Distribuí unidades entre mostrador, depósito y galpón. El stock existente comienza pendiente de asignación.</p></div><button type="button" class="secondary" (click)="load()">Actualizar</button></header>
+  @if (success()) { <p class="notice success" role="status">{{ success() }}</p> }
+  @if (error() && !selected()) { <p class="notice error" role="alert">{{ error() }}</p> }
+  <label class="search-label">Buscar producto <input type="search" [(ngModel)]="search" placeholder="Nombre, rubro o ID" /></label>
+  @if (loading()) { <p>Cargando ubicaciones…</p> }
+  @else {
+    <div class="table-wrap"><table><thead><tr><th>ID</th><th>Producto</th><th>Rubro</th><th>Total</th><th>Pendiente de asignación</th><th>Mostrador</th><th>Depósito</th><th>Galpón</th><th>Acciones</th></tr></thead><tbody>
+      @for (row of filtered; track row.id) { <tr><td>#{{ row.codigo }}</td><td><strong>{{ row.nombre }}</strong></td><td>{{ row.rubro }}</td><td>{{ row.total }}</td><td>{{ row.pendiente }}</td><td>{{ row.mostrador }}</td><td>{{ row.deposito }}</td><td>{{ row.galpon }}</td><td><button type="button" class="move-btn" (click)="open(row)">Mover</button></td></tr> }
+      @empty { <tr><td colspan="9">No hay productos que coincidan con la búsqueda.</td></tr> }
+    </tbody></table></div>
+  }
+  @if (selected(); as row) {
+    <div class="overlay" role="presentation"><section class="modal" role="dialog" aria-modal="true" aria-labelledby="move-title">
+      <header><div><small>MOVIMIENTO INTERNO</small><h2 id="move-title">{{ row.nombre }}</h2></div><button type="button" class="close" aria-label="Cerrar" (click)="close()">×</button></header>
+      <p>Stock total: <strong>{{ row.total }}</strong>. Este movimiento no cambia el total del producto.</p>
+      <div class="form-grid"><label>Origen<select [(ngModel)]="source">@for (place of places; track place.value) { <option [value]="place.value">{{ place.label }}</option> }</select><small>Disponible: {{ available(row, source) }}</small></label><label>Destino<select [(ngModel)]="destination">@for (place of places; track place.value) { <option [value]="place.value">{{ place.label }}</option> }</select></label><label>Cantidad<input type="number" min="1" step="1" [max]="available(row, source)" [(ngModel)]="quantity" /></label></div>
+      @if (error()) { <p class="notice error" role="alert">{{ error() }}</p> }
+      <footer><button type="button" class="secondary" (click)="close()">Cancelar</button><button type="button" class="primary" [disabled]="saving()" (click)="transfer()">{{ saving() ? 'Moviendo…' : 'Confirmar movimiento' }}</button></footer>
+    </section></div>
+  }
+</section>

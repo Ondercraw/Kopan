@@ -20,7 +20,7 @@ export class SearchableSelect implements ControlValueAccessor {
   private readonly syncWhenOptionsChange=effect(()=>{this.options();if(!this.open())this.syncLabel();});
   private onChange:(value:string)=>void=()=>{};private onTouched:()=>void=()=>{};
 
-  filteredOptions():SearchableSelectOption[]{const term=this.normalize(this.query());if(!term||term===this.normalize(this.selectedLabel()))return this.options();return this.options().filter(option=>this.normalize(`${option.label} ${option.meta??''}`).includes(term));}
+  filteredOptions():SearchableSelectOption[]{const term=this.normalize(this.query());if(!term)return this.options();return this.options().filter(option=>this.normalize(`${option.label} ${option.meta??''}`).includes(term));}
   writeValue(value:string|null):void{this.selectedValue.set(value??'');this.syncLabel();}
   registerOnChange(fn:(value:string)=>void):void{this.onChange=fn;}
   registerOnTouched(fn:()=>void):void{this.onTouched=fn;}

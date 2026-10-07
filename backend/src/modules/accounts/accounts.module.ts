@@ -8,12 +8,16 @@ import { Sale, SaleSchema } from '../sales/schemas/sale.schema';
 import { AccountsController } from './accounts.controller';
 import { AccountsService } from './accounts.service';
 import { AccountPayment, AccountPaymentSchema } from './schemas/account-payment.schema';
+import { AccountOpeningDebt, AccountOpeningDebtSchema } from './schemas/account-opening-debt.schema';
+import { Supplier, SupplierSchema } from '../suppliers/schemas/supplier.schema';
 
 @Module({
   imports: [PurchasesModule, MongooseModule.forFeature([
     { name: Sale.name, schema: SaleSchema }, { name: Purchase.name, schema: PurchaseSchema },
     { name: Client.name, schema: ClientSchema }, { name: FinancialMovement.name, schema: FinancialMovementSchema },
     { name: AccountPayment.name, schema: AccountPaymentSchema },
+    { name: AccountOpeningDebt.name, schema: AccountOpeningDebtSchema },
+    { name: Supplier.name, schema: SupplierSchema },
   ])],
   controllers: [AccountsController], providers: [AccountsService],
 })

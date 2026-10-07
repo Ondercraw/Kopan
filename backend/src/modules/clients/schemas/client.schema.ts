@@ -14,6 +14,13 @@ export class ClientChange {
 }
 const ClientChangeSchema = SchemaFactory.createForClass(ClientChange);
 
+@Schema({ _id: false })
+export class ClientSpecialPrice {
+  @Prop({ required: true, type: MongooseSchema.Types.ObjectId, ref: 'Product' }) productoId: Types.ObjectId;
+  @Prop({ required: true, min: 1 }) precioFinalCentavos: number;
+}
+const ClientSpecialPriceSchema = SchemaFactory.createForClass(ClientSpecialPrice);
+
 @Schema({ collection: 'clients', timestamps: true })
 export class Client {
   declare _id: Types.ObjectId;
@@ -51,6 +58,7 @@ export class Client {
   // Saldo consumido por ventas a crédito. El disponible es límite menos saldo.
   @Prop({ required: true, min: 0, default: 0 })
   saldoCuentaCorrienteCentavos: number;
+  @Prop({ type: [ClientSpecialPriceSchema], default: [] }) preciosEspeciales: ClientSpecialPrice[];
   @Prop({ trim: true, maxlength: 500, default: '' }) observaciones: string;
   @Prop({ default: true, index: true }) activo: boolean;
   @Prop({ type: [ClientChangeSchema], default: [] })
