@@ -93,6 +93,7 @@
       <option value="">Todos</option>
       <option value="INGRESO">Solo ingresos</option>
       <option value="GASTO">Solo gastos</option>
+      <option value="DOCUMENTO">Solo remitos</option>
     </select>
   </div>
   @if (error()) {
@@ -116,6 +117,7 @@
         [class.manual]="item.categoria === 'GASTO_MANUAL'"
         [class.purchase]="item.categoria === 'COMPRA_PRODUCTOS'"
         [class.supplier-payment]="item.categoria === 'PAGO_CUENTA_PROVEEDOR'"
+        [class.document]="item.categoria === 'REMITO'"
         [class.cancelled]="item.cancelado"
       >
         <div class="movement-type" data-label="Tipo">
@@ -138,13 +140,17 @@
         <span data-label="Comprobante">
           @if (item.ventaId && !item.cancelado && item.categoria === 'VENTA') {
             <button type="button" class="receipt-action" (click)="reprintSale(item)"><i class="ti ti-printer"></i> Reimprimir</button>
+          } @else if (item.remitoId) {
+            <button type="button" class="receipt-action" (click)="reprintRemittance(item)"><i class="ti ti-printer"></i> Reimprimir</button>
           } @else { — }
         </span
         ><span data-label="Fecha">{{ date(item.fechaMovimiento) }}</span
         ><span data-label="Estado"
-          ><strong>{{ method(item.medioPago) }}</strong
+          ><strong>{{ item.categoria === 'REMITO' ? 'Documento' : method(item.medioPago) }}</strong
           ><small>
-            @if (item.tipo === 'INGRESO') {
+            @if (item.categoria === 'REMITO') {
+              No afecta caja ni stock
+            } @else if (item.tipo === 'INGRESO') {
               {{
                 item.disponible
                   ? item.acreditadoEn
@@ -165,10 +171,12 @@
             >
           }</span
         ><strong data-label="Importe"
-          >{{ item.tipo === 'GASTO' ? '− ' : '+ ' }}{{ money(item.montoCentavos) }}</strong
+          >{{ item.categoria === 'REMITO' ? '—' : (item.tipo === 'GASTO' ? '− ' : '+ ') + money(item.montoCentavos) }}</strong
         ><span class="action">
           @if (item.cancelado) {
             <i class="ti ti-lock" title="Movimiento cancelado"></i>
+          } @else if (item.remitoId) {
+            <button type="button" (click)="reprintRemittance(item)">Reimprimir remito</button>
           } @else if (item.categoria === 'CHEQUE' && !item.disponible && item.chequeId) {
             <button type="button" (click)="openCheckCollection(item)">Cobrar cheque</button>
           } @else if (item.categoria === 'COMPRA_PRODUCTOS') {

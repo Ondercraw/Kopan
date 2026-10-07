@@ -2,6 +2,14 @@ import { Types } from 'mongoose';
 import { RemittancesService } from './remittances.service';
 
 describe('RemittancesService', () => {
+  it('permite consultar un remito ya emitido para reimprimirlo', async () => {
+    const id = new Types.ObjectId();
+    const record = { _id: id, codigo: 8, items: [{ productoNombre: 'Harina', cantidad: 2 }] };
+    const remittances = { findById: jest.fn().mockReturnValue({ lean: () => ({ exec: () => Promise.resolve(record) }) }) };
+    const service = new RemittancesService({} as never, remittances as never,
+      {} as never, {} as never, {} as never);
+    await expect(service.findOne(id.toString())).resolves.toEqual(record);
+  });
   it('registra un remito independiente sin modificar existencias ni dinero', async () => {
     const clientId = new Types.ObjectId();
     const productId = new Types.ObjectId();

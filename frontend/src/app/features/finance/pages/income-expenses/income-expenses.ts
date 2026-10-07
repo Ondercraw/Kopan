@@ -33,6 +33,8 @@ import { PaymentMethod, Sale } from '../../../sales/models/sale.model';
 import { SalesService } from '../../../sales/services/sales.service';
 import { PurchasesService } from '../../../purchases/services/purchases.service';
 import { ClientsService } from '../../../clients/services/clients.service';
+import { forkJoin } from 'rxjs';
+import { RemittancesService, RemittanceRecord } from '../../../sales/services/remittances.service';
 
 interface EditableSaleLine {
   productoId: string;
@@ -80,6 +82,7 @@ export class IncomeExpensesPage implements OnInit {
   private readonly salesApi = inject(SalesService);
   private readonly purchasesApi = inject(PurchasesService);
   private readonly clientsApi = inject(ClientsService);
+  private readonly remittancesApi = inject(RemittancesService);
   readonly items = signal<FinancialMovement[]>([]);
   readonly period = signal<FinancialSummary>(EMPTY);
   readonly overall = signal<FinancialSummary>(EMPTY);
@@ -134,11 +137,30 @@ export class IncomeExpensesPage implements OnInit {
           const filename = `${sale.clienteNombre.normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/[^a-zA-Z0-9]+/g, '-')}-COMPROBANTE-${date.replaceAll('/', '-')}`;
           popup.document.open();
           popup.document.write(`<!doctype html><html lang="es"><head><meta charset="utf-8"><title>${esc(filename)}</title><style>@page{size:A4;margin:12mm}body{font:13px Arial,sans-serif;color:#2d190e}.ticket{max-width:820px;margin:auto}.brand{display:flex;justify-content:space-between;border-bottom:3px solid #713508;padding-bottom:16px}.brand h1{font:700 26px Georgia,serif;margin:0}.brand p{color:#713508}.date{text-align:right;font-size:20px;font-weight:700}.number{font-size:22px}.notice{background:#fbf1e7;border-left:4px solid #b86719;padding:10px;margin:16px 0}.details div{border-bottom:1px solid #eaded5;padding:7px 0}.details span{display:inline-block;width:100px;color:#846b5b;text-transform:uppercase;font-size:11px}table{width:100%;border-collapse:collapse;margin-top:22px}th{background:#713508;color:white;text-align:left;padding:10px}td{padding:10px;border-bottom:1px solid #eaded5}th:nth-child(n+3),td:nth-child(n+3){text-align:right}.total{text-align:right;background:#f1e2d4;border:2px solid #713508;padding:16px;margin-top:26px;font:700 28px Georgia,serif}.footer{text-align:center;margin-top:24px;color:#806858}.notes{margin-top:20px;padding:12px;background:#fbf6f1;white-space:pre-wrap}@media print{button{display:none}}</style></head><body><main class="ticket"><header class="brand"><div><h1>Distribuidora Kopan</h1><p>COMPROBANTE</p></div><div class="date"><div class="number">Numero: ${String(sale.codigo).padStart(8, '0')}</div>${esc(date)}</div></header><p class="notice">COMPROBANTE INTERNO · NO VÁLIDO COMO FACTURA</p><section class="details"><div><span>Cliente</span>${esc(sale.clienteNombre)}</div><div><span>Dirección</span>${esc(client?.direccion || 'Sin informar')}</div><div><span>Localidad</span>${esc(client?.localidad || 'Sin informar')}</div><div><span>Pago</span>${esc(sale.medioPago)}</div><div><span>Vendedor</span>${esc(sale.actorName)}</div></section><table><thead><tr><th>Cantidad</th><th>Producto</th><th>Precio unitario</th><th>Total</th></tr></thead><tbody>${rows}${transport}</tbody></table><div class="total">Total ${esc(amount(sale.totalCentavos))}</div><p class="footer">Gracias por su compra · Distribuidora Kopan.</p>${sale.observaciones ? `<section class="notes">Observaciones: ${esc(sale.observaciones)}</section>` : ''}</main><script>window.onload=()=>{setTimeout(()=>window.print(),150)};<\/script></body></html>`);
+          popup.document.head.insertAdjacentHTML('beforeend', '<style>.brand{display:flex!important;align-items:center;justify-content:space-between;gap:18px}.brand h1{font-size:22px;white-space:nowrap}.date{display:flex;align-items:center;gap:12px;white-space:nowrap;font-size:16px}.number{font-size:16px}</style>');
           popup.document.close();
         },
         error: () => { popup.close(); this.error.set('No se pudieron cargar los datos del cliente para el comprobante'); },
       }),
       error: () => { popup.close(); this.error.set('No se pudo cargar la venta para reimprimir'); },
+    });
+  }
+  reprintRemittance(movement: FinancialMovement) {
+    if (!movement.remitoId) return;
+    const popup = window.open('', '_blank', 'width=900,height=760');
+    if (!popup) { this.error.set('Habilitá las ventanas emergentes para reimprimir el remito.'); return; }
+    this.remittancesApi.findOne(movement.remitoId).subscribe({
+      next: (remittance) => {
+        const esc = (value: unknown) => String(value ?? '').replace(/[&<>"']/g, (char) =>
+          ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[char]!);
+        const date = new Intl.DateTimeFormat('es-AR', { timeZone: 'America/Argentina/Buenos_Aires', dateStyle: 'short' }).format(new Date(remittance.createdAt));
+        const rows = remittance.items.map((item) => `<tr><td>${item.cantidad}</td><td>${esc(item.productoNombre)}</td></tr>`).join('');
+        const title = `${remittance.clienteNombre.normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/[^a-zA-Z0-9]+/g, '-')}-REMITO-${date.replaceAll('/', '-')}`;
+        popup.document.open();
+        popup.document.write(`<!doctype html><html lang="es"><head><meta charset="utf-8"><title>${esc(title)}</title><style>@page{size:A4;margin:12mm}body{font:13px Arial,sans-serif;color:#2d190e}.ticket{max-width:820px;margin:auto}.brand{display:flex;align-items:center;justify-content:space-between;gap:18px;border-bottom:3px solid #713508;padding-bottom:16px}.brand h1{font:700 25px Georgia,serif;margin:0;white-space:nowrap}.number{display:flex;gap:18px;align-items:center;white-space:nowrap;font-size:18px;font-weight:700}.notice{background:#fbf1e7;border-left:4px solid #b86719;padding:10px;margin:16px 0}.details div{border-bottom:1px solid #eaded5;padding:7px 0}.details span{display:inline-block;width:100px;color:#846b5b;text-transform:uppercase;font-size:11px}table{width:100%;border-collapse:collapse;margin-top:22px}th{background:#713508;color:white;text-align:left;padding:10px}td{padding:10px;border-bottom:1px solid #eaded5}th:first-child,td:first-child{width:100px;text-align:center}.notes{margin-top:20px;padding:12px;background:#fbf6f1;white-space:pre-wrap}@media print{button{display:none}}</style></head><body><button onclick="window.print()">Imprimir o guardar PDF</button><main class="ticket"><header class="brand"><h1>Distribuidora Kopan</h1><div class="number"><span>Numero: ${String(remittance.codigo).padStart(8, '0')}</span><span>${esc(date)}</span></div></header><p class="notice">REMITO INTERNO · NO VÁLIDO COMO FACTURA</p><section class="details"><div><span>Cliente</span>${esc(remittance.clienteNombre)}</div><div><span>Dirección</span>${esc(remittance.clienteDireccion || 'Sin informar')}</div><div><span>Localidad</span>${esc(remittance.clienteLocalidad || 'Sin informar')}</div><div><span>Vendedor</span>${esc(remittance.actorName)}</div></section><table><thead><tr><th>Cantidad</th><th>Producto</th></tr></thead><tbody>${rows}</tbody></table>${remittance.observaciones ? `<section class="notes">Observaciones: ${esc(remittance.observaciones)}</section>` : ''}</main><script>window.onload=()=>{setTimeout(()=>window.print(),150)};<\/script></body></html>`);
+        popup.document.close();
+      },
+      error: () => { popup.close(); this.error.set('No se pudo cargar el remito para reimprimir'); },
     });
   }
   confirmPurchaseCancellation() {
@@ -183,7 +205,12 @@ export class IncomeExpensesPage implements OnInit {
     if (!movement?.ventaId || this.saving()) return;
     this.saving.set(true);
     this.salesApi.cancel(movement.ventaId, this.saleCancelReason.trim()).subscribe({
-      next: () => {
+      next: (result) => {
+        if (result.venta.estado !== 'ANULADA' || result.stockRepuesto.length !== result.venta.items.length) {
+          this.saving.set(false);
+          this.error.set('No se pudo verificar la devolución del stock. Actualizá la pantalla y revisá la venta antes de intentar de nuevo.');
+          return;
+        }
         this.cancellingSale.set(null);
         this.saving.set(false);
         this.success.set(`Venta #${movement.ventaCodigo} anulada. Se devolvió el stock y se revirtió el saldo.`);
@@ -234,11 +261,14 @@ export class IncomeExpensesPage implements OnInit {
     }
     this.loading.set(true);
     this.page.set(1);
-    this.api.findAll(argentinaRange(this.from, this.to)).subscribe({
-      next: (r) => {
-        this.items.set(r.items);
-        this.period.set(r.period);
-        this.overall.set(r.overall);
+    const range = argentinaRange(this.from, this.to);
+    forkJoin({ finance: this.api.findAll(range), remittances: this.remittancesApi.findAll(range) }).subscribe({
+      next: ({ finance, remittances }) => {
+        const documents = remittances.map((remittance) => this.remittanceMovement(remittance));
+        this.items.set([...finance.items, ...documents].sort((a, b) =>
+          new Date(b.fechaMovimiento).getTime() - new Date(a.fechaMovimiento).getTime()));
+        this.period.set(finance.period);
+        this.overall.set(finance.overall);
         this.loading.set(false);
       },
       error: () => {
@@ -246,6 +276,19 @@ export class IncomeExpensesPage implements OnInit {
         this.loading.set(false);
       },
     });
+  }
+  private remittanceMovement(remittance: RemittanceRecord): FinancialMovement {
+    return {
+      _id: `remittance:${remittance._id}`, sourceKey: `remittance:${remittance._id}`,
+      tipo: 'DOCUMENTO', categoria: 'REMITO', montoCentavos: 0,
+      concepto: `Remito #${remittance.codigo}`,
+      detalle: `${remittance.clienteNombre} · ${remittance.items.map((item) => `${item.productoNombre} x${item.cantidad}`).join(', ')}`,
+      medioPago: null, acreditadoEn: null, disponible: false, pagado: false,
+      pagadoAt: null, cancelado: false, motivoCancelacion: '', canceladoAt: null,
+      canceladoPorNombre: '', fechaMovimiento: remittance.createdAt, ventaCodigo: null,
+      remitoId: remittance._id, clienteNombre: remittance.clienteNombre,
+      proveedorNombre: '', chequeNumero: '', chequeId: null, actorName: remittance.actorName,
+    };
   }
   preset(value: 'TODAY' | 'YESTERDAY' | 'WEEK' | 'MONTH' | 'YEAR') {
     const today = argentinaToday();
@@ -496,6 +539,7 @@ export class IncomeExpensesPage implements OnInit {
     return argentinaDateTime(v);
   }
   category(i: FinancialMovement) {
+    if (i.categoria === 'REMITO') return 'Remito (sin movimiento de dinero ni stock)';
     if (i.categoria === 'REPOSICION_AUTOMATICA' && i.sourceKey?.startsWith('stock:')) {
       return 'Reposición manual desde Gestión de stock';
     }

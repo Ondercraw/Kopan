@@ -17,6 +17,20 @@ export class RemittancesService {
     @InjectModel(Counter.name) private readonly counters: Model<CounterDocument>,
   ) {}
 
+  findAll(filters: { from?: string; to?: string } = {}) {
+    const range: Record<string, Date> = {};
+    if (filters.from) range.$gte = new Date(filters.from);
+    if (filters.to) range.$lt = new Date(filters.to);
+    return this.remittances.find(Object.keys(range).length ? { createdAt: range } : {})
+      .sort({ createdAt: -1 }).limit(3000).lean().exec();
+  }
+
+  async findOne(id: string) {
+    const remittance = await this.remittances.findById(id).lean().exec();
+    if (!remittance) throw new NotFoundException('Remito inexistente');
+    return remittance;
+  }
+
   create(dto: CreateRemittanceDto, actor: { id: string; name: string }) {
     return this.connection.transaction(async () => {
       const client = await this.clients.findOne({ _id: dto.clienteId, activo: true }).lean().exec();

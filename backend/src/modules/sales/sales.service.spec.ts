@@ -64,9 +64,12 @@ describe('SalesService.cancel', () => {
       products as never, {} as never, {} as never, movements as never,
       {} as never, {} as never, finance as never, lots as never,
     );
-    await service.cancel(sale._id.toString(), 'Carga duplicada', {
+    const result = await service.cancel(sale._id.toString(), 'Carga duplicada', {
       id: 'owner', name: 'Dueño', roles: [],
     });
+    expect(result.stockRepuesto).toEqual([{
+      productoId: productId.toString(), unidades: 2, stockAnterior: 3, stockActual: 5,
+    }]);
     expect(sale.estado).toBe(SaleStatus.CANCELLED);
     expect(sale.save).toHaveBeenCalled();
     expect(products.findOneAndUpdate).toHaveBeenCalledWith(

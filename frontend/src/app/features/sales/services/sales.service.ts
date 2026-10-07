@@ -28,7 +28,9 @@ export class SalesService {
     return this.http.patch<Sale>(`${this.base}/${id}`, payload, { withCredentials: true });
   }
   cancel(id: string, motivo = '') {
-    return this.http.patch<Sale>(`${this.base}/${id}/cancel`, { motivo }, { withCredentials: true });
+    return this.http.patch<{ venta: Sale; stockRepuesto: { productoId: string; unidades: number; stockAnterior: number; stockActual: number }[] }>(
+      `${this.base}/${id}/cancel`, { motivo }, { withCredentials: true },
+    );
   }
   findTransfers() {
     return this.http.get<Sale[]>(`${this.base}/transfers`, { withCredentials: true });

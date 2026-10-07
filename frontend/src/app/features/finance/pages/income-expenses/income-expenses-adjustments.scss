@@ -234,6 +234,15 @@
   line-height: 1.55;
 }
 
+.movement-list > article.document {
+  border-left-color: #826b5a;
+  background: #f8f4f0;
+}
+
+.movement-list > article.document > strong:nth-last-child(2) {
+  color: #826b5a;
+}
+
 .collected-warning strong {
   display: inline-block;
   margin-bottom: .4rem;

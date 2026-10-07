@@ -132,6 +132,7 @@ export class SalesService {
       const sale = await this.saleModel.findOne({ _id: id, estado: SaleStatus.CONFIRMED }).exec();
       if (!sale) throw new NotFoundException('La venta ya fue anulada o no existe');
       if (sale.chequeId) throw new ConflictException('La venta tiene un cheque asociado. Gestioná primero ese cheque');
+      const stockRepuesto: { productoId: string; unidades: number; stockAnterior: number; stockActual: number }[] = [];
       for (const item of sale.items) {
         const product = await this.productModel.findOneAndUpdate(
           { _id: item.productoId },
@@ -158,6 +159,8 @@ export class SalesService {
           referenceType: 'SALE', referenceId: sale._id, referenceCode: sale.codigo,
           actorId: actor.id, actorName: actor.name,
         });
+        stockRepuesto.push({ productoId: product._id.toString(), unidades: item.cantidad,
+          stockAnterior: product.cantidadStock - item.cantidad, stockActual: product.cantidadStock });
       }
       if (sale.medioPago === PaymentMethod.CREDIT) {
         const remaining = Math.max(0, sale.totalCentavos - (sale.montoCobradoCuentaCorrienteCentavos ?? 0));
@@ -174,7 +177,9 @@ export class SalesService {
       sale.anuladaPorNombre = actor.name;
       await sale.save();
       await this.financeService.cancelSaleRecord(sale, reason.trim(), actor);
-      return sale;
+      // La respuesta de éxito se entrega únicamente después de registrar cada devolución
+      // y su movimiento de historial, además de revertir el ingreso.
+      return { venta: sale, stockRepuesto };
     });
   }
 
