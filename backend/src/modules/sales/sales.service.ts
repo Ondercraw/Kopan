@@ -362,6 +362,12 @@ export class SalesService {
     sale.actorId = actor.id;
     sale.actorName = actor.name;
     const updatedSale = await sale.save();
+    if (updatedSale.fechaFacturacion) {
+      await this.movementModel.updateMany(
+        { referenceType: 'SALE', referenceId: updatedSale._id },
+        { $set: { fechaOperacion: updatedSale.fechaFacturacion } },
+      ).exec();
+    }
     await this.financeService.recordSale(updatedSale);
     return updatedSale;
   }

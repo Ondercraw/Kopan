@@ -54,6 +54,10 @@ export class StockMovement {
   @Prop({ type: Number, default: null })
   referenceCode: number | null;
 
+  // Fecha comercial corregida de la venta; createdAt conserva la fecha real de registro.
+  @Prop({ type: Date, default: null })
+  fechaOperacion: Date | null;
+
   @Prop({ required: true })
   actorId: string;
 

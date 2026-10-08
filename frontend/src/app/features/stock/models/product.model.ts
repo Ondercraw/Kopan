@@ -114,4 +114,5 @@ export interface StockMovement {
   actorId: string;
   actorName: string;
   createdAt: string;
+  fechaOperacion?: string | null;
 }

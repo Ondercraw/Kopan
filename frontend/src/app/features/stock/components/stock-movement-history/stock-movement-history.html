@@ -31,7 +31,7 @@
           <div>
             <strong>{{ movementLabel(movement.type) }}</strong>
             <span>{{ movement.reason }}</span>
-            <small>{{ movement.actorName }} · {{ formatDate(movement.createdAt) }}</small>
+            <small>{{ movement.actorName }} · {{ movement.fechaOperacion ? formatSaleDate(movement.fechaOperacion) : formatDate(movement.createdAt) }}</small>
           </div>
           <span class="stock-change">
             @if (movement.type === 'MINIMUM_CHANGE') {

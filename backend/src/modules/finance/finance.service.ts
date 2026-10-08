@@ -110,10 +110,12 @@ export class FinanceService {
             chequeNumero: sale.chequeNumero ?? '',
             actorId: sale.actorId,
             actorName: sale.actorName,
+            // La fecha corregida del comprobante reemplaza sólo la del movimiento
+            // de la venta. Los cobros posteriores conservan su fecha real.
+            fechaMovimiento: sale.fechaFacturacion ?? sale.createdAt ?? new Date(),
           },
           $setOnInsert: {
             sourceKey: `sale:${sale._id.toString()}:income`,
-            fechaMovimiento: sale.createdAt ?? new Date(),
           },
         },
         { upsert: true },

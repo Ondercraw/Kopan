@@ -105,12 +105,13 @@ export class AccountsService implements OnModuleInit {
     const status = (total: number, paid: number) => paid <= 0 ? 'PENDIENTE' : paid < total ? 'PARCIAL' : 'PAGADO';
     const clients = this.group(
       [...sales.map((sale) => {
+        const saleDate = sale.fechaFacturacion ?? sale.createdAt;
         const isCredit = sale.medioPago === PaymentMethod.CREDIT;
         const paid = isCredit ? (sale.montoCobradoCuentaCorrienteCentavos ?? 0) : sale.totalCentavos;
-        const directPayments = isCredit ? [] : [{ id: `sale-initial-${sale._id.toString()}`, montoCentavos: sale.totalCentavos, medioPago: sale.medioPago, fecha: sale.createdAt, actorName: sale.actorName }];
+        const directPayments = isCredit ? [] : [{ id: `sale-initial-${sale._id.toString()}`, montoCentavos: sale.totalCentavos, medioPago: sale.medioPago, fecha: saleDate, actorName: sale.actorName }];
         return {
           id: sale._id.toString(), codigo: sale.codigo, entidadId: sale.clienteId.toString(), entidadNombre: sale.clienteNombre,
-          tipo: 'VENTA', fecha: sale.createdAt, totalCentavos: sale.totalCentavos, pagadoCentavos: paid,
+          tipo: 'VENTA', fecha: saleDate, totalCentavos: sale.totalCentavos, pagadoCentavos: paid,
           saldoCentavos: Math.max(0, sale.totalCentavos - paid), estado: status(sale.totalCentavos, paid),
           detalle: sale.items.map((item) => `${item.productoNombre} x${item.cantidad}`).join(', '),
           pagos: directPayments.concat((paymentMap.get(sale._id.toString()) ?? []).map(this.serializePayment)),

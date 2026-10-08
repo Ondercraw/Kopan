@@ -46,7 +46,7 @@ export class StockMovementHistory implements OnChanges {
   exportCsv(): void {
     const productCode = this.movements[0]?.productCode ?? 'producto';
     this.csv.download(`movimientos-producto-${productCode}`, this.movements, [
-      { header: 'Fecha', value: (m) => this.formatDate(m.createdAt) },
+      { header: 'Fecha', value: (m) => m.fechaOperacion ? this.formatSaleDate(m.fechaOperacion) : this.formatDate(m.createdAt) },
       { header: 'Tipo', value: (m) => this.movementLabel(m.type) },
       { header: 'Motivo', value: (m) => m.reason },
       { header: 'Usuario', value: (m) => m.actorName },
@@ -79,5 +79,11 @@ export class StockMovementHistory implements OnChanges {
       dateStyle: 'short',
       timeStyle: 'short',
     }).format(new Date(value));
+  }
+
+  formatSaleDate(value: string): string {
+    return `Fecha del comprobante: ${new Intl.DateTimeFormat('es-AR', {
+      timeZone: 'America/Argentina/Buenos_Aires', dateStyle: 'short',
+    }).format(new Date(value))}`;
   }
 }

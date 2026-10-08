@@ -104,6 +104,7 @@ describe('FinanceService', () => {
       actorId: 'owner-id',
       actorName: 'Dueño',
       createdAt: new Date('2026-09-02T12:00:00Z'),
+      fechaFacturacion: new Date('2026-08-30T12:00:00Z'),
       chequeId: null,
       chequeNumero: '',
       chequeCobradoAt: null,
@@ -118,6 +119,7 @@ describe('FinanceService', () => {
         categoria: FinancialMovementCategory.SALE,
         montoCentavos: 100_000_00,
         disponible: true,
+        fechaMovimiento: new Date('2026-08-30T12:00:00Z'),
       },
     );
   });
