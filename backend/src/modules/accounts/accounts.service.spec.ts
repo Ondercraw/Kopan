@@ -12,7 +12,7 @@ describe('AccountsService.statement', () => {
     const entities = (value: unknown) => ({ select: () => ({ lean: () => ({ exec: async () => value }) }) });
     const service = new AccountsService({} as never,
       { find: () => query([{ _id: saleId, codigo: 7, clienteId: clientId, clienteNombre: 'Cliente',
-        medioPago: PaymentMethod.CREDIT, totalCentavos: 10000,
+        medioPago: PaymentMethod.CREDIT, totalCentavos: 11500, transporteDescargaCentavos: 1500,
         montoCobradoCuentaCorrienteCentavos: 4000, fechaFacturacion: saleDate,
         createdAt: new Date('2026-10-07T12:00:00Z'),
         items: [{ productoNombre: 'Harina', cantidad: 2, totalCentavos: 10000 }] }]) } as never,
@@ -29,6 +29,9 @@ describe('AccountsService.statement', () => {
     expect(result.clients[0].documentos[0].items).toEqual([{
       producto: 'Harina', cantidad: 2, precioUnitarioCentavos: 5000,
       precioTotalCentavos: 10000,
+    }, {
+      producto: 'TRANSPORTE Y DESCARGA', cantidad: 1,
+      precioUnitarioCentavos: 1500, precioTotalCentavos: 1500,
     }]);
   });
 });

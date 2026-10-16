@@ -113,13 +113,19 @@ export class AccountsService implements OnModuleInit {
           id: sale._id.toString(), codigo: sale.codigo, entidadId: sale.clienteId.toString(), entidadNombre: sale.clienteNombre,
           tipo: 'VENTA', fecha: saleDate, totalCentavos: sale.totalCentavos, pagadoCentavos: paid,
           saldoCentavos: Math.max(0, sale.totalCentavos - paid), estado: status(sale.totalCentavos, paid),
-          detalle: sale.items.map((item) => `${item.productoNombre} x${item.cantidad}`).join(', '),
-          items: sale.items.map((item) => ({
+          detalle: [...sale.items.map((item) => `${item.productoNombre} x${item.cantidad}`),
+            ...(sale.transporteDescargaCentavos > 0 ? ['Transporte y descarga'] : [])].join(', '),
+          items: [...sale.items.map((item) => ({
             producto: item.productoNombre,
             cantidad: item.cantidad,
             precioUnitarioCentavos: Math.round(item.totalCentavos / item.cantidad),
             precioTotalCentavos: item.totalCentavos,
-          })),
+          })), ...(sale.transporteDescargaCentavos > 0 ? [{
+            producto: 'TRANSPORTE Y DESCARGA',
+            cantidad: 1,
+            precioUnitarioCentavos: sale.transporteDescargaCentavos,
+            precioTotalCentavos: sale.transporteDescargaCentavos,
+          }] : [])],
           pagos: directPayments.concat((paymentMap.get(sale._id.toString()) ?? []).map(this.serializePayment)),
         };
       }), ...openingDebts.filter((debt) => debt.tipoCuenta === 'CLIENTE').map((debt) => this.openingDocument(debt, paymentMap.get(debt._id.toString()) ?? [], status))],
