@@ -240,6 +240,9 @@
         {{ deliveryMode === 'REPARTO' ? 'La venta quedará pendiente en cuenta corriente y no ingresará a caja hasta cobrarse.' : 'Se registrará el pago por ' + paymentLabel() + '.' }}
       </p>
       <section class="review-context" aria-label="Datos de la venta">
+        <label class="billing-date"><span>Fecha de facturación</span><input type="date" [(ngModel)]="billingDate" [class.field-invalid]="!validBillingDate()" required /><small>Esta fecha figurará en el comprobante y los movimientos de la venta.</small>
+          @if (!validBillingDate()) { <small class="field-error">Seleccioná una fecha válida.</small> }
+        </label>
         <div><span>Lista de precios</span><strong>{{ priceList()?.nombre }}</strong></div>
         <div><span>Horario</span><strong>{{ reviewTime() }}</strong></div>
         @if (includesTransportDownload) {
@@ -287,7 +290,7 @@
       </p>
       <footer>
         <button type="button" (click)="reviewing.set(false)" [disabled]="saving()">Volver</button
-        ><div class="confirmation-actions"><button class="confirm" type="button" (click)="confirm()" [disabled]="saving()">
+        ><div class="confirmation-actions"><button class="confirm" type="button" (click)="confirm()" [disabled]="saving() || !validBillingDate()">
           {{ saving() ? 'Confirmando...' : 'Confirmar venta' }}
         </button></div>
       </footer>

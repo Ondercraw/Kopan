@@ -16,13 +16,13 @@
   @if (error() && !paymentTarget()) { <p class="message error" role="alert">{{ error() }}</p> }
   @if (loading()) { <p class="empty">Cargando cuentas corrientes...</p> } @else {
     <div class="columns">
-      <section class="account-column"><header><i class="ti ti-users"></i><div><h2>Clientes</h2><p>Todas las ventas, cobros y saldos</p></div></header>
+      <section class="account-column"><header><i class="ti ti-users"></i><div><h2>Clientes</h2><p>Todas las ventas, cobros y saldos</p></div><button type="button" class="download-list" [disabled]="!filteredClients().length" (click)="downloadAccounts('CLIENTE')"><i class="ti ti-download"></i> Descargar listado</button></header>
         @for (account of filteredClients(); track account.entidadId) { <article class="account-card">
           <button class="account-summary" type="button" (click)="toggle('c-' + account.entidadId)"><span><strong>{{ account.entidadNombre }}</strong><small>{{ account.documentos.length }} comprobante/s</small></span><span class="balance" [class.paid]="account.saldoCentavos === 0">{{ money(account.saldoCentavos) }}<small>saldo</small></span><i class="ti" [class.ti-chevron-down]="expanded() !== 'c-' + account.entidadId" [class.ti-chevron-up]="expanded() === 'c-' + account.entidadId"></i></button>
           @if (expanded() === 'c-' + account.entidadId) { <div class="documents"><div class="account-actions"><button type="button" class="print-account" (click)="printAccount(account, 'CLIENTE')"><i class="ti ti-file-type-pdf"></i> Imprimir historial por día</button><button type="button" class="print-account" (click)="openOpeningDebt('CLIENTE', account)"><i class="ti ti-plus"></i> Agregar deuda anterior</button></div>@for (doc of account.documentos; track doc.id) { <ng-container [ngTemplateOutlet]="document" [ngTemplateOutletContext]="{ $implicit: doc, side: 'CLIENTE', entity: account.entidadNombre }" /> }</div> }
         </article> } @empty { <p class="empty">No hay movimientos de clientes.</p> }
       </section>
-      <section class="account-column"><header><i class="ti ti-truck"></i><div><h2>Proveedores</h2><p>Todas las compras, pagos y saldos</p></div></header>
+      <section class="account-column"><header><i class="ti ti-truck"></i><div><h2>Proveedores</h2><p>Todas las compras, pagos y saldos</p></div><button type="button" class="download-list" [disabled]="!filteredSuppliers().length" (click)="downloadAccounts('PROVEEDOR')"><i class="ti ti-download"></i> Descargar listado</button></header>
         @for (account of filteredSuppliers(); track account.entidadId) { <article class="account-card">
           <button class="account-summary" type="button" (click)="toggle('p-' + account.entidadId)"><span><strong>{{ account.entidadNombre }}</strong><small>{{ account.documentos.length }} comprobante/s</small></span><span class="balance" [class.paid]="account.saldoCentavos === 0">{{ money(account.saldoCentavos) }}<small>saldo</small></span><i class="ti" [class.ti-chevron-down]="expanded() !== 'p-' + account.entidadId" [class.ti-chevron-up]="expanded() === 'p-' + account.entidadId"></i></button>
           @if (expanded() === 'p-' + account.entidadId) { <div class="documents"><div class="account-actions"><button type="button" class="print-account" (click)="printAccount(account, 'PROVEEDOR')"><i class="ti ti-file-type-pdf"></i> Imprimir historial por día</button><button type="button" class="print-account" (click)="openOpeningDebt('PROVEEDOR', account)"><i class="ti ti-plus"></i> Agregar deuda anterior</button></div>@for (doc of account.documentos; track doc.id) { <ng-container [ngTemplateOutlet]="document" [ngTemplateOutletContext]="{ $implicit: doc, side: 'PROVEEDOR', entity: account.entidadNombre }" /> }</div> }
@@ -35,7 +35,15 @@
 <ng-template #document let-doc let-side="side" let-entity="entity">
   <article class="document" [class.pending]="doc.estado === 'PENDIENTE'" [class.partial]="doc.estado === 'PARCIAL'" [class.paid]="doc.estado === 'PAGADO'" [class.cancelled]="doc.estado === 'CANCELADO'">
     <div class="document-head"><div><strong>{{ doc.tipo === 'SALDO_INICIAL' ? 'Saldo anterior' : (doc.tipo === 'VENTA' ? 'Venta' : 'Compra') + ' #' + doc.codigo }}</strong><small>{{ date(doc.fecha) }}</small></div><span class="status">{{ doc.estado === 'PARCIAL' ? 'Pagado parcialmente' : doc.estado === 'PAGADO' ? 'Pagado' : doc.estado === 'CANCELADO' ? 'Cancelado' : 'A pagar' }}</span></div>
-    <p>{{ doc.detalle }}</p><div class="amounts"><span>Total <strong>{{ money(doc.totalCentavos) }}</strong></span><span>Pagado <strong>{{ money(doc.pagadoCentavos) }}</strong></span><span>Restante <strong>{{ money(doc.saldoCentavos) }}</strong></span></div>
+    @if (doc.tipo === 'VENTA' && doc.items?.length) {
+      <div class="sale-items" aria-label="Productos de la venta">
+        <div class="sale-items-head"><span>Producto</span><span>Cantidad</span><span>Precio por unidad</span><span>Total</span></div>
+        @for (item of doc.items ?? []; track $index) {
+          <div class="sale-item"><strong>{{ item.producto }}</strong><span data-label="Cantidad">{{ item.cantidad }}</span><span data-label="Precio por unidad">{{ money(item.precioUnitarioCentavos) }}</span><strong data-label="Total">{{ money(item.precioTotalCentavos) }}</strong></div>
+        }
+      </div>
+    } @else { <p>{{ doc.detalle }}</p> }
+    <div class="amounts"><span>Total <strong>{{ money(doc.totalCentavos) }}</strong></span><span>Pagado <strong>{{ money(doc.pagadoCentavos) }}</strong></span><span>Restante <strong>{{ money(doc.saldoCentavos) }}</strong></span></div>
     @for (payment of doc.pagos; track payment.id) { <div class="payment"><i class="ti ti-cash"></i><span>Pago por {{ paymentLabel(payment.medioPago) }}<small>{{ date(payment.fecha) }} · {{ payment.actorName }}</small></span><strong>{{ money(payment.montoCentavos) }}</strong></div> }
     @if (doc.saldoCentavos > 0 && doc.estado !== 'CANCELADO') { <button class="pay" type="button" (click)="openPayment(side, entity, doc)"><i class="ti ti-cash-banknote"></i> Registrar pago</button> }
     @if (doc.tipo === 'SALDO_INICIAL' && doc.pagadoCentavos === 0 && doc.estado !== 'CANCELADO') { <button class="cancel-opening" type="button" (click)="openCancellation(doc)"><i class="ti ti-x"></i> Cancelar deuda</button> }

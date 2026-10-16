@@ -15,7 +15,7 @@ describe('AccountsService.statement', () => {
         medioPago: PaymentMethod.CREDIT, totalCentavos: 10000,
         montoCobradoCuentaCorrienteCentavos: 4000, fechaFacturacion: saleDate,
         createdAt: new Date('2026-10-07T12:00:00Z'),
-        items: [{ productoNombre: 'Harina', cantidad: 1 }] }]) } as never,
+        items: [{ productoNombre: 'Harina', cantidad: 2, totalCentavos: 10000 }] }]) } as never,
       { find: () => query([]) } as never,
       { find: () => entities([{ _id: clientId, nombre: 'Cliente' }]) } as never,
       { find: () => query([{ _id: new Types.ObjectId(), comprobanteId: saleId,
@@ -26,5 +26,9 @@ describe('AccountsService.statement', () => {
     const result = await service.statement();
     expect(result.clients[0].documentos[0].fecha).toEqual(saleDate);
     expect(result.clients[0].documentos[0].pagos[0].fecha).toEqual(paymentDate);
+    expect(result.clients[0].documentos[0].items).toEqual([{
+      producto: 'Harina', cantidad: 2, precioUnitarioCentavos: 5000,
+      precioTotalCentavos: 10000,
+    }]);
   });
 });

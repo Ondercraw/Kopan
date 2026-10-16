@@ -1,5 +1,5 @@
 import { Type } from 'class-transformer';
-import { ArrayMinSize, IsArray, IsBoolean, IsDefined, IsEnum, IsInt, IsMongoId, IsOptional, IsString, Max, MaxLength, Min, ValidateIf, ValidateNested } from 'class-validator';
+import { ArrayMinSize, IsArray, IsBoolean, IsDateString, IsDefined, IsEnum, IsInt, IsMongoId, IsOptional, IsString, Max, MaxLength, Min, ValidateIf, ValidateNested } from 'class-validator';
 import { PaymentMethod } from '../enums/payment-method.enum';
 import { SaveCheckDto } from '../../checks/dto/save-check.dto';
 
@@ -15,6 +15,7 @@ export class CreateSaleItemDto {
 export class CreateSaleDto {
   @IsMongoId() clienteId: string;
   @IsOptional() @IsEnum(['MOSTRADOR', 'REPARTO']) modalidadEntrega?: 'MOSTRADOR' | 'REPARTO';
+  @IsOptional() @IsDateString({ strict: true }) fechaFacturacion?: string;
   @IsOptional() @IsMongoId() vendedorId?: string;
   @IsMongoId() listaPreciosId: string;
   @IsEnum(PaymentMethod) medioPago: PaymentMethod;

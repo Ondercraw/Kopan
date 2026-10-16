@@ -28,6 +28,7 @@ export class Client {
   @Prop({ required: true, unique: true, index: true, min: 1 }) codigo: number;
   @Prop({ required: true, trim: true, maxlength: 120, index: true })
   nombre: string;
+  @Prop({ trim: true, maxlength: 120 }) nombreNormalizado?: string;
   @Prop({ trim: true, maxlength: 120, default: '' }) nombreFantasia: string;
   @Prop({ trim: true, maxlength: 20, default: '' }) cuit: string;
   @Prop({ trim: true, maxlength: 40, default: '' }) telefono: string;
@@ -72,4 +73,8 @@ export const ClientSchema = SchemaFactory.createForClass(Client);
 ClientSchema.index(
   { cuit: 1 },
   { unique: true, partialFilterExpression: { cuit: { $gt: '' } } },
+);
+ClientSchema.index(
+  { nombreNormalizado: 1 },
+  { unique: true, partialFilterExpression: { nombreNormalizado: { $type: 'string' } } },
 );

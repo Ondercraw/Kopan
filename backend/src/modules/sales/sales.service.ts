@@ -373,6 +373,16 @@ export class SalesService {
   }
 
   private async createInTransaction(dto: CreateSaleDto, actor: SaleActor) {
+    let fechaFacturacion: Date | null = null;
+    if (dto.fechaFacturacion !== undefined) {
+      const date = new Date(`${dto.fechaFacturacion}T12:00:00.000Z`);
+      if (!/^\d{4}-\d{2}-\d{2}$/.test(dto.fechaFacturacion)
+        || Number.isNaN(date.getTime())
+        || date.toISOString().slice(0, 10) !== dto.fechaFacturacion) {
+        throw new BadRequestException('La fecha de facturación no es válida');
+      }
+      fechaFacturacion = date;
+    }
     const isDelivery = dto.modalidadEntrega === 'REPARTO';
     const effectiveMethod = isDelivery ? PaymentMethod.CREDIT : dto.medioPago;
     const client = await this.clientModel
@@ -553,6 +563,7 @@ export class SalesService {
       actorName: actor.name,
       estado: SaleStatus.PROCESSING,
       estadoFiscal: FiscalStatus.PENDING_EXTERNAL,
+      fechaFacturacion,
     });
 
     // Venta, consumo FIFO, deuda, cheque e ingreso se confirman juntos.
@@ -681,6 +692,7 @@ export class SalesService {
           referenceType: 'SALE',
           referenceId: sale._id,
           referenceCode: sale.codigo,
+          fechaOperacion: fechaFacturacion,
           actorId: actor.id,
           actorName: actor.name,
         })),

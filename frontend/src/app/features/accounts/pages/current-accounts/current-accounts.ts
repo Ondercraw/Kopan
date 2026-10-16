@@ -61,6 +61,31 @@ export class CurrentAccountsPage {
     });
   }
   money(cents: number) { return new Intl.NumberFormat('es-AR', { style: 'currency', currency: 'ARS' }).format(cents / 100); }
+  downloadAccounts(side: 'CLIENTE' | 'PROVEEDOR') {
+    const accounts = side === 'CLIENTE' ? this.filteredClients() : this.filteredSuppliers();
+    if (!accounts.length) return;
+    const cell = (value: string | number, index: number) => {
+      const safe = index === 0 ? String(value).replace(/^[\s]*([=+\-@])/u, "'$1") : String(value);
+      return `"${safe.replace(/"/g, '""')}"`;
+    };
+    const rows = [
+      ['Nombre', 'Comprobantes', 'Total ARS', 'Pagado ARS', 'Saldo ARS'],
+      ...accounts.map((account) => [
+        account.entidadNombre,
+        account.documentos.length,
+        (account.totalCentavos / 100).toFixed(2).replace('.', ','),
+        (account.pagadoCentavos / 100).toFixed(2).replace('.', ','),
+        (account.saldoCentavos / 100).toFixed(2).replace('.', ','),
+      ]),
+    ];
+    const csv = '\uFEFF' + rows.map((row) => row.map(cell).join(';')).join('\r\n');
+    const url = URL.createObjectURL(new Blob([csv], { type: 'text/csv;charset=utf-8' }));
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = `cuentas-corrientes-${side === 'CLIENTE' ? 'clientes' : 'proveedores'}-${new Date().toISOString().slice(0, 10)}.csv`;
+    link.click();
+    setTimeout(() => URL.revokeObjectURL(url), 1000);
+  }
   paymentLabel(method: AccountDocument['pagos'][number]['medioPago']) {
     if (method === 'EFECTIVO') return 'efectivo';
     if (method === 'TRANSFERENCIA') return 'transferencia';

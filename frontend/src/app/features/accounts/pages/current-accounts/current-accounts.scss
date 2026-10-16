@@ -7,6 +7,7 @@ h1,h2,p { margin:0; } h1 { font-family:Georgia,serif; font-size:clamp(2rem,4vw,3
 .columns { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:22px; margin-top:24px; align-items:start; }
 .account-column { border:1px solid #dcc8ba; background:#fffaf6; border-radius:14px; overflow:hidden; }
 .account-column>header { display:flex; gap:12px; align-items:center; padding:18px; background:#eaded4; border-bottom:1px solid #d8c1b0; }
+.account-column>header>div{flex:1;min-width:0}.account-column>header .download-list{display:inline-flex;align-items:center;justify-content:center;gap:6px;flex-shrink:0;padding:9px 11px;border:1px solid #a87650;border-radius:8px;background:#fffaf6;color:#713508;font:inherit;font-size:.78rem;font-weight:750;cursor:pointer}.account-column>header .download-list i{font-size:1rem}.account-column>header .download-list:hover{background:#fff}.account-column>header .download-list:disabled{opacity:.5;cursor:not-allowed}
 .account-column>header i { font-size:1.6rem; color:#7c3904; } .account-column h2 { font-family:Georgia,serif; } .account-column header p { color:#765d4e; font-size:.82rem; }
 .account-card { border-bottom:1px solid #e4d4c8; }.account-card:last-child { border:0; }
 .account-summary { width:100%; display:grid; grid-template-columns:minmax(0,1fr) auto 22px; gap:12px; align-items:center; border:0; background:#fff; padding:15px 17px; text-align:left; cursor:pointer; color:inherit; }
@@ -22,3 +23,10 @@ h1,h2,p { margin:0; } h1 { font-family:Georgia,serif; font-size:clamp(2rem,4vw,3
 .print-account:hover{background:#f6e9dc}
 .account-actions{display:flex;flex-wrap:wrap;gap:.5rem;margin-bottom:.75rem}.account-actions .print-account{margin:0}.cancel-opening{margin-top:.5rem;border:1px solid #b94335;border-radius:8px;background:#fff4f1;color:#a63023;padding:.55rem .8rem;cursor:pointer;font:inherit;font-weight:700}.modal-card input[type=text]{box-sizing:border-box;width:100%;padding:.7rem;border:1px solid #d8bda9;border-radius:8px;background:#fff;color:#3d2617;font:inherit}
 .document.cancelled{background:#eeeae7;border-color:#b9b2ac;color:#736d69}.document.cancelled .status{background:#d8d2cd;color:#5f5955}
+.sale-items{margin:12px 0;border:1px solid #e4d4c8;border-radius:9px;overflow:hidden;background:#fffaf6}
+.sale-items-head,.sale-item{display:grid;grid-template-columns:minmax(0,1.5fr) 65px minmax(95px,1fr) minmax(95px,1fr);gap:8px;align-items:center;padding:8px 10px}
+.sale-items-head{background:#f0e4da;color:#704019;font-size:.68rem;font-weight:800;text-transform:uppercase}
+.sale-item{border-top:1px solid #eaded5;font-size:.78rem;font-variant-numeric:tabular-nums}
+.sale-item strong:first-child{overflow-wrap:anywhere}.sale-item span:not(:first-child),.sale-item strong:last-child{text-align:right}.sale-item strong:last-child{color:#5b3016}
+@media(max-width:520px){.sale-items-head{display:none}.sale-item{grid-template-columns:repeat(2,minmax(0,1fr));gap:5px 10px}.sale-item strong:first-child{grid-column:1/-1}.sale-item span,.sale-item strong:last-child{text-align:left!important}.sale-item [data-label]::before{content:attr(data-label) ': ';display:block;color:#806b5d;font-size:.67rem;font-weight:600}}
+@media(max-width:520px){.account-column>header{flex-wrap:wrap}.account-column>header .download-list{width:100%}}

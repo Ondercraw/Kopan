@@ -92,6 +92,7 @@ export class ClientsService {
   ): Promise<ClientDocument> {
     await this.validateSeller(dto.vendedorId);
     await this.validatePriceList(dto.listaPreciosId);
+    await this.ensureNameAvailable(dto.nombre);
     const codigo = await this.nextCode();
     try {
       const client = await this.clientModel.create({
@@ -102,8 +103,7 @@ export class ClientsService {
       await this.saveCatalogs(client.grupo, client.localidad);
       return client.populate('vendedorId', 'nombre email activo');
     } catch (error: unknown) {
-      if (this.isDuplicateKey(error))
-        throw new ConflictException('Ya existe un cliente con ese CUIT');
+      if (this.isDuplicateKey(error)) throw this.duplicateConflict(error);
       throw error;
     }
   }
@@ -120,6 +120,7 @@ export class ClientsService {
       .select('saldoCuentaCorrienteCentavos')
       .exec();
     if (!current) throw new NotFoundException('Cliente no encontrado');
+    await this.ensureNameAvailable(dto.nombre, id);
     const currentBalance = current.saldoCuentaCorrienteCentavos ?? 0;
     if (currentBalance > 0 && !dto.permiteCuentaCorriente) {
       throw new ConflictException(
@@ -156,8 +157,7 @@ export class ClientsService {
       await this.saveCatalogs(client.grupo, client.localidad);
       return client;
     } catch (error: unknown) {
-      if (this.isDuplicateKey(error))
-        throw new ConflictException('Ya existe un cliente con ese CUIT');
+      if (this.isDuplicateKey(error)) throw this.duplicateConflict(error);
       throw error;
     }
   }
@@ -190,7 +190,8 @@ export class ClientsService {
 
   private normalized(dto: SaveClientDto) {
     return {
-      nombre: dto.nombre.trim(),
+      nombre: dto.nombre.trim().replace(/\s+/g, ' '),
+      nombreNormalizado: this.normalize(dto.nombre),
       nombreFantasia: dto.nombreFantasia?.trim() ?? '',
       cuit: dto.cuit?.replace(/\D/g, '') ?? '',
       telefono: dto.telefono?.trim() ?? '',
@@ -265,7 +266,25 @@ export class ClientsService {
       .normalize('NFD')
       .replace(/[\u0300-\u036f]/g, '')
       .toLowerCase()
+      .replace(/\s+/g, ' ')
       .trim();
+  }
+
+  private async ensureNameAvailable(name: string, exceptId?: string): Promise<void> {
+    // Incluye clientes antiguos que todavía no tienen nombreNormalizado.
+    const clients = await this.clientModel.find().select('_id nombre').lean().exec();
+    const key = this.normalize(name);
+    if (clients.some((client) => String(client._id) !== exceptId && this.normalize(client.nombre) === key)) {
+      throw new ConflictException('Ya existe un cliente con ese nombre');
+    }
+  }
+
+  private duplicateConflict(error: { code: number; keyPattern?: Record<string, unknown> }): ConflictException {
+    return new ConflictException(
+      error.keyPattern?.nombreNormalizado
+        ? 'Ya existe un cliente con ese nombre'
+        : 'Ya existe un cliente con ese CUIT',
+    );
   }
 
   private async nextCode(): Promise<number> {
@@ -280,7 +299,7 @@ export class ClientsService {
     return counter.value;
   }
 
-  private isDuplicateKey(error: unknown): error is { code: number } {
+  private isDuplicateKey(error: unknown): error is { code: number; keyPattern?: Record<string, unknown> } {
     return (
       typeof error === 'object' &&
       error !== null &&

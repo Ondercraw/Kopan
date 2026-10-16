@@ -101,6 +101,7 @@ export class SalesEntryPage implements OnInit {
   transportDownloadInput = '';
   transportDownloadEdited = false;
   reviewedAt = new Date();
+  billingDate = argentinaToday();
   checkBank = '';
   checkPaymentAddress = '';
   checkHolder = '';
@@ -247,7 +248,7 @@ export class SalesEntryPage implements OnInit {
     const listedPrice = listItem?.precioCentavos ?? 0;
     const specialPrice = this.selectedClient()?.preciosEspeciales?.find((item) => item.productoId === product._id)?.precioFinalCentavos ?? 0;
     const price = specialPrice > 0 ? specialPrice : (listItem?.precioFinalCentavos ?? Math.round(listedPrice * (1 + Number(product.alicuotaIva ?? 21) / 100)));
-    this.lines.update((lines) => [...lines, { lineId: this.nextLineId++, product, quantity: 0, quantityInput: '', unitPriceCents: price, priceInput: price > 0 ? String(price / 100) : '', discountPercent: 0, saveClientPrice: specialPrice > 0 || price <= 0 }]);
+    this.lines.update((lines) => [...lines, { lineId: this.nextLineId++, product, quantity: 0, quantityInput: '', unitPriceCents: price, priceInput: price > 0 ? String(price / 100) : '', discountPercent: 0, saveClientPrice: true }]);
     this.productId = '';
     this.error.set(
       price === 0
@@ -353,6 +354,7 @@ export class SalesEntryPage implements OnInit {
       }
     }
     this.reviewedAt = new Date();
+    this.billingDate = argentinaToday();
     this.reviewing.set(true);
   }
 
@@ -376,6 +378,12 @@ export class SalesEntryPage implements OnInit {
       hour: '2-digit',
       minute: '2-digit',
     }).format(this.reviewedAt);
+  }
+
+  validBillingDate(): boolean {
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(this.billingDate)) return false;
+    const date = new Date(`${this.billingDate}T12:00:00.000Z`);
+    return !Number.isNaN(date.getTime()) && date.toISOString().slice(0, 10) === this.billingDate;
   }
 
   invalidSaleSelection(value: unknown): boolean {
@@ -423,6 +431,10 @@ export class SalesEntryPage implements OnInit {
     const client = this.selectedClient(),
       list = this.priceList();
     if (!client || !list || this.saving()) return;
+    if (!this.validBillingDate()) {
+      this.error.set('Seleccioná una fecha de facturación válida antes de confirmar');
+      return;
+    }
     const receiptSnapshot = this.receiptSnapshot('SALE');
     this.saving.set(true);
     this.salesApi
@@ -432,6 +444,7 @@ export class SalesEntryPage implements OnInit {
         listaPreciosId: list._id,
         medioPago: this.paymentMethod,
         modalidadEntrega: this.deliveryMode,
+        fechaFacturacion: this.billingDate,
         referenciaTransferencia:
           this.paymentMethod === 'TRANSFERENCIA' ? this.transferReference.trim() : undefined,
         observaciones: this.observations.trim() || undefined,
@@ -457,7 +470,8 @@ export class SalesEntryPage implements OnInit {
       })
       .subscribe({
         next: (s) => {
-          this.finishDocument({ ...receiptSnapshot, documentCode: s.codigo });
+          this.finishDocument({ ...receiptSnapshot, documentCode: s.codigo,
+            date: new Date(s.fechaFacturacion ?? `${this.billingDate}T12:00:00.000Z`) });
           this.stockApi.findAll().subscribe((p) => this.products.set(p));
           this.clientsApi.findAll().subscribe((clients) => this.clients.set(clients));
         },
@@ -524,7 +538,8 @@ export class SalesEntryPage implements OnInit {
     const client = this.selectedClient()!;
     return {
       kind,
-      date: new Date(),
+      date: kind === 'SALE' && this.validBillingDate()
+        ? new Date(`${this.billingDate}T12:00:00.000Z`) : new Date(),
       clientCode: client.codigo,
       clientName: client.nombre,
       clientAddress: client.direccion,

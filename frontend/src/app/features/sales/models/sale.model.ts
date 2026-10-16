@@ -14,6 +14,7 @@ export interface CreateSalePayload {
   listaPreciosId: string;
   medioPago: PaymentMethod;
   modalidadEntrega?: 'MOSTRADOR' | 'REPARTO';
+  fechaFacturacion?: string;
   referenciaTransferencia?: string;
   observaciones?: string;
   incluyeTransporteDescarga?: boolean;

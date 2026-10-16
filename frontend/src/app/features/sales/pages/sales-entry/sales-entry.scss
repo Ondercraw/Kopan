@@ -388,6 +388,11 @@
   text-transform: uppercase;
 }
 .review-context strong { color: #4c2b18; }
+.review-context .billing-date { display:grid;gap:4px;padding:10px 12px;border:1px solid #dfcabb;border-radius:9px;background:#fff; }
+.billing-date input { width:100%;padding:8px 10px;border:1px solid #d8c2b2;border-radius:8px;background:#fff;color:#4c2b18;font:inherit; }
+.billing-date input.field-invalid { border-color:#b42320; }
+.billing-date small { color:#846b5b;font-size:.7rem; }
+.billing-date .field-error { color:#a5221f;font-weight:700; }
 .sale-review {
   overflow: hidden;
   margin: 18px 0;

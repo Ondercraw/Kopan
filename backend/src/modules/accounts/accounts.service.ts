@@ -114,6 +114,12 @@ export class AccountsService implements OnModuleInit {
           tipo: 'VENTA', fecha: saleDate, totalCentavos: sale.totalCentavos, pagadoCentavos: paid,
           saldoCentavos: Math.max(0, sale.totalCentavos - paid), estado: status(sale.totalCentavos, paid),
           detalle: sale.items.map((item) => `${item.productoNombre} x${item.cantidad}`).join(', '),
+          items: sale.items.map((item) => ({
+            producto: item.productoNombre,
+            cantidad: item.cantidad,
+            precioUnitarioCentavos: Math.round(item.totalCentavos / item.cantidad),
+            precioTotalCentavos: item.totalCentavos,
+          })),
           pagos: directPayments.concat((paymentMap.get(sale._id.toString()) ?? []).map(this.serializePayment)),
         };
       }), ...openingDebts.filter((debt) => debt.tipoCuenta === 'CLIENTE').map((debt) => this.openingDocument(debt, paymentMap.get(debt._id.toString()) ?? [], status))],

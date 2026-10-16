@@ -3,6 +3,7 @@ export interface AccountPayment { id: string; montoCentavos: number; medioPago: 
 export interface AccountDocument {
   id: string; codigo: number; tipo: 'VENTA' | 'COMPRA' | 'SALDO_INICIAL'; fecha: string; totalCentavos: number;
   pagadoCentavos: number; saldoCentavos: number; estado: AccountStatus; detalle: string; pagos: AccountPayment[];
+  items?: Array<{ producto: string; cantidad: number; precioUnitarioCentavos: number; precioTotalCentavos: number }>;
 }
 export interface CurrentAccount {
   entidadId: string; entidadNombre: string; totalCentavos: number; pagadoCentavos: number;
