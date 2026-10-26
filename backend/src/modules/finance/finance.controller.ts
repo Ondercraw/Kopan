@@ -28,6 +28,9 @@ export class FinanceController {
   @Get() findAll(@Query('from') from?: string, @Query('to') to?: string) {
     return this.service.findAll({ from, to });
   }
+  @Get('total-expenses') totalExpenses(@Query('from') from?: string, @Query('to') to?: string) {
+    return this.service.totalExpenses({ from, to });
+  }
   @Post('reconcile') reconcile() {
     return this.service.reconcile();
   }

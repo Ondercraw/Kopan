@@ -630,6 +630,28 @@ export class FinanceService {
     return { items, period, overall };
   }
 
+  async totalExpenses(filters: { from?: string; to?: string } = {}) {
+    const period: Record<string, Date> = {};
+    if (filters.from) period.$gte = new Date(filters.from);
+    if (filters.to) period.$lt = new Date(filters.to);
+    // Sumar el gasto original, pagado o pendiente. Los movimientos posteriores
+    // de pago al proveedor no crean un segundo gasto.
+    const [result] = await this.movementModel.aggregate<{ totalCentavos: number }>([
+      { $match: {
+        tipo: FinancialMovementKind.EXPENSE,
+        cancelado: { $ne: true },
+        categoria: { $in: [
+          FinancialMovementCategory.REPLENISHMENT,
+          FinancialMovementCategory.MANUAL,
+          FinancialMovementCategory.PURCHASE,
+        ] },
+        ...(Object.keys(period).length ? { fechaMovimiento: period } : {}),
+      } },
+      { $group: { _id: null, totalCentavos: { $sum: '$montoCentavos' } } },
+    ]).exec();
+    return { totalCentavos: result?.totalCentavos ?? 0 };
+  }
+
   /**
    * Reparación explícita para instalaciones anteriores o fallos transitorios.
    * No se ejecuta al abrir la pantalla porque puede recorrer miles de registros.

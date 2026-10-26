@@ -21,6 +21,12 @@ export class SalesService {
     if (filters.medioPago) params = params.set('medioPago', filters.medioPago);
     return this.http.get<Sale[]>(this.base, { withCredentials: true, params });
   }
+  findFinancialReport(filters: Pick<SaleFilters, 'from' | 'to'>) {
+    let params = new HttpParams();
+    if (filters.from) params = params.set('from', filters.from);
+    if (filters.to) params = params.set('to', filters.to);
+    return this.http.get<Sale[]>(`${this.base}/financial-report`, { withCredentials: true, params });
+  }
   findOne(id: string) {
     return this.http.get<Sale>(`${this.base}/${id}`, { withCredentials: true });
   }

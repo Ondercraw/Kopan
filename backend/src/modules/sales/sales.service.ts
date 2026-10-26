@@ -99,6 +99,28 @@ export class SalesService {
       .lean()
       .exec();
   }
+  findForFinancialReport(filters: { from?: string; to?: string } = {}) {
+    const range: Record<string, Date> = {};
+    if (filters.from) {
+      const from = new Date(filters.from);
+      if (Number.isNaN(from.getTime())) throw new BadRequestException('Fecha desde inválida');
+      range.$gte = from;
+    }
+    if (filters.to) {
+      const to = new Date(filters.to);
+      if (Number.isNaN(to.getTime())) throw new BadRequestException('Fecha hasta inválida');
+      range.$lt = to;
+    }
+    const query: Record<string, unknown> = { estado: SaleStatus.CONFIRMED };
+    if (Object.keys(range).length) query.$or = [
+      { fechaFacturacion: range },
+      { fechaFacturacion: null, createdAt: range },
+    ];
+    // Sin límite de 2000 ventas: el informe debe incluir todo el período facturado.
+    return this.saleModel.find(query)
+      .select('codigo clienteNombre items netoCentavos ivaCentavos costoCentavos costoPromedioCentavos transporteDescargaCentavos totalCentavos medioPago modalidadEntrega fechaFacturacion createdAt')
+      .sort({ fechaFacturacion: -1, createdAt: -1 }).lean().exec();
+  }
   findTransfers() {
     return this.saleModel
       .find({ estado: SaleStatus.CONFIRMED, medioPago: PaymentMethod.TRANSFER })

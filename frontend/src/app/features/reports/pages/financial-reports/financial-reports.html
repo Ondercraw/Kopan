@@ -2,7 +2,7 @@
   <header>
     <span>ANÁLISIS ECONÓMICO</span>
     <h1>Informes financieros</h1>
-    <p>Resultados calculados sobre ventas confirmadas y expresados en pesos argentinos.</p>
+    <p>Ventas confirmadas, costo de lo vendido y gastos registrados en el período.</p>
   </header>
   <section class="filters">
     <div class="quick">
@@ -13,16 +13,7 @@
     </div>
     <label><span>Desde</span><input type="date" [(ngModel)]="from" /></label
     ><label><span>Hasta</span><input type="date" [(ngModel)]="to" /></label>
-    <label
-      ><span>Medio de pago</span
-      ><select [(ngModel)]="payment">
-        <option value="">Todos</option>
-        <option value="EFECTIVO">Efectivo</option>
-        <option value="TRANSFERENCIA">Transferencia / Mercado Pago</option>
-        <option value="CREDITO">Crédito / cuenta corriente</option>
-        <option value="CHEQUE">Cheque</option>
-      </select></label
-    >
+    <label><span>Producto</span><app-searchable-select [ngModel]="productId()" (ngModelChange)="productId.set($event)" [options]="productOptions()" placeholder="Todos los productos..." /></label>
     <button class="apply" type="button" (click)="load()">Generar informe</button>
     <button class="apply" type="button" (click)="printSales()" [disabled]="loading() || !sales().length"><i class="ti ti-printer"></i> Imprimir ventas</button>
   </section>
@@ -34,26 +25,22 @@
   } @else {
     <section class="kpis">
       <article class="primary">
-        <span>Ventas finales con IVA</span><strong>{{ money(revenue()) }}</strong
+        <span>Ventas confirmadas (IVA incluido)</span><strong>{{ money(revenue()) }}</strong
         ><small>{{ sales().length }} ventas · Promedio {{ money(average()) }}</small>
       </article>
       <article>
-        <span>Importe neto</span><strong>{{ money(net()) }}</strong
-        ><small>Antes del IVA</small>
+        <span>Costo de lo vendido</span><strong>{{ money(cost()) }}</strong
+        ><small>Costo promedio registrado al confirmar, aunque todavía no se haya pagado al proveedor</small>
       </article>
       <article>
-        <span>IVA incluido</span><strong>{{ money(vat()) }}</strong
-        ><small>Según alícuota de cada producto</small>
-      </article>
-      <article>
-        <span>Costo promedio registrado</span><strong>{{ money(cost()) }}</strong
-        ><small>Promedio al confirmar la venta; las ventas antiguas usan el costo disponible en su registro</small>
+        <span>Total de gastos</span><strong>{{ money(totalExpenses()) }}</strong
+        ><small>Compras, reposiciones y gastos extra del período, pagados o pendientes. No cambia con el filtro de producto.</small>
       </article>
       <article [class.negative]="margin() < 0">
         <span>Margen bruto estimado</span><strong>{{ money(margin()) }}</strong
         ><small>
-          @if (detailedSales().length) {
-            {{ percent(margin(), detailedRevenue()) }} sobre {{ detailedSales().length }} ventas con
+          @if (detailedRows().length) {
+            {{ percent(margin(), detailedRevenue()) }} sobre {{ detailedRows().length }} ventas con
             desglose
           } @else {
             Sin ventas nuevas con desglose
@@ -87,7 +74,7 @@
         <header>
           <div>
             <span>VENTAS POR MEDIO</span>
-            <h2>Cobros y cuenta corriente</h2>
+            <h2>Facturado por medio de pago</h2>
           </div>
         </header>
         <div class="split">
@@ -107,25 +94,6 @@
             <span>Cheques</span><strong>{{ money(checks()) }}</strong
             ><small>{{ percent(checks(), revenue()) }}</small>
           </div>
-        </div>
-      </article>
-      <article class="panel">
-        <header>
-          <div>
-            <span>IMPUESTOS</span>
-            <h2>Desglose de IVA</h2>
-          </div>
-        </header>
-        <div class="data-list vat">
-          @for (row of vatBreakdown(); track row.rate) {
-            <div>
-              <strong>{{ row.rate }}%</strong><span>Neto {{ money(row.net) }}</span
-              ><span>IVA {{ money(row.vat) }}</span
-              ><b>{{ money(row.total) }}</b>
-            </div>
-          } @empty {
-            <p class="empty">Las ventas históricas todavía no tienen desglose de IVA.</p>
-          }
         </div>
       </article>
       <article class="panel">
@@ -172,16 +140,16 @@
           >{{ legacyCount() }} venta{{ legacyCount() === 1 ? '' : 's' }} anterior{{
             legacyCount() === 1 ? '' : 'es'
           }}
-          a esta actualización no incluye{{ legacyCount() === 1 ? '' : 'n' }} costo ni IVA
-          discriminado. Se suma al total vendido, pero no al margen ni al desglose fiscal.</span
+          a esta actualización no incluye{{ legacyCount() === 1 ? '' : 'n' }} costo detallado.
+          Se suma al total facturado, pero no al margen estimado.</span
         >
       </p>
     }
     <p class="scope-note">
       <i class="ti ti-info-circle"></i
       ><span
-        >Este informe contempla ventas confirmadas. La reposición automática y los gastos extra
-        se detallan en el módulo Ingresos y egresos.</span
+        >Este informe contempla ventas confirmadas por la fecha de facturación registrada, sin depender de cobros ni pagos.
+        No verifica si el contador las facturó en ARCA. Al filtrar un producto, no incluye otros artículos ni transporte y descarga.</span
       >
     </p>
   }

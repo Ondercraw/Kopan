@@ -20,6 +20,15 @@ export class FinanceService {
     return this.http.get<FinancialResponse>(this.base, { withCredentials: true, params });
   }
 
+  totalExpenses(range: { from?: string; to?: string }) {
+    let params = new HttpParams();
+    if (range.from) params = params.set('from', range.from);
+    if (range.to) params = params.set('to', range.to);
+    return this.http.get<{ totalCentavos: number }>(`${this.base}/total-expenses`, {
+      withCredentials: true, params,
+    });
+  }
+
   createExpense(payload: CreateExpensePayload) {
     return this.http.post(`${this.base}/expenses`, payload, { withCredentials: true });
   }

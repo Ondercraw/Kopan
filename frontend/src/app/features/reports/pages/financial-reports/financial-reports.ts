@@ -7,85 +7,98 @@ import {
   signal,
 } from '@angular/core';
 import { FormsModule } from '@angular/forms';
+import { forkJoin } from 'rxjs';
 import {
   argentinaMonthStart,
   argentinaRange,
   argentinaToday,
   shiftDate,
 } from '../../../../shared/utils/argentina-date';
-import { PaymentMethod, Sale } from '../../../sales/models/sale.model';
+import { Sale } from '../../../sales/models/sale.model';
 import { SalesService } from '../../../sales/services/sales.service';
+import { FinanceService } from '../../../finance/services/finance.service';
+import { SearchableSelect, SearchableSelectOption } from '../../../../shared/components/searchable-select/searchable-select';
 
 @Component({
   selector: 'app-financial-reports',
   standalone: true,
-  imports: [FormsModule],
+  imports: [FormsModule, SearchableSelect],
   templateUrl: './financial-reports.html',
   styleUrls: ['./financial-reports.scss', './financial-reports-dashboard.scss'],
   changeDetection: ChangeDetectionStrategy.OnPush,
 })
 export class FinancialReports implements OnInit {
   private readonly api = inject(SalesService);
-  readonly sales = signal<Sale[]>([]);
+  private readonly financeApi = inject(FinanceService);
+  readonly allSales = signal<Sale[]>([]);
+  readonly totalExpenses = signal(0);
   readonly loading = signal(true);
   readonly error = signal<string | null>(null);
   from = argentinaMonthStart();
   to = argentinaToday();
-  payment: PaymentMethod | '' = '';
+  readonly productId = signal('');
+  readonly productOptions = computed<SearchableSelectOption[]>(() => {
+    const products = new Map<string, string>();
+    for (const sale of this.allSales())
+      for (const item of sale.items ?? [])
+        products.set(String(item.productoId), `#${item.productoCodigo} · ${item.productoNombre}`);
+    return [...products].map(([value, label]) => ({ value, label }))
+      .sort((a, b) => a.label.localeCompare(b.label, 'es', { sensitivity: 'base' }));
+  });
+  readonly rows = computed(() => this.allSales().flatMap((sale) => {
+    const productId = this.productId();
+    const items = productId
+      ? (sale.items ?? []).filter((item) => String(item.productoId) === productId)
+      : sale.items ?? [];
+    if (productId && !items.length) return [];
+    const amount = productId ? items.reduce((sum, item) => sum + item.totalCentavos, 0) : sale.totalCentavos;
+    const cost = productId
+      ? items.reduce((sum, item) => sum + (item.costoPromedioUnitarioCentavos ?? item.costoUnitarioCentavos ?? 0) * item.cantidad, 0)
+      : sale.costoPromedioCentavos ?? sale.costoCentavos ?? 0;
+    const detailed = items.some((item) => (item.netoCentavos ?? 0) > 0 || (item.ivaCentavos ?? 0) > 0 || (item.costoUnitarioCentavos ?? 0) > 0)
+      || (!productId && ((sale.netoCentavos ?? 0) > 0 || (sale.ivaCentavos ?? 0) > 0 || cost > 0));
+    return [{ sale, items, amount, cost, detailed }];
+  }));
+  readonly sales = computed(() => this.rows().map((row) => row.sale));
   readonly revenue = computed(() =>
-    this.sales().reduce((sum, sale) => sum + sale.totalCentavos, 0),
-  );
-  readonly net = computed(() => this.sales().reduce((sum, sale) => sum + this.saleNet(sale), 0));
-  readonly vat = computed(() =>
-    this.sales().reduce((sum, sale) => sum + (sale.ivaCentavos ?? 0), 0),
+    this.rows().reduce((sum, row) => sum + row.amount, 0),
   );
   readonly cost = computed(() =>
-    this.sales().reduce((sum, sale) => sum + (sale.costoPromedioCentavos ?? sale.costoCentavos ?? 0), 0),
+    this.rows().reduce((sum, row) => sum + row.cost, 0),
   );
-  readonly detailedSales = computed(() =>
-    this.sales().filter(
-      (sale) =>
-        (sale.netoCentavos ?? 0) > 0 ||
-        (sale.ivaCentavos ?? 0) > 0 ||
-        (sale.costoPromedioCentavos ?? sale.costoCentavos ?? 0) > 0,
-    ),
-  );
-  readonly legacyCount = computed(() => this.sales().length - this.detailedSales().length);
+  readonly detailedRows = computed(() => this.rows().filter((row) => row.detailed));
+  readonly legacyCount = computed(() => this.rows().length - this.detailedRows().length);
   readonly detailedRevenue = computed(() =>
-    this.detailedSales().reduce((sum, sale) => sum + sale.totalCentavos, 0),
+    this.detailedRows().reduce((sum, row) => sum + row.amount, 0),
   );
   readonly margin = computed(
     () =>
       this.detailedRevenue() -
-      this.detailedSales().reduce((sum, sale) => sum + (sale.costoPromedioCentavos ?? sale.costoCentavos ?? 0), 0),
+      this.detailedRows().reduce((sum, row) => sum + row.cost, 0),
   );
   readonly average = computed(() =>
     this.sales().length ? Math.round(this.revenue() / this.sales().length) : 0,
   );
   readonly cash = computed(() =>
-    this.sales()
-      .filter((s) => s.medioPago === 'EFECTIVO')
-      .reduce((sum, s) => sum + s.totalCentavos, 0),
+    this.rows().filter((row) => row.sale.medioPago === 'EFECTIVO')
+      .reduce((sum, row) => sum + row.amount, 0),
   );
   readonly transfers = computed(() =>
-    this.sales()
-      .filter((s) => s.medioPago === 'TRANSFERENCIA')
-      .reduce((sum, s) => sum + s.totalCentavos, 0),
+    this.rows().filter((row) => row.sale.medioPago === 'TRANSFERENCIA')
+      .reduce((sum, row) => sum + row.amount, 0),
   );
   readonly credit = computed(() =>
-    this.sales()
-      .filter((s) => s.medioPago === 'CREDITO')
-      .reduce((sum, s) => sum + s.totalCentavos, 0),
+    this.rows().filter((row) => row.sale.medioPago === 'CREDITO')
+      .reduce((sum, row) => sum + row.amount, 0),
   );
   readonly checks = computed(() =>
-    this.sales()
-      .filter((s) => s.medioPago === 'CHEQUE')
-      .reduce((sum, s) => sum + s.totalCentavos, 0),
+    this.rows().filter((row) => row.sale.medioPago === 'CHEQUE')
+      .reduce((sum, row) => sum + row.amount, 0),
   );
   readonly topProducts = computed(() => {
     const map = new Map<string, { name: string; quantity: number; amount: number }>();
-    for (const sale of this.sales())
-      for (const item of sale.items ?? []) {
+    for (const row of this.rows())
+      for (const item of row.items) {
         const key = String(item.productoId);
         const current = map.get(key) ?? {
           name: `#${item.productoCodigo} · ${item.productoNombre}`,
@@ -100,38 +113,26 @@ export class FinancialReports implements OnInit {
   });
   readonly topClients = computed(() => {
     const map = new Map<string, { name: string; sales: number; amount: number }>();
-    for (const sale of this.sales()) {
+    for (const row of this.rows()) {
+      const sale = row.sale;
       const current = map.get(sale.clienteNombre) ?? {
         name: sale.clienteNombre,
         sales: 0,
         amount: 0,
       };
       current.sales++;
-      current.amount += sale.totalCentavos;
+      current.amount += row.amount;
       map.set(sale.clienteNombre, current);
     }
     return [...map.values()].sort((a, b) => b.amount - a.amount).slice(0, 8);
   });
-  readonly vatBreakdown = computed(() => {
-    const map = new Map<number, { rate: number; net: number; vat: number; total: number }>();
-    for (const sale of this.detailedSales())
-      for (const item of sale.items ?? []) {
-        const rate = Number(item.alicuotaIva ?? 0);
-        const current = map.get(rate) ?? { rate, net: 0, vat: 0, total: 0 };
-        current.net += item.netoCentavos ?? 0;
-        current.vat += item.ivaCentavos ?? 0;
-        current.total += item.totalCentavos;
-        map.set(rate, current);
-      }
-    return [...map.values()].sort((a, b) => b.rate - a.rate);
-  });
   readonly daily = computed(() => {
     const map = new Map<string, { date: string; count: number; amount: number }>();
-    for (const sale of this.sales()) {
-      const key = this.dateKey(sale.createdAt);
+    for (const row of this.rows()) {
+      const key = this.dateKey(row.sale.fechaFacturacion ?? row.sale.createdAt);
       const current = map.get(key) ?? { date: key, count: 0, amount: 0 };
       current.count++;
-      current.amount += sale.totalCentavos;
+      current.amount += row.amount;
       map.set(key, current);
     }
     return [...map.values()].sort((a, b) => a.date.localeCompare(b.date));
@@ -147,9 +148,16 @@ export class FinancialReports implements OnInit {
     }
     this.loading.set(true);
     this.error.set(null);
-    this.api.findAll({ ...argentinaRange(this.from, this.to), medioPago: this.payment }).subscribe({
-      next: (s) => {
-        this.sales.set(s);
+    const range = argentinaRange(this.from, this.to);
+    forkJoin({
+      sales: this.api.findFinancialReport(range),
+      expenses: this.financeApi.totalExpenses(range),
+    }).subscribe({
+      next: ({ sales, expenses }) => {
+        this.allSales.set(sales);
+        this.totalExpenses.set(expenses.totalCentavos);
+        if (this.productId() && !sales.some((sale) => sale.items?.some((item) => String(item.productoId) === this.productId())))
+          this.productId.set('');
         this.loading.set(false);
       },
       error: () => {
@@ -166,14 +174,6 @@ export class FinancialReports implements OnInit {
     else if (value === 'YEAR') this.from = `${today.slice(0, 4)}-01-01`;
     else this.from = argentinaMonthStart(today);
     this.load();
-  }
-  saleNet(sale: Sale) {
-    return (
-      sale.netoCentavos ||
-      ((sale.ivaCentavos ?? 0) > 0
-        ? sale.totalCentavos - (sale.ivaCentavos ?? 0)
-        : sale.totalCentavos)
-    );
   }
   money(cents: number) {
     return new Intl.NumberFormat('es-AR', { style: 'currency', currency: 'ARS' }).format(
@@ -207,12 +207,13 @@ export class FinancialReports implements OnInit {
     if (!popup) { this.error.set('El navegador bloqueó la ventana del informe'); return; }
     const escape = (value: unknown) => String(value ?? '').replace(/[&<>"']/g, (char) =>
       ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[char]!);
-    const rows = [...this.sales()].sort((a, b) => a.createdAt.localeCompare(b.createdAt)).map((sale) =>
-      `<tr><td>${escape(this.dateKey(sale.createdAt))}</td><td>#${sale.codigo}</td><td>${escape(sale.clienteNombre)}</td><td>${escape(sale.modalidadEntrega === 'REPARTO' ? 'Reparto · cuenta corriente' : sale.medioPago)}</td><td class="amount">${escape(this.money(sale.totalCentavos))}</td></tr>`,
+    const rows = [...this.rows()].sort((a, b) => (a.sale.fechaFacturacion ?? a.sale.createdAt).localeCompare(b.sale.fechaFacturacion ?? b.sale.createdAt)).map(({ sale, amount }) =>
+      `<tr><td>${escape(this.dateKey(sale.fechaFacturacion ?? sale.createdAt))}</td><td>#${sale.codigo}</td><td>${escape(sale.clienteNombre)}</td><td>${escape(sale.modalidadEntrega === 'REPARTO' ? 'Reparto · cuenta corriente' : sale.medioPago)}</td><td class="amount">${escape(this.money(amount))}</td></tr>`,
     ).join('');
-    const title = `Ventas-${this.from}-${this.to}`;
+    const selectedProduct = this.productOptions().find((product) => product.value === this.productId())?.label;
+    const title = `Ventas-${this.from}-${this.to}${selectedProduct ? '-producto' : ''}`;
     popup.document.open();
-    popup.document.write(`<!doctype html><html lang="es"><head><meta charset="utf-8"><title>${escape(title)}</title><style>@page{size:A4;margin:14mm 12mm 18mm;@bottom-right{content:'Página ' counter(page);font-size:10px;color:#7b6251}}*{box-sizing:border-box}body{margin:0;color:#2d190e;font:12px Arial,sans-serif}header{border-bottom:3px solid #713508;margin-bottom:18px;padding-bottom:12px}h1{margin:4px 0;font:700 25px Georgia,serif}small{color:#765b4b}.summary{padding:12px;background:#f5e8dc;margin-bottom:18px;font-weight:700}table{width:100%;border-collapse:collapse}thead{display:table-header-group}th{background:#713508;color:#fff;text-align:left;padding:9px}td{border-bottom:1px solid #e6d6ca;padding:8px;overflow-wrap:anywhere}tr{break-inside:avoid}.amount{text-align:right;white-space:nowrap}tfoot td{background:#ead6c4;font-weight:800}</style></head><body><header><small>DISTRIBUIDORA KOPAN</small><h1>Ventas del período</h1><small>${escape(this.from)} al ${escape(this.to)}</small></header><div class="summary">${this.sales().length} ventas · Total ${escape(this.money(this.revenue()))}</div><table><thead><tr><th>Fecha</th><th>Número</th><th>Cliente</th><th>Modalidad / pago</th><th class="amount">Total</th></tr></thead><tbody>${rows}</tbody><tfoot><tr><td colspan="4">TOTAL</td><td class="amount">${escape(this.money(this.revenue()))}</td></tr></tfoot></table><script>window.onload=()=>setTimeout(()=>window.print(),150);<\/script></body></html>`);
+    popup.document.write(`<!doctype html><html lang="es"><head><meta charset="utf-8"><title>${escape(title)}</title><style>@page{size:A4;margin:14mm 12mm 18mm;@bottom-right{content:'Página ' counter(page);font-size:10px;color:#7b6251}}*{box-sizing:border-box}body{margin:0;color:#2d190e;font:12px Arial,sans-serif}header{border-bottom:3px solid #713508;margin-bottom:18px;padding-bottom:12px}h1{margin:4px 0;font:700 25px Georgia,serif}small{color:#765b4b}.summary{padding:12px;background:#f5e8dc;margin-bottom:18px;font-weight:700}table{width:100%;border-collapse:collapse}thead{display:table-header-group}th{background:#713508;color:#fff;text-align:left;padding:9px}td{border-bottom:1px solid #e6d6ca;padding:8px;overflow-wrap:anywhere}tr{break-inside:avoid}.amount{text-align:right;white-space:nowrap}tfoot td{background:#ead6c4;font-weight:800}</style></head><body><header><small>DISTRIBUIDORA KOPAN</small><h1>Ventas del período</h1><small>${escape(this.from)} al ${escape(this.to)}${selectedProduct ? ` · ${escape(selectedProduct)}` : ''}</small></header><div class="summary">${this.sales().length} ventas · Total ${escape(this.money(this.revenue()))}</div><table><thead><tr><th>Fecha</th><th>Número</th><th>Cliente</th><th>Modalidad / pago</th><th class="amount">Total</th></tr></thead><tbody>${rows}</tbody><tfoot><tr><td colspan="4">TOTAL</td><td class="amount">${escape(this.money(this.revenue()))}</td></tr></tfoot></table><script>window.onload=()=>setTimeout(()=>window.print(),150);<\/script></body></html>`);
     popup.document.close();
   }
 }

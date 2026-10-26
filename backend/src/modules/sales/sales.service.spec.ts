@@ -4,6 +4,31 @@ import { PaymentMethod } from './enums/payment-method.enum';
 import { SaleStatus } from './enums/sale-status.enum';
 import { StockMovementType } from '../stock/enums/stock-movement-type.enum';
 
+describe('SalesService.findForFinancialReport', () => {
+  it('incluye ventas confirmadas por fecha de facturación sin filtrar por cobros ni limitar a 2000', async () => {
+    const exec = jest.fn().mockResolvedValue([]);
+    const sort = jest.fn().mockReturnValue({ lean: () => ({ exec }) });
+    const select = jest.fn().mockReturnValue({ sort });
+    const find = jest.fn().mockReturnValue({ select });
+    const service = new SalesService(
+      {} as never, { find } as never, {} as never, {} as never,
+      {} as never, {} as never, {} as never, {} as never,
+      {} as never, {} as never, {} as never, {} as never,
+    );
+    await service.findForFinancialReport({
+      from: '2026-10-01T03:00:00.000Z', to: '2026-11-01T03:00:00.000Z',
+    });
+    expect(find).toHaveBeenCalledWith({
+      estado: SaleStatus.CONFIRMED,
+      $or: [
+        { fechaFacturacion: { $gte: new Date('2026-10-01T03:00:00.000Z'), $lt: new Date('2026-11-01T03:00:00.000Z') } },
+        { fechaFacturacion: null, createdAt: { $gte: new Date('2026-10-01T03:00:00.000Z'), $lt: new Date('2026-11-01T03:00:00.000Z') } },
+      ],
+    });
+    expect(exec).toHaveBeenCalled();
+  });
+});
+
 describe('SalesService.cancel', () => {
   it('permite anular una venta a crédito parcialmente cobrada y descuenta sólo la deuda pendiente', async () => {
     const productId = new Types.ObjectId();

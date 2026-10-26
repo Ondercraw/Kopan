@@ -8,6 +8,27 @@ import {
 import { Types } from 'mongoose';
 
 describe('FinanceService', () => {
+  it('suma compras, reposiciones y gastos por su fecha original sin duplicar pagos', async () => {
+    const exec = jest.fn().mockResolvedValue([{ totalCentavos: 15000 }]);
+    const aggregate = jest.fn().mockReturnValue({ exec });
+    const service = new FinanceService(
+      { aggregate } as never, {} as never, {} as never, {} as never,
+      {} as never, {} as never, {} as never,
+    );
+    const from = '2026-10-01T03:00:00.000Z';
+    const to = '2026-11-01T03:00:00.000Z';
+
+    expect(await service.totalExpenses({ from, to })).toEqual({ totalCentavos: 15000 });
+    const pipeline = aggregate.mock.calls[0][0];
+    expect(pipeline[0].$match.categoria.$in).toEqual(expect.arrayContaining([
+      FinancialMovementCategory.PURCHASE,
+      FinancialMovementCategory.REPLENISHMENT,
+      FinancialMovementCategory.MANUAL,
+    ]));
+    expect(pipeline[0].$match.categoria.$in).not.toContain(FinancialMovementCategory.SUPPLIER_ACCOUNT_PAYMENT);
+    expect(pipeline[0].$match).not.toHaveProperty('pagado');
+    expect(pipeline[0].$match.fechaMovimiento).toEqual({ $gte: new Date(from), $lt: new Date(to) });
+  });
   it('anula los cobros parciales vinculados y los quita del dinero disponible', async () => {
     const saleId = new Types.ObjectId();
     const payments = [{ montoCentavos: 6000 }, { montoCentavos: 4000 }];

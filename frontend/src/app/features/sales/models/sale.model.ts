@@ -33,6 +33,7 @@ export interface SaleItem {
   netoCentavos: number;
   ivaCentavos: number;
   costoUnitarioCentavos: number;
+  costoPromedioUnitarioCentavos?: number | null;
   totalCentavos: number;
   proveedorId?: string | null;
   proveedorNombre?: string;

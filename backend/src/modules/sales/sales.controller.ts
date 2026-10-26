@@ -23,6 +23,12 @@ export class SalesController {
   ) {
     return this.service.findAll({ from, to, medioPago });
   }
+  @Get('financial-report') @Roles(UserRole.JEFE) financialReport(
+    @Query('from') from?: string,
+    @Query('to') to?: string,
+  ) {
+    return this.service.findForFinancialReport({ from, to });
+  }
   @Get('transfers') @Roles(UserRole.JEFE) transfers() {
     return this.service.findTransfers();
   }
