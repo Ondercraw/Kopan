@@ -22,6 +22,8 @@ export class SaleItem {
   @Prop({ type: Number, min: 0, default: null }) costoPromedioUnitarioCentavos: number | null;
   @Prop({ type: Number, min: 0, default: null }) costoTotalCentavos:
     number | null;
+  @Prop({ type: Date, default: null }) costoCorregidoAt: Date | null;
+  @Prop({ trim: true, default: '' }) costoCorregidoPorNombre: string;
   @Prop({
     type: [
       { lotId: { type: MongooseSchema.Types.ObjectId }, quantity: Number },
@@ -33,6 +35,10 @@ export class SaleItem {
   proveedorId: Types.ObjectId | null;
   @Prop({ trim: true, maxlength: 120, default: '' }) proveedorNombre: string;
   @Prop({ required: true, min: 0 }) totalCentavos: number;
+  @Prop({ type: String, enum: ['PORCENTAJE', 'MONTO_FIJO'], default: null })
+  comisionTipo: 'PORCENTAJE' | 'MONTO_FIJO' | null;
+  @Prop({ type: Number, min: 0, default: 0 }) comisionValor: number;
+  @Prop({ type: Number, min: 0, default: 0 }) comisionVendedorCentavos: number;
 }
 const SaleItemSchema = SchemaFactory.createForClass(SaleItem);
 
@@ -68,6 +74,8 @@ export class Sale {
   @Prop({ required: true, min: 0, default: 0 })
   transporteDescargaCentavos: number;
   @Prop({ required: true, min: 0 }) totalCentavos: number;
+  @Prop({ type: Number, min: 0, default: 0 }) comisionTotalCentavos: number;
+  @Prop({ type: Date, default: null }) comisionPagadaAt: Date | null;
   @Prop({ required: true, type: String, enum: PaymentMethod })
   medioPago: PaymentMethod;
   @Prop({ type: String, enum: ['MOSTRADOR', 'REPARTO'], default: 'MOSTRADOR' })
@@ -80,6 +88,10 @@ export class Sale {
   montoCobradoEfectivoCentavos: number;
   @Prop({ required: true, min: 0, default: 0 })
   montoCobradoTransferenciaCentavos: number;
+  @Prop({ required: true, min: 0, default: 0 })
+  montoChequePendienteCentavos: number;
+  @Prop({ required: true, min: 0, default: 0 }) montoChequeCentavos: number;
+  @Prop({ required: true, min: 0, default: 0 }) montoCobradoInicialCentavos: number;
   @Prop({ required: true, default: false }) cuentaCorrientePagada: boolean;
   @Prop({ type: Date, default: null }) cuentaCorrientePagadaAt: Date | null;
   @Prop({ trim: true, maxlength: 100, default: '' })
@@ -121,3 +133,4 @@ export class Sale {
 }
 export const SaleSchema = SchemaFactory.createForClass(Sale);
 SaleSchema.index({ medioPago: 1, createdAt: -1 });
+SaleSchema.index({ 'items.lotesConsumidos.lotId': 1, estado: 1 });

@@ -38,6 +38,8 @@ import { FiscalStatus, SaleStatus } from './enums/sale-status.enum';
 import { Sale, SaleDocument, SaleItem } from './schemas/sale.schema';
 import { ChecksService } from '../checks/checks.service';
 import { FinanceService } from '../finance/finance.service';
+import { FinancialPaymentMethod } from '../finance/enums/financial-movement.enum';
+import { calculateSellerCommissions } from '../seller-commissions/commission-calculator';
 import { BankCheckDocument } from '../checks/schemas/bank-check.schema';
 import {
   InventoryLotsService,
@@ -213,13 +215,10 @@ export class SalesService {
     if (sale.medioPago === PaymentMethod.CHECK || (!isDelivery && dto.medioPago === PaymentMethod.CHECK)) {
       throw new BadRequestException('Las ventas con cheque se administran desde el módulo Cheques');
     }
-    const alreadyCollected =
-      sale.montoCobradoCuentaCorrienteCentavos +
-      sale.montoCobradoEfectivoCentavos +
-      sale.montoCobradoTransferenciaCentavos;
-    if (alreadyCollected > 0) {
-      throw new ConflictException('No se puede modificar una venta que ya tiene pagos de cuenta corriente registrados');
-    }
+    const alreadyCollected = sale.medioPago === PaymentMethod.CREDIT
+      ? (sale.montoCobradoCuentaCorrienteCentavos ?? 0) : 0;
+    if (alreadyCollected > 0 && effectiveMethod !== PaymentMethod.CREDIT)
+      throw new ConflictException('Una venta con cobros registrados debe permanecer en cuenta corriente');
     if (!isDelivery && dto.medioPago === PaymentMethod.TRANSFER && !dto.referenciaTransferencia?.trim()) {
       throw new BadRequestException('Ingresá una referencia para la transferencia o Mercado Pago');
     }
@@ -283,9 +282,16 @@ export class SalesService {
         costoPromedioUnitarioCentavos: oldItem.costoPromedioUnitarioCentavos ?? product.costoCentavos,
         costoTotalCentavos: costCents,
         lotesConsumidos: consumedLots,
+        costoCorregidoAt: oldItem.costoCorregidoAt,
+        costoCorregidoPorNombre: oldItem.costoCorregidoPorNombre,
         proveedorId: oldItem.proveedorId,
         proveedorNombre: oldItem.proveedorNombre,
         totalCentavos: total,
+        comisionTipo: oldItem.comisionTipo ?? null,
+        comisionValor: oldItem.comisionValor ?? 0,
+        comisionVendedorCentavos: oldItem.comisionTipo === 'PORCENTAJE'
+          ? Math.round(total * (oldItem.comisionValor ?? 0) / 10000)
+          : (oldItem.comisionVendedorCentavos ?? 0),
       } as SaleItem);
 
       if (oldItem.cantidad !== next.cantidad) {
@@ -310,6 +316,13 @@ export class SalesService {
     const oldDebt = sale.medioPago === PaymentMethod.CREDIT ? sale.totalCentavos : 0;
     const productsTotal = nextItems.reduce((sum, item) => sum + item.totalCentavos, 0);
     const nextTotal = productsTotal + sale.transporteDescargaCentavos;
+    const nextCommission = nextItems.reduce((sum, item) => sum + (item.comisionVendedorCentavos ?? 0), 0);
+    if (sale.comisionPagadaAt && nextCommission !== (sale.comisionTotalCentavos ?? 0))
+      throw new ConflictException('La comisión de esta venta ya fue pagada. Revisá la corrección con un dueño antes de cambiar importes o cantidades');
+    if (nextTotal < alreadyCollected)
+      throw new ConflictException('El nuevo total no puede ser menor que los pagos ya cobrados; primero hay que registrar la devolución');
+    if (sale.montoChequePendienteCentavos > 0 && nextTotal < alreadyCollected + sale.montoChequePendienteCentavos)
+      throw new ConflictException('El nuevo total no puede ser menor que lo cobrado más el cheque pendiente');
     sale.costoPromedioCentavos = nextItems.reduce(
       (sum, item) => sum + (item.costoPromedioUnitarioCentavos ?? item.costoUnitarioCentavos) * item.cantidad, 0);
     const newDebt = effectiveMethod === PaymentMethod.CREDIT ? nextTotal : 0;
@@ -368,7 +381,18 @@ export class SalesService {
     sale.ivaCentavos = nextItems.reduce((sum, item) => sum + item.ivaCentavos, 0);
     sale.costoCentavos = nextItems.reduce((sum, item) => sum + (item.costoTotalCentavos ?? 0), 0);
     sale.totalCentavos = nextTotal;
+    sale.comisionTotalCentavos = nextCommission;
     sale.medioPago = effectiveMethod;
+    if (convertingToCredit) {
+      sale.montoCobradoInicialCentavos = 0;
+      sale.montoCobradoEfectivoCentavos = 0;
+      sale.montoCobradoTransferenciaCentavos = 0;
+      sale.montoCobradoCuentaCorrienteCentavos = 0;
+    } else if (effectiveMethod !== PaymentMethod.CREDIT) {
+      sale.montoCobradoInicialCentavos = nextTotal;
+      sale.montoCobradoEfectivoCentavos = effectiveMethod === PaymentMethod.CASH ? nextTotal : 0;
+      sale.montoCobradoTransferenciaCentavos = effectiveMethod === PaymentMethod.TRANSFER ? nextTotal : 0;
+    }
     sale.medioPagoInformado = dto.medioPago;
     if (dto.fechaFacturacion !== undefined) {
       const date = new Date(`${dto.fechaFacturacion}T12:00:00.000Z`);
@@ -391,6 +415,8 @@ export class SalesService {
       ).exec();
     }
     await this.financeService.recordSale(updatedSale);
+    if (dto.fechaFacturacion !== undefined && sale.medioPago === PaymentMethod.CREDIT)
+      await this.financeService.updateSalePaymentDates(updatedSale);
     return updatedSale;
   }
 
@@ -406,7 +432,7 @@ export class SalesService {
       fechaFacturacion = date;
     }
     const isDelivery = dto.modalidadEntrega === 'REPARTO';
-    const effectiveMethod = isDelivery ? PaymentMethod.CREDIT : dto.medioPago;
+    let effectiveMethod = isDelivery ? PaymentMethod.CREDIT : dto.medioPago;
     const client = await this.clientModel
       .findOne({ _id: dto.clienteId, activo: true })
       .exec();
@@ -416,7 +442,7 @@ export class SalesService {
     if (!client) throw new NotFoundException('Cliente inexistente o inactivo');
     if (!list)
       throw new NotFoundException('Lista de precios inexistente o inactiva');
-    if (!isDelivery && dto.medioPago === PaymentMethod.CREDIT) {
+    if (!isDelivery && dto.medioPago === PaymentMethod.CREDIT && !dto.cobroInicialCentavos && !dto.cheque) {
       throw new BadRequestException('Las ventas de mostrador deben registrar un cobro en caja');
     }
     if (
@@ -556,14 +582,35 @@ export class SalesService {
       ? (dto.transporteDescargaCentavos ?? 0)
       : 0;
     const totalCentavos = subtotalProductosCentavos + transporteDescargaCentavos;
+    const sellerId = dto.vendedorId ? new Types.ObjectId(dto.vendedorId) : client.vendedorId
+      ?? (normalizeUserRoles(actor.roles).includes(UserRole.VENDEDOR) ? new Types.ObjectId(actor.id) : null);
+    const seller = sellerId ? await this.employeeModel.findById(sellerId).select('comisiones').lean().exec() : null;
+    const comisionTotalCentavos = calculateSellerCommissions(items, seller?.comisiones ?? [],
+      new Map(products.map((product) => [product._id.toString(), product.tipo])));
+    const initialPaid = isDelivery ? 0 : dto.cobroInicialCentavos ?? (dto.medioPago === PaymentMethod.CHECK ? 0 : totalCentavos);
+    const checkAmount = isDelivery ? 0 : dto.cheque?.montoCentavos ?? 0;
+    if (!Number.isSafeInteger(initialPaid) || initialPaid < 0 || initialPaid + checkAmount > totalCentavos) {
+      throw new BadRequestException('El efectivo o transferencia y el cheque no pueden superar el total de la venta');
+    }
+    if (isDelivery && (dto.cobroInicialCentavos || dto.cheque)) {
+      throw new BadRequestException('Los cobros iniciales corresponden a ventas de mostrador');
+    }
+    if (!isDelivery && dto.cheque && dto.medioPago !== PaymentMethod.CHECK && dto.medioPago !== PaymentMethod.CASH && dto.medioPago !== PaymentMethod.TRANSFER) {
+      throw new BadRequestException('Elegí efectivo o transferencia para combinar con cheque');
+    }
+    if (initialPaid > 0 && dto.medioPago === PaymentMethod.CHECK) {
+      throw new BadRequestException('Elegí efectivo o transferencia para el cobro inicial');
+    }
+    if (!isDelivery && initialPaid < totalCentavos) {
+      effectiveMethod = PaymentMethod.CREDIT;
+    }
+    const creditAmount = effectiveMethod === PaymentMethod.CREDIT ? totalCentavos - initialPaid : 0;
     const sale = await this.saleModel.create({
       codigo: await this.nextCode(),
       clienteId: client._id,
       clienteCodigo: client.codigo,
       clienteNombre: client.nombre,
-      vendedorId: dto.vendedorId
-        ? new Types.ObjectId(dto.vendedorId)
-        : client.vendedorId,
+      vendedorId: sellerId,
       listaPreciosId: list._id,
       listaPreciosNombre: list.nombre,
       items,
@@ -573,9 +620,16 @@ export class SalesService {
       incluyeTransporteDescarga: transporteDescargaCentavos > 0,
       transporteDescargaCentavos,
       totalCentavos,
+      comisionTotalCentavos,
       medioPago: effectiveMethod,
       medioPagoInformado: dto.medioPago,
       modalidadEntrega: isDelivery ? 'REPARTO' : 'MOSTRADOR',
+      montoCobradoCuentaCorrienteCentavos: initialPaid < totalCentavos ? initialPaid : 0,
+      montoCobradoEfectivoCentavos: initialPaid > 0 && dto.medioPago === PaymentMethod.CASH ? initialPaid : 0,
+      montoCobradoTransferenciaCentavos: initialPaid > 0 && dto.medioPago === PaymentMethod.TRANSFER ? initialPaid : 0,
+      montoChequePendienteCentavos: checkAmount,
+      montoChequeCentavos: checkAmount,
+      montoCobradoInicialCentavos: initialPaid,
       referenciaTransferencia: dto.referenciaTransferencia?.trim() ?? '',
       chequeId: null,
       chequeNumero: '',
@@ -598,12 +652,7 @@ export class SalesService {
     let creditReserved = false;
     let createdCheck: BankCheckDocument | null = null;
     {
-      if (!isDelivery && dto.medioPago === PaymentMethod.CHECK && dto.cheque) {
-        if (dto.cheque.montoCentavos !== totalCentavos) {
-          throw new BadRequestException(
-            'El monto del cheque debe coincidir con el total de la venta',
-          );
-        }
+      if (!isDelivery && dto.cheque) {
         createdCheck = await this.checksService.createForSale(
           { ...dto.cheque, clienteId: client._id.toString() },
           { id: actor.id, name: actor.name },
@@ -619,28 +668,16 @@ export class SalesService {
             {
               _id: client._id,
               activo: true,
-              ...(isDelivery ? {} : { permiteCuentaCorriente: true }),
-              ...(isDelivery ? {} : { $expr: {
-                $lte: [
-                  {
-                    $add: [
-                      { $ifNull: ['$saldoCuentaCorrienteCentavos', 0] },
-                      totalCentavos,
-                    ],
-                  },
-                  '$limiteCreditoCentavos',
-                ],
-              } }),
             },
             {
-              $inc: { saldoCuentaCorrienteCentavos: totalCentavos },
-              ...(isDelivery ? { $set: { permiteCuentaCorriente: true } } : {}),
+              $inc: { saldoCuentaCorrienteCentavos: creditAmount },
+              $set: { permiteCuentaCorriente: true },
               $push: {
                 historialCambios: {
                   actorId: actor.id,
                   actorName: actor.name,
                   action: 'CREDIT_SALE',
-                  detail: `Venta #${sale.codigo} a crédito por ${totalCentavos} centavos`,
+                  detail: `Venta #${sale.codigo} a crédito por ${creditAmount} centavos`,
                   date: new Date(),
                 },
               },
@@ -650,7 +687,7 @@ export class SalesService {
           .exec();
         if (!updatedClient) {
           throw new ConflictException(
-            'La venta supera el crédito disponible del cliente',
+            'No se pudo actualizar el saldo del cliente. Volvé a intentar',
           );
         }
         creditReserved = true;
@@ -737,6 +774,9 @@ export class SalesService {
         ).exec();
       }
       await this.financeService.recordSale(confirmedSale);
+      if (effectiveMethod === PaymentMethod.CREDIT && initialPaid > 0) {
+        await this.financeService.recordInitialSalePayment(confirmedSale, initialPaid, dto.medioPago === PaymentMethod.TRANSFER ? FinancialPaymentMethod.TRANSFER : FinancialPaymentMethod.CASH);
+      }
       return confirmedSale;
     }
   }

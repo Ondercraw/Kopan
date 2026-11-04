@@ -68,6 +68,17 @@
         </label>
       }
     </div>
+    @if (deliveryMode === 'MOSTRADOR') {
+      <section class="split-payment">
+        <label><input type="checkbox" [(ngModel)]="splitPayment" (ngModelChange)="onSplitPayment()" /> Cobro parcial o mixto</label>
+        @if (splitPayment) {
+          @if (paymentMethod !== 'CHEQUE') { <label><span>Importe recibido por {{ paymentMethod === 'TRANSFERENCIA' ? 'transferencia' : 'efectivo' }}</span><input type="text" inputmode="decimal" [(ngModel)]="initialPaymentInput" placeholder="0" /></label>
+            <label><input type="checkbox" [(ngModel)]="includeCheck" (ngModelChange)="onIncludeCheck()" /> También recibe un cheque</label> }
+          @if (includeCheck || paymentMethod === 'CHEQUE') { <label><span>Importe del cheque</span><input type="text" inputmode="decimal" [(ngModel)]="checkAmountInput" placeholder="0" /></label> }
+          <small>El saldo restante y el cheque pendiente quedarán en cuenta corriente hasta que se cobren.</small>
+        }
+      </section>
+    }
     <section class="delivery-option" [class.enabled]="includesTransportDownload">
       <label class="delivery-toggle">
         <input
@@ -103,9 +114,9 @@
         </label>
       }
     </section>
-    @if (deliveryMode === 'MOSTRADOR' && paymentMethod === 'CHEQUE') {
+    @if (deliveryMode === 'MOSTRADOR' && (paymentMethod === 'CHEQUE' || includeCheck)) {
       <section class="check-form" aria-label="Datos del cheque">
-        <header><div><span>CHEQUE RECIBIDO</span><strong>El importe se completa con el total de la venta</strong></div><em>{{ money(total()) }}</em></header>
+        <header><div><span>CHEQUE RECIBIDO</span><strong>{{ splitPayment ? 'Ingresá el importe del cheque arriba' : 'Importe total de la venta' }}</strong></div><em>{{ money(checkPaymentCents() > 0 ? checkPaymentCents() : 0) }}</em></header>
         <div>
           <label><span>Número *</span><input [(ngModel)]="checkNumber" maxlength="50" [class.field-invalid]="invalidCheckRequired(checkNumber)" />
             @if (invalidCheckRequired(checkNumber)) { <small class="field-error">Ingresá el número del cheque.</small> }
@@ -226,6 +237,7 @@
         </button>
       </div>
     </footer>
+    @if (lines().length > 14) { <p class="receipt-page-warning" role="alert"><i class="ti ti-alert-triangle"></i> La venta tiene {{ lines().length }} renglones. El comprobante impreso puede pasar a otra hoja a partir de 14; revisá la vista previa antes de entregarlo.</p> }
   </div>
 </section>
 @if (clientModalOpen()) { <app-client-form-modal [client]="editingClient()" [options]="clientFormOptions()" (closed)="closeClientModal()" (saved)="onClientSaved($event)" /> }
@@ -235,10 +247,13 @@
     <section class="modal" role="dialog" aria-modal="true">
       <span>CONFIRMACIÓN</span>
       <h2>Confirmar venta por {{ money(total()) }}</h2>
+      @if (lines().length > 14) { <p class="receipt-page-warning" role="alert"><i class="ti ti-alert-triangle"></i> Hay {{ lines().length }} renglones: el comprobante puede ocupar más de una hoja.</p> }
       <p>
         Se descontará el stock de {{ lines().length }} productos.
-        {{ deliveryMode === 'REPARTO' ? 'La venta quedará pendiente en cuenta corriente y no ingresará a caja hasta cobrarse.' : 'Se registrará el pago por ' + paymentLabel() + '.' }}
+        {{ deliveryMode === 'REPARTO' ? 'La venta quedará pendiente en cuenta corriente y no ingresará a caja hasta cobrarse.' : splitPayment ? 'Se registrarán el cobro inicial y el cheque pendiente por separado; el saldo quedará en cuenta corriente.' : paymentMethod === 'CHEQUE' ? 'El cheque quedará pendiente en cuenta corriente hasta que se cobre.' : 'Se registrará el pago por ' + paymentLabel() + '.' }}
       </p>
+      @if (deliveryMode === 'MOSTRADOR' && splitPayment) { <div class="split-review"><span>Entra en caja: <strong>{{ money(initialPaymentCents()) }}</strong></span><span>Cheque pendiente: <strong>{{ money(checkPaymentCents()) }}</strong></span><span>Saldo a cobrar sin cheque: <strong>{{ money(total() - initialPaymentCents() - checkPaymentCents()) }}</strong></span></div> }
+      @if ((deliveryMode === 'REPARTO' || splitPayment || paymentMethod === 'CHEQUE') && selectedClient() && total() - (deliveryMode === 'MOSTRADOR' ? initialPaymentCents() : 0) > creditAvailable(selectedClient())) { <p class="receipt-page-warning" role="alert"><i class="ti ti-alert-triangle"></i> Esta venta supera el límite de crédito del cliente. Se puede confirmar y el exceso quedará visible en su cuenta corriente.</p> }
       <section class="review-context" aria-label="Datos de la venta">
         <label class="billing-date"><span>Fecha de facturación</span><input type="date" [(ngModel)]="billingDate" [class.field-invalid]="!validBillingDate()" required /><small>Esta fecha figurará en el comprobante y los movimientos de la venta.</small>
           @if (!validBillingDate()) { <small class="field-error">Seleccioná una fecha válida.</small> }

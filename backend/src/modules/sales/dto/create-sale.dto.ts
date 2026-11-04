@@ -20,6 +20,7 @@ export class CreateSaleDto {
   @IsMongoId() listaPreciosId: string;
   @IsEnum(PaymentMethod) medioPago: PaymentMethod;
   @IsOptional() @IsString() @MaxLength(100) referenciaTransferencia?: string;
+  @IsOptional() @IsInt() @Min(0) cobroInicialCentavos?: number;
   @IsOptional() @IsString() @MaxLength(500) observaciones?: string;
   @IsOptional() @IsBoolean() incluyeTransporteDescarga?: boolean;
   @ValidateIf((dto: CreateSaleDto) => dto.incluyeTransporteDescarga === true)
@@ -27,8 +28,7 @@ export class CreateSaleDto {
   @IsInt()
   @Min(1)
   transporteDescargaCentavos?: number;
-  @ValidateIf((dto: CreateSaleDto) => dto.medioPago === PaymentMethod.CHECK)
-  @IsDefined()
+  @IsOptional()
   @ValidateNested()
   @Type(() => SaveCheckDto)
   cheque?: SaveCheckDto;

@@ -1,8 +1,17 @@
 import { Prop, Schema, SchemaFactory } from '@nestjs/mongoose';
-import { HydratedDocument, Types } from 'mongoose';
+import { HydratedDocument, Schema as MongooseSchema, Types } from 'mongoose';
 import { UserRole } from '../../../common/enums/user-role.enum';
 
 export type EmployeeDocument = HydratedDocument<Employee>;
+
+export interface SellerCommissionRule {
+  _id?: Types.ObjectId;
+  scope: 'RUBRO' | 'PRODUCTO';
+  rubro?: string;
+  productoId?: Types.ObjectId;
+  mode: 'PORCENTAJE' | 'MONTO_FIJO';
+  value: number;
+}
 
 @Schema({ timestamps: true })
 export class Employee {
@@ -27,6 +36,11 @@ export class Employee {
 
   @Prop({ default: true })
   activo: boolean;
+
+  // El porcentaje se guarda en puntos base (10000 = 100 %); el monto fijo en centavos.
+  @Prop({ type: [{ scope: String, rubro: String, productoId: MongooseSchema.Types.ObjectId,
+    mode: String, value: Number }], default: [] })
+  comisiones: SellerCommissionRule[];
 
   // Para sumar un campo nuevo al empleado (ej. dni, cuit, edad):
   // agregar acá un @Prop() con su tipo, y también en CreateEmployeeDto

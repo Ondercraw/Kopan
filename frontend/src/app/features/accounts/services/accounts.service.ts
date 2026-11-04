@@ -9,8 +9,8 @@ export class AccountsService {
   private readonly base = `${environment.apiUrl}/accounts`;
   private readonly options = { withCredentials: true };
   statement() { return this.http.get<AccountsStatement>(this.base, this.options); }
-  pay(kind: 'clients/sales' | 'suppliers/purchases' | 'opening-debts', id: string, amountCents: number, paymentMethod: 'EFECTIVO' | 'TRANSFERENCIA') {
-    return this.http.patch(`${this.base}/${kind}/${id}/pay`, { amountCents, paymentMethod }, this.options);
+  pay(kind: 'clients/sales' | 'suppliers/purchases' | 'opening-debts', id: string, amountCents: number, paymentMethod: 'EFECTIVO' | 'TRANSFERENCIA', accountingDate?: string) {
+    return this.http.patch(`${this.base}/${kind}/${id}/pay`, { amountCents, paymentMethod, ...(accountingDate ? { accountingDate } : {}) }, this.options);
   }
   addOpeningDebt(side: 'CLIENTE' | 'PROVEEDOR', entityId: string, amountCents: number, detail: string) {
     return this.http.post(`${this.base}/${side === 'CLIENTE' ? 'clients' : 'suppliers'}/${entityId}/opening-debts`, { amountCents, detail }, this.options);

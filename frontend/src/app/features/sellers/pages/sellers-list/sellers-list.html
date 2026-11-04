@@ -1,1 +1,53 @@
-<header><span>Equipo comercial</span><h1>Vendedores</h1><p>Seleccioná un vendedor para consultar los clientes que tiene asignados.</p></header>@if(loading()){<p class="state">Cargando vendedores…</p>}@else{<section class="seller-list">@for(seller of sellerRows();track seller._id){<article [class.expanded]="expandedSellerId()===seller._id"><button type="button" class="seller-summary" [attr.aria-expanded]="expandedSellerId()===seller._id" (click)="toggleSeller(seller._id)"><div class="avatar">{{seller.nombre.charAt(0)}}</div><div class="identity"><h2>{{seller.nombre}}</h2><span>{{seller.email}}</span></div><strong>{{seller.clients.length}} cliente{{seller.clients.length===1?'':'s'}}</strong><i class="ti" [class.ti-chevron-up]="expandedSellerId()===seller._id" [class.ti-chevron-down]="expandedSellerId()!==seller._id"></i></button>@if(expandedSellerId()===seller._id){<div class="client-list"><h3>Clientes asignados</h3>@for(client of seller.clients;track client._id){<div class="client-row"><span class="client-code">#{{client.codigo}}</span><div><strong>{{client.nombre}}</strong><small>{{client.nombreFantasia||client.localidad||'Sin información adicional'}}</small></div><span>{{client.localidad||'Sin localidad'}}</span></div>}@empty{<p>Este vendedor todavía no tiene clientes activos asignados.</p>}</div>}</article>}@empty{<p class="state">Todavía no hay empleados activos con rol Vendedor.</p>}</section>}
+<header><span>Equipo comercial</span><h1>Vendedores</h1><p>Clientes asignados y comisiones calculadas por venta.</p></header>
+@if (error()) { <p class="commission-error" role="alert">{{ error() }}</p> }
+@if (loading()) { <p class="state">Cargando vendedores…</p> } @else {
+  <section class="seller-list">
+    @for (seller of sellerRows(); track seller._id) {
+      <article [class.expanded]="expandedSellerId() === seller._id">
+        <button type="button" class="seller-summary" [attr.aria-expanded]="expandedSellerId() === seller._id" (click)="toggleSeller(seller._id)">
+          <div class="avatar">{{ seller.nombre.charAt(0) }}</div>
+          <div class="identity"><h2>{{ seller.nombre }}</h2><span>{{ seller.email }}</span></div>
+          <strong>{{ seller.clients.length }} cliente{{ seller.clients.length === 1 ? '' : 's' }}</strong>
+          <i class="ti" [class.ti-chevron-up]="expandedSellerId() === seller._id" [class.ti-chevron-down]="expandedSellerId() !== seller._id"></i>
+        </button>
+        @if (expandedSellerId() === seller._id) {
+          <div class="client-list"><h3>Clientes asignados</h3>
+            @for (client of seller.clients; track client._id) {
+              <div class="client-row"><span class="client-code">#{{ client.codigo }}</span><div><strong>{{ client.nombre }}</strong><small>{{ client.nombreFantasia || client.localidad || 'Sin información adicional' }}</small></div><span>{{ client.localidad || 'Sin localidad' }}</span></div>
+            } @empty { <p>Este vendedor todavía no tiene clientes activos asignados.</p> }
+          </div>
+          <section class="commission-section">
+            <div class="commission-head"><div><h3>Comisiones</h3><p>Las reglas nuevas se aplican a ventas futuras. Las comisiones ya calculadas conservan su importe.</p></div><button type="button" (click)="openRuleModal()"><i class="ti ti-plus"></i> Aplicar comisión</button></div>
+            @if (overview()?.seller?.id === seller._id) {
+              <div class="commission-rules"><h4>Reglas activas</h4>
+                @for (rule of overview()?.rules ?? []; track rule._id) {
+                  <div><span>{{ ruleLabel(rule) }}</span><strong>{{ ruleValueLabel(rule) }}</strong><button type="button" (click)="deleteRule(rule)" aria-label="Eliminar regla"><i class="ti ti-trash"></i></button></div>
+                } @empty { <p>Sin reglas de comisión configuradas.</p> }
+              </div>
+              <div class="commission-sales"><h4>Ventas con comisión</h4>
+                @for (sale of overview()?.sales ?? []; track sale.id) {
+                  <div class="commission-sale" [class.cancelled]="sale.cancelled"><div><strong>Venta #{{ sale.code }} · {{ sale.clientName }}</strong><small>{{ date(sale.date) }} · {{ sale.items.length }} producto/s con comisión {{ sale.cancelled ? '· Venta anulada' : '' }}</small></div><strong>{{ money(sale.commissionCents) }}</strong>
+                    @if (sale.paidAt) { <span class="commission-paid">Pagada {{ date(sale.paidAt) }}</span> }
+                    @else if (!sale.cancelled) { <button type="button" (click)="payTarget.set(sale); paymentMethod = 'EFECTIVO'; error.set(null)">Pagar comisión</button> }
+                  </div>
+                } @empty { <p>Todavía no hay ventas con comisión calculada.</p> }
+              </div>
+            } @else { <p>Cargando comisiones…</p> }
+          </section>
+        }
+      </article>
+    } @empty { <p class="state">Todavía no hay empleados activos con rol Vendedor.</p> }
+  </section>
+}
+@if (ruleModal()) { <div class="commission-overlay"><section class="commission-modal" role="dialog" aria-modal="true"><header><div><span>VENDEDOR</span><h2>Aplicar comisión</h2></div><button type="button" (click)="ruleModal.set(false)" aria-label="Cerrar"><i class="ti ti-x"></i></button></header><p>La regla del producto reemplaza a la del rubro. El porcentaje se calcula sobre el precio final con descuento. El monto fijo se aplica una vez por venta.</p>
+  <div class="commission-form"><label><span>Aplicar a</span><select [(ngModel)]="ruleScope"><option value="RUBRO">Rubro</option><option value="PRODUCTO">Producto</option></select></label>
+    @if (ruleScope === 'RUBRO') { <label><span>Rubro</span><select [(ngModel)]="ruleRubro"><option value="">Elegir rubro</option>@for (rubro of rubros(); track rubro) { <option [value]="rubro">{{ rubro }}</option> }</select></label> }
+    @else { <label><span>Producto</span><select [(ngModel)]="ruleProductId"><option value="">Elegir producto</option>@for (product of products(); track product._id) { <option [value]="product._id">{{ product.nombre }}</option> }</select></label> }
+    <label><span>Tipo</span><select [(ngModel)]="ruleMode"><option value="PORCENTAJE">Porcentaje</option><option value="MONTO_FIJO">Monto fijo ARS</option></select></label>
+    <label><span>{{ ruleMode === 'PORCENTAJE' ? 'Porcentaje (%)' : 'Monto fijo (ARS)' }}</span><input type="text" inputmode="decimal" [(ngModel)]="ruleValue" placeholder="0" /></label>
+  </div>
+  @if (error()) { <p class="commission-error" role="alert">{{ error() }}</p> }
+  <footer><button type="button" (click)="ruleModal.set(false)">Cancelar</button><button type="button" class="primary" [disabled]="saving()" (click)="saveRule()">Guardar regla</button></footer>
+</section></div> }
+@if (payTarget(); as sale) { <div class="commission-overlay"><section class="commission-modal" role="dialog" aria-modal="true"><header><div><span>CONFIRMAR PAGO</span><h2>Comisión de venta #{{ sale.code }}</h2></div><button type="button" (click)="payTarget.set(null)" aria-label="Cerrar"><i class="ti ti-x"></i></button></header><p>Se registrará un egreso de <strong>{{ money(sale.commissionCents) }}</strong> para el vendedor. Esta acción no se puede repetir.</p><label><span>Medio de pago</span><select [(ngModel)]="paymentMethod"><option value="EFECTIVO">Efectivo</option><option value="TRANSFERENCIA">Transferencia</option></select></label>@if (error()) { <p class="commission-error" role="alert">{{ error() }}</p> }<footer><button type="button" (click)="payTarget.set(null)">Cancelar</button><button type="button" class="primary" [disabled]="saving()" (click)="pay()">Confirmar pago</button></footer></section></div> }
+@if (deleteTarget(); as rule) { <div class="commission-overlay"><section class="commission-modal" role="dialog" aria-modal="true"><header><div><span>CONFIRMAR ELIMINACIÓN</span><h2>Eliminar regla</h2></div><button type="button" (click)="deleteTarget.set(null)" aria-label="Cerrar"><i class="ti ti-x"></i></button></header><p>Se eliminará la regla de <strong>{{ ruleLabel(rule) }}</strong> para ventas futuras. Las comisiones de ventas anteriores no cambian.</p><footer><button type="button" (click)="deleteTarget.set(null)">Volver</button><button type="button" class="primary" (click)="confirmDeleteRule()">Eliminar regla</button></footer></section></div> }

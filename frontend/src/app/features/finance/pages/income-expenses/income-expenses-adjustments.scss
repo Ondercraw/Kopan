@@ -259,3 +259,15 @@
   font: inherit;
   white-space: nowrap;
 }
+.cost-correction-note {
+  display: block;
+  width: fit-content;
+  margin-top: 6px;
+  padding: 5px 8px;
+  border: 1px solid #cc873b;
+  border-radius: 7px;
+  background: #fff0db;
+  color: #7b3906;
+  font-weight: 800;
+}
+.sale-client-name{display:block;margin:5px 0;color:#713508;font-size:1rem;line-height:1.35}

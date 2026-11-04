@@ -11,6 +11,7 @@ export enum FinancialMovementCategory {
   ACCOUNT_PAYMENT = 'COBRO_CUENTA_CORRIENTE',
   SUPPLIER_ACCOUNT_PAYMENT = 'PAGO_CUENTA_PROVEEDOR',
   MANUAL = 'GASTO_MANUAL',
+  SELLER_COMMISSION = 'COMISION_VENDEDOR',
 }
 
 export enum FinancialPaymentMethod {

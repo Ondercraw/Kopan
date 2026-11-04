@@ -16,6 +16,7 @@ export interface CreateSalePayload {
   modalidadEntrega?: 'MOSTRADOR' | 'REPARTO';
   fechaFacturacion?: string;
   referenciaTransferencia?: string;
+  cobroInicialCentavos?: number;
   observaciones?: string;
   incluyeTransporteDescarga?: boolean;
   transporteDescargaCentavos?: number;
@@ -34,6 +35,8 @@ export interface SaleItem {
   ivaCentavos: number;
   costoUnitarioCentavos: number;
   costoPromedioUnitarioCentavos?: number | null;
+  costoCorregidoAt?: string | null;
+  costoCorregidoPorNombre?: string;
   totalCentavos: number;
   proveedorId?: string | null;
   proveedorNombre?: string;
@@ -58,6 +61,9 @@ export interface Sale {
   montoCobradoCuentaCorrienteCentavos?: number;
   montoCobradoEfectivoCentavos?: number;
   montoCobradoTransferenciaCentavos?: number;
+  montoChequeCentavos?: number;
+  montoChequePendienteCentavos?: number;
+  montoCobradoInicialCentavos?: number;
   referenciaTransferencia: string;
   fechaFacturacion?: string | null;
   chequeId?: string | null;

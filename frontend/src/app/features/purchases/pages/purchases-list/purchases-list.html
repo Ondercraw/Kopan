@@ -168,16 +168,47 @@
         />
         <strong>{{ money(editPurchaseQuantity * editPurchaseUnitCostPesos * 100) }}</strong>
       </div>
+      @if (purchaseItemImpact(); as impact) {
+        <div class="purchase-cost-warning" role="alert">
+          <i class="ti ti-alert-triangle"></i>
+          <div>
+            <strong>Esta corrección puede modificar registros ya confirmados</strong>
+            <p>Se actualizarán el costo del lote, el costo promedio del stock disponible, el total de esta compra o valuación, el gasto y el saldo pendiente del proveedor. El importe cobrado al cliente no cambiará.</p>
+            <p>Total de la operación: {{ money(target.purchase.totalCentavos) }} → {{ money(target.purchase.totalCentavos - target.item.subtotalCents + editPurchaseQuantity * editUnitCostCents()) }}.</p>
+            @if (impact.affectedSales.length && editUnitCostCents() !== target.item.unitCostCents) {
+              <p>También se recalcularán los costos y márgenes de {{ impact.affectedSales.length }} venta(s). Quedarán señaladas como «Costo corregido»:</p>
+              <ul>@for (sale of impact.affectedSales; track sale.codigo) {
+                <li>Venta #{{ sale.codigo }} · {{ sale.clienteNombre }} · {{ sale.quantity }} unidad(es) de este lote · variación del costo {{ money(sale.quantity * (editUnitCostCents() - target.item.unitCostCents)) }}</li>
+              }</ul>
+            }
+            <p>{{ impact.consumedQuantity }} unidad(es) ya salieron del lote; la cantidad nueva no puede ser menor.</p>
+          </div>
+        </div>
+      } @else if (!error()) {
+        <p class="message">Verificando ventas y unidades vinculadas a este lote...</p>
+      }
       @if (error()) { <p class="message error" role="alert">{{ error() }}</p> }
       <footer>
         <div class="grand-total"><small>Nuevo subtotal</small><strong>{{ money(editPurchaseQuantity * editPurchaseUnitCostPesos * 100) }}</strong></div>
         <button type="button" class="secondary" (click)="closePurchaseItemEdit()">Cancelar</button>
-        <button type="button" class="primary" (click)="savePurchaseItemEdit()" [disabled]="saving()">
-          {{ saving() ? 'Guardando...' : 'Guardar cambios' }}
+        <button type="button" class="primary" (click)="savePurchaseItemEdit()" [disabled]="saving() || !purchaseItemImpact()">
+          Revisar y guardar
         </button>
       </footer>
     </section>
   </div>
+}
+@if (editConfirmationOpen() && editingPurchaseLine(); as target) {
+  <app-confirmation-modal
+    title="Confirmar corrección de costo"
+    [message]="'¿Modificar ' + target.item.productName + ' en la operación #' + target.purchase.codigo + '?'"
+    [detail]="'Se actualizarán compra/valuación, lote, inventario, gasto y deuda del proveedor. ' + (editUnitCostCents() !== target.item.unitCostCents ? (purchaseItemImpact()?.affectedSales?.length || 0) : 0) + ' venta(s) confirmada(s) tendrán su costo y margen recalculados y quedarán marcadas como corregidas. Los importes cobrados no cambiarán.'"
+    confirmLabel="Sí, corregir todos los registros"
+    tone="warning"
+    [loading]="saving()"
+    (cancelled)="editConfirmationOpen.set(false)"
+    (confirmed)="confirmPurchaseItemEdit()"
+  />
 }
 
 @if (visibleModalMode(); as mode) {

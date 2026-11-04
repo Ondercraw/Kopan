@@ -44,6 +44,8 @@ import {
   InventoryLotDocument,
 } from './schemas/inventory-lot.schema';
 import { InventoryLotsService } from './inventory-lots.service';
+import { Sale, SaleDocument } from '../sales/schemas/sale.schema';
+import { SaleStatus } from '../sales/enums/sale-status.enum';
 
 interface PurchaseActor {
   id: string;
@@ -69,7 +71,29 @@ export class PurchasesService {
     @InjectModel(FinancialMovement.name)
     private readonly financeModel: Model<FinancialMovementDocument>,
     private readonly lotsService: InventoryLotsService,
+    @InjectModel(Sale.name) private readonly saleModel: Model<SaleDocument>,
   ) {}
+
+  async updateItemImpact(id: string, lineNumber: number) {
+    const purchase = await this.purchaseModel.findOne({ _id: id, estado: PurchaseStatus.CONFIRMED }).exec();
+    if (!purchase) throw new NotFoundException('La compra no existe o está cancelada');
+    const item = purchase.items.find((value) => value.lineNumber === lineNumber);
+    if (!item) throw new NotFoundException('El producto no pertenece a esta compra');
+    const lot = await this.lotModel.findOne({ purchaseId: purchase._id, lineNumber, cancelled: false }).exec();
+    if (!lot) throw new ConflictException('No se encontró el lote asociado a este producto');
+    const sales = await this.saleModel.find({
+      estado: SaleStatus.CONFIRMED,
+      'items.lotesConsumidos.lotId': lot._id,
+    }).select('codigo clienteNombre items').lean().exec();
+    return {
+      consumedQuantity: lot.initialQuantity - lot.remainingQuantity,
+      affectedSales: sales.map((sale) => ({ codigo: sale.codigo, clienteNombre: sale.clienteNombre,
+        quantity: sale.items.reduce((sum, saleItem) => sum + (saleItem.lotesConsumidos ?? [])
+          .filter((entry) => entry.lotId.toString() === lot._id.toString())
+          .reduce((part, entry) => part + entry.quantity, 0), 0),
+      })),
+    };
+  }
 
   findAll(filters: { from?: string; to?: string; supplierId?: string } = {}) {
     const query: Record<string, unknown> = {};
@@ -447,6 +471,8 @@ export class PurchasesService {
 
     const item = purchase.items.find((value) => value.lineNumber === lineNumber);
     if (!item) throw new NotFoundException('El producto no pertenece a esta compra');
+    if (item.quantity !== dto.expectedQuantity || item.unitCostCents !== dto.expectedUnitCostCents)
+      throw new ConflictException('El producto fue modificado desde otro dispositivo. Recargá la compra antes de corregirlo.');
 
     const lot = await this.lotModel.findOne({
       purchaseId: purchase._id,
@@ -456,9 +482,9 @@ export class PurchasesService {
     if (!lot) throw new ConflictException('No se encontró el lote asociado a este producto');
 
     const consumedQuantity = lot.initialQuantity - lot.remainingQuantity;
-    if (consumedQuantity > 0)
+    if (dto.quantity < consumedQuantity)
       throw new ConflictException(
-        `No se puede modificar ${item.productName}: ${consumedQuantity} unidades del lote ya fueron vendidas o retiradas`,
+        `No se puede reducir ${item.productName} por debajo de las ${consumedQuantity} unidades ya vendidas o retiradas`,
       );
 
     await this.productModel.updateOne({ _id: item.productId }, { $inc: { __v: 1 } }).exec();
@@ -488,6 +514,42 @@ export class PurchasesService {
     lot.remainingQuantity = dto.quantity - consumedQuantity;
     lot.unitCostCents = dto.unitCostCents;
     await lot.save();
+
+    if (previousUnitCost !== dto.unitCostCents && consumedQuantity > 0) {
+      const affectedSales = await this.saleModel.find({
+        estado: SaleStatus.CONFIRMED,
+        'items.lotesConsumidos.lotId': lot._id,
+      }).exec();
+      for (const sale of affectedSales) {
+        let changed = false;
+        for (const saleItem of sale.items) {
+          const used = (saleItem.lotesConsumidos ?? [])
+            .filter((entry) => entry.lotId.toString() === lot._id.toString())
+            .reduce((sum, entry) => sum + entry.quantity, 0);
+          if (!used) continue;
+          const delta = used * (dto.unitCostCents - previousUnitCost);
+          const previousTotal = saleItem.costoTotalCentavos ?? saleItem.costoUnitarioCentavos * saleItem.cantidad;
+          const previousAverage = saleItem.costoPromedioUnitarioCentavos ?? saleItem.costoUnitarioCentavos;
+          saleItem.costoTotalCentavos = previousTotal + delta;
+          saleItem.costoUnitarioCentavos = Math.round(saleItem.costoTotalCentavos / saleItem.cantidad);
+          saleItem.costoPromedioUnitarioCentavos = Math.max(0, previousAverage + Math.round(delta / saleItem.cantidad));
+          saleItem.costoCorregidoAt = new Date();
+          saleItem.costoCorregidoPorNombre = actor.name;
+          changed = true;
+        }
+        if (changed) {
+          sale.costoCentavos = sale.items.reduce((sum, saleItem) =>
+            sum + (saleItem.costoTotalCentavos ?? saleItem.costoUnitarioCentavos * saleItem.cantidad), 0);
+          sale.costoPromedioCentavos = sale.items.reduce((sum, saleItem) =>
+            sum + (saleItem.costoPromedioUnitarioCentavos ?? saleItem.costoUnitarioCentavos) * saleItem.cantidad, 0);
+          await sale.save();
+        }
+      }
+      await this.financeModel.updateMany(
+        { sourceKey: { $in: affectedSales.map((sale) => `sale:${sale._id.toString()}:income`) } },
+        { $set: { costoCorregidoAt: new Date() }, $addToSet: { productosCostoCorregido: item.productName } },
+      ).exec();
+    }
 
     const after = await this.lotsService.summary(product._id);
     product.costoCentavos = after.quantity ? after.averageCostCents : 0;

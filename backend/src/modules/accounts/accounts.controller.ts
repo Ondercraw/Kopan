@@ -32,7 +32,7 @@ export class AccountsController {
   }
   @Patch('clients/sales/:id/pay')
   payClient(@Param('id', MongoIdPipe) id: string, @Body() dto: PayAccountDto, @CurrentUser() user: JwtPayload) {
-    return this.service.payClientSale(id, dto.amountCents, dto.paymentMethod, { id: user.sub, name: user.nombre });
+    return this.service.payClientSale(id, dto.amountCents, dto.paymentMethod, { id: user.sub, name: user.nombre }, dto.accountingDate);
   }
   @Patch('suppliers/purchases/:id/pay')
   paySupplier(@Param('id', MongoIdPipe) id: string, @Body() dto: PayAccountDto, @CurrentUser() user: JwtPayload) {

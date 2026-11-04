@@ -19,6 +19,7 @@ import { Purchase, PurchaseSchema } from './schemas/purchase.schema';
 import { InventoryLotsService } from './inventory-lots.service';
 import { PurchasesController } from './purchases.controller';
 import { PurchasesService } from './purchases.service';
+import { Sale, SaleSchema } from '../sales/schemas/sale.schema';
 
 @Module({
   imports: [
@@ -30,6 +31,7 @@ import { PurchasesService } from './purchases.service';
       { name: Counter.name, schema: CounterSchema },
       { name: StockMovement.name, schema: StockMovementSchema },
       { name: FinancialMovement.name, schema: FinancialMovementSchema },
+      { name: Sale.name, schema: SaleSchema },
     ]),
   ],
   controllers: [PurchasesController],

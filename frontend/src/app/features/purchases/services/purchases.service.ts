@@ -5,6 +5,7 @@ import {
   InventoryProduct,
   Purchase,
   PurchaseKind,
+  PurchaseItemImpact,
   PurchasePaymentMethod,
   SupplierAccount,
 } from '../models/purchase.model';
@@ -56,11 +57,17 @@ export class PurchasesService {
   cancel(id: string, reason: string) {
     return this.http.patch<Purchase>(`${this.base}/${id}/cancel`, { reason }, this.options);
   }
-  updateItem(id: string, lineNumber: number, quantity: number, unitCostCents: number) {
+  updateItem(id: string, lineNumber: number, quantity: number, unitCostCents: number,
+    expectedQuantity: number, expectedUnitCostCents: number) {
     return this.http.patch<Purchase>(
       `${this.base}/${id}/items/${lineNumber}`,
-      { quantity, unitCostCents },
+      { quantity, unitCostCents, expectedQuantity, expectedUnitCostCents },
       this.options,
+    );
+  }
+  updateItemImpact(id: string, lineNumber: number) {
+    return this.http.get<PurchaseItemImpact>(
+      `${this.base}/${id}/items/${lineNumber}/impact`, this.options,
     );
   }
 }

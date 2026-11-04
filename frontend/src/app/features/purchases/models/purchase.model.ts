@@ -16,6 +16,10 @@ export interface PurchaseItem {
   currentAverageCostCents: number;
   lineNumber: number;
 }
+export interface PurchaseItemImpact {
+  consumedQuantity: number;
+  affectedSales: { codigo: number; clienteNombre: string; quantity: number }[];
+}
 export interface Purchase {
   _id: string;
   codigo: number;

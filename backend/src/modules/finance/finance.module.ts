@@ -10,6 +10,7 @@ import { FinanceController } from './finance.controller';
 import { FinanceService } from './finance.service';
 import { FinancialMovement, FinancialMovementSchema } from './schemas/financial-movement.schema';
 import { AccountPayment, AccountPaymentSchema } from '../accounts/schemas/account-payment.schema';
+import { Client, ClientSchema } from '../clients/schemas/client.schema';
 
 @Module({
   imports: [PurchasesModule, MongooseModule.forFeature([
@@ -20,6 +21,7 @@ import { AccountPayment, AccountPaymentSchema } from '../accounts/schemas/accoun
     { name: Product.name, schema: ProductSchema },
     { name: StockMovement.name, schema: StockMovementSchema },
     { name: AccountPayment.name, schema: AccountPaymentSchema },
+    { name: Client.name, schema: ClientSchema },
   ])],
   controllers: [FinanceController],
   providers: [FinanceService],

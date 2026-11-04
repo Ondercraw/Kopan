@@ -13,7 +13,8 @@
     </div>
     <label><span>Desde</span><input type="date" [(ngModel)]="from" /></label
     ><label><span>Hasta</span><input type="date" [(ngModel)]="to" /></label>
-    <label><span>Producto</span><app-searchable-select [ngModel]="productId()" (ngModelChange)="productId.set($event)" [options]="productOptions()" placeholder="Todos los productos..." /></label>
+    <label><span>Rubro</span><app-searchable-select [ngModel]="rubro()" (ngModelChange)="selectRubro($event)" [options]="rubroOptions()" placeholder="Todos los rubros..." /></label>
+    <div class="product-multi-filter"><span>Productos</span><input class="product-multi-search" type="search" placeholder="Buscar producto..." [value]="productSearch()" (input)="productSearch.set($any($event.target).value)" /><div class="product-multi-actions"><button type="button" (click)="selectAllProducts()">Seleccionar visibles</button><button type="button" (click)="selectedProductIds.set([])">Todos del rubro</button></div><div class="product-multi-options">@for (option of visibleProductOptions(); track option.value) { <label><input type="checkbox" [checked]="selectedProductIds().includes(option.value)" (change)="toggleProduct(option.value)" />{{ option.label }}</label> } @empty { <small>No hay productos para mostrar</small> }</div></div>
     <button class="apply" type="button" (click)="load()">Generar informe</button>
     <button class="apply" type="button" (click)="printSales()" [disabled]="loading() || !sales().length"><i class="ti ti-printer"></i> Imprimir ventas</button>
   </section>
@@ -30,11 +31,11 @@
       </article>
       <article>
         <span>Costo de lo vendido</span><strong>{{ money(cost()) }}</strong
-        ><small>Costo promedio registrado al confirmar, aunque todavía no se haya pagado al proveedor</small>
+        ><small>Costo registrado en la venta, actualizado si se corrige después el costo de un lote consumido</small>
       </article>
       <article>
         <span>Total de gastos</span><strong>{{ money(totalExpenses()) }}</strong
-        ><small>Compras, reposiciones y gastos extra del período, pagados o pendientes. No cambia con el filtro de producto.</small>
+        ><small>Compras, reposiciones, gastos extra y comisiones del período, pagados o pendientes. No cambia con el filtro de producto.</small>
       </article>
       <article [class.negative]="margin() < 0">
         <span>Margen bruto estimado</span><strong>{{ money(margin()) }}</strong

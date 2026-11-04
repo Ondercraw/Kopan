@@ -3,8 +3,8 @@ import {
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
-import { InjectModel } from '@nestjs/mongoose';
-import { Model, Types } from 'mongoose';
+import { InjectConnection, InjectModel } from '@nestjs/mongoose';
+import { Connection, Model, Types } from 'mongoose';
 import { Sale, SaleDocument } from '../sales/schemas/sale.schema';
 import { SaleStatus } from '../sales/enums/sale-status.enum';
 import {
@@ -34,6 +34,8 @@ import {
 import { StockMovementType } from '../stock/enums/stock-movement-type.enum';
 import { InventoryLotsService } from '../purchases/inventory-lots.service';
 import { AccountPayment, AccountPaymentDocument } from '../accounts/schemas/account-payment.schema';
+import { Client, ClientDocument } from '../clients/schemas/client.schema';
+import { PaymentMethod } from '../sales/enums/payment-method.enum';
 
 interface FinanceActor {
   id: string;
@@ -69,6 +71,8 @@ export class FinanceService {
     private readonly inventoryLots: InventoryLotsService,
     @InjectModel(AccountPayment.name)
     private readonly accountPaymentModel: Model<AccountPaymentDocument>,
+    @InjectModel(Client.name) private readonly clientModel: Model<ClientDocument>,
+    @InjectConnection() private readonly connection?: Connection,
   ) {}
 
   async recordSale(sale: SaleDocument): Promise<void> {
@@ -102,6 +106,9 @@ export class FinanceService {
             medioPago: method,
             disponible: available,
             pagado: false,
+            montoPagadoCentavos: method === FinancialPaymentMethod.CREDIT ? (sale.montoCobradoCuentaCorrienteCentavos ?? 0) : 0,
+            montoPagadoEfectivoCentavos: method === FinancialPaymentMethod.CREDIT ? (sale.montoCobradoEfectivoCentavos ?? 0) : 0,
+            montoPagadoTransferenciaCentavos: method === FinancialPaymentMethod.CREDIT ? (sale.montoCobradoTransferenciaCentavos ?? 0) : 0,
             ventaId: sale._id,
             ventaCodigo: sale.codigo,
             clienteId: sale.clienteId,
@@ -110,8 +117,8 @@ export class FinanceService {
             chequeNumero: sale.chequeNumero ?? '',
             actorId: sale.actorId,
             actorName: sale.actorName,
-            // La fecha corregida del comprobante reemplaza sólo la del movimiento
-            // de la venta. Los cobros posteriores conservan su fecha real.
+            // La fecha de facturación gobierna la imputación contable; el instante
+            // real de registro permanece en createdAt para auditoría.
             fechaMovimiento: sale.fechaFacturacion ?? sale.createdAt ?? new Date(),
           },
           $setOnInsert: {
@@ -121,7 +128,45 @@ export class FinanceService {
         { upsert: true },
       ),
     ]);
+    if (sale.medioPago === PaymentMethod.CREDIT && sale.chequeId && (sale.montoChequePendienteCentavos ?? 0) > 0) {
+      await this.movementModel.updateOne({ sourceKey: `check:${sale.chequeId.toString()}:income` },
+        { $setOnInsert: { tipo: FinancialMovementKind.INCOME, categoria: FinancialMovementCategory.CHECK,
+          montoCentavos: sale.montoChequePendienteCentavos, concepto: `Cheque pendiente - Venta #${sale.codigo}`,
+          detalle: sale.clienteNombre, medioPago: FinancialPaymentMethod.CHECK,
+          disponible: false, pagado: false, fechaMovimiento: sale.fechaFacturacion ?? sale.createdAt ?? new Date(),
+          ventaId: sale._id, ventaCodigo: sale.codigo, clienteId: sale.clienteId,
+          clienteNombre: sale.clienteNombre, chequeId: sale.chequeId, chequeNumero: sale.chequeNumero,
+          actorId: sale.actorId, actorName: sale.actorName } }, { upsert: true }).exec();
+    }
     // El gasto real pertenece a la compra; vender no crea otra deuda al proveedor.
+  }
+
+  async recordInitialSalePayment(sale: SaleDocument, amount: number, method: FinancialPaymentMethod.CASH | FinancialPaymentMethod.TRANSFER): Promise<void> {
+    const date = sale.fechaFacturacion ?? sale.createdAt ?? new Date();
+    const payment = await this.accountPaymentModel.create({ tipoCuenta: 'CLIENTE', entidadId: sale.clienteId,
+      entidadNombre: sale.clienteNombre, comprobanteTipo: 'VENTA', comprobanteId: sale._id,
+      comprobanteCodigo: sale.codigo, montoCentavos: amount, medioPago: method, fecha: date,
+      actorId: sale.actorId, actorName: sale.actorName });
+    await this.movementModel.create({ sourceKey: `account-payment:${payment._id.toString()}`,
+      tipo: FinancialMovementKind.INCOME, categoria: FinancialMovementCategory.ACCOUNT_PAYMENT,
+      montoCentavos: amount, concepto: `Cobro inicial - Venta #${sale.codigo}`,
+      detalle: sale.clienteNombre, medioPago: method, acreditadoEn: method, disponible: true,
+      pagado: false, fechaMovimiento: date, ventaId: sale._id, ventaCodigo: sale.codigo,
+      clienteId: sale.clienteId, clienteNombre: sale.clienteNombre, actorId: sale.actorId, actorName: sale.actorName });
+  }
+
+  async updateSalePaymentDates(sale: SaleDocument): Promise<void> {
+    const date = sale.fechaFacturacion ?? sale.createdAt;
+    if (!date) return;
+    const payments = await this.accountPaymentModel.find({ comprobanteTipo: 'VENTA', comprobanteId: sale._id }).lean().exec();
+    await this.accountPaymentModel.updateMany({ comprobanteTipo: 'VENTA', comprobanteId: sale._id }, { $set: { fecha: date } }).exec();
+    for (const payment of payments) {
+      await this.movementModel.updateOne({ sourceKey: `account-payment:${payment._id.toString()}` },
+        { $set: { fechaMovimiento: date } }).exec();
+    }
+    if (sale.chequeId && (sale.montoChequePendienteCentavos ?? 0) > 0)
+      await this.movementModel.updateOne({ sourceKey: `check:${sale.chequeId.toString()}:income` },
+        { $set: { fechaMovimiento: date } }).exec();
   }
 
   async cancelSaleRecord(sale: SaleDocument, reason: string, actor: FinanceActor): Promise<void> {
@@ -133,7 +178,8 @@ export class FinanceService {
     if (recordedTotal !== (sale.montoCobradoCuentaCorrienteCentavos ?? 0))
       throw new ConflictException('Los cobros de esta venta no coinciden con su historial. Revisalos antes de anularla');
     const incomePayments = await this.movementModel.find({
-      ventaId: sale._id, categoria: FinancialMovementCategory.ACCOUNT_PAYMENT, cancelado: { $ne: true },
+      ventaId: sale._id, categoria: { $in: [FinancialMovementCategory.ACCOUNT_PAYMENT, FinancialMovementCategory.CHECK] },
+      sourceKey: /^account-payment:/, cancelado: { $ne: true },
     }).lean().exec();
     if (incomePayments.reduce((sum, payment) => sum + payment.montoCentavos, 0) !== recordedTotal)
       throw new ConflictException('Los ingresos de esta venta no coinciden con los cobros registrados. Revisalos antes de anularla');
@@ -142,7 +188,7 @@ export class FinanceService {
       { $set: { cancelado: true, motivoCancelacion: reason } },
     ).exec();
     await this.movementModel.updateMany(
-      { ventaId: sale._id, categoria: FinancialMovementCategory.ACCOUNT_PAYMENT, cancelado: { $ne: true } },
+      { ventaId: sale._id, sourceKey: /^account-payment:/, cancelado: { $ne: true } },
       { $set: { cancelado: true, disponible: false, motivoCancelacion: reason,
         canceladoAt: cancelledAt, canceladoPorId: actor.id, canceladoPorNombre: actor.name } },
     ).exec();
@@ -537,7 +583,53 @@ export class FinanceService {
     cobradoAt: Date;
     acreditadoEn: FinancialPaymentMethod.CASH | FinancialPaymentMethod.TRANSFER;
   }): Promise<void> {
+    const apply = async () => {
     if (check.ventaId) {
+      const sale = await this.saleModel.findById(check.ventaId).exec();
+      if (sale?.medioPago === PaymentMethod.CREDIT) {
+        const date = sale.fechaFacturacion ?? sale.createdAt ?? check.cobradoAt;
+        const payment = await this.accountPaymentModel.findOneAndUpdate(
+          { origenChequeId: check._id },
+          { $setOnInsert: { tipoCuenta: 'CLIENTE', entidadId: sale.clienteId,
+            entidadNombre: sale.clienteNombre, comprobanteTipo: 'VENTA', comprobanteId: sale._id,
+            comprobanteCodigo: sale.codigo, montoCentavos: check.montoCentavos,
+            medioPago: check.acreditadoEn, fecha: date, origenChequeId: check._id,
+            actorId: check.actorId, actorName: check.actorName } },
+          { upsert: true, new: true },
+        ).exec();
+        if (!payment) throw new ConflictException('No se pudo registrar el cobro del cheque');
+        const alreadyRecorded = await this.movementModel.exists({ sourceKey: `account-payment:${payment._id.toString()}` }).exec();
+        if (!alreadyRecorded) {
+          await this.movementModel.updateOne(
+            { sourceKey: `check:${check._id.toString()}:income` },
+            { $set: { sourceKey: `account-payment:${payment._id.toString()}`,
+              concepto: `Ingreso de cheque cobrado - Venta #${sale.codigo}`,
+              acreditadoEn: check.acreditadoEn, disponible: true, fechaMovimiento: date } },
+          ).exec();
+          await this.movementModel.updateOne({ sourceKey: `account-payment:${payment._id.toString()}` },
+            { $setOnInsert: { tipo: FinancialMovementKind.INCOME, categoria: FinancialMovementCategory.CHECK,
+              montoCentavos: check.montoCentavos, concepto: `Ingreso de cheque cobrado - Venta #${sale.codigo}`,
+              detalle: sale.clienteNombre, medioPago: FinancialPaymentMethod.CHECK,
+              acreditadoEn: check.acreditadoEn, disponible: true, pagado: false,
+              fechaMovimiento: date, ventaId: sale._id, ventaCodigo: sale.codigo,
+              clienteId: sale.clienteId, clienteNombre: sale.clienteNombre, chequeId: check._id,
+              chequeNumero: check.numero, actorId: check.actorId, actorName: check.actorName } }, { upsert: true }).exec();
+          const paid = (sale.montoCobradoCuentaCorrienteCentavos ?? 0) + check.montoCentavos;
+          if (paid > sale.totalCentavos) throw new ConflictException('El cheque supera el saldo de la venta');
+          await this.saleModel.updateOne({ _id: sale._id }, { $inc: {
+            montoCobradoCuentaCorrienteCentavos: check.montoCentavos,
+            ...(check.acreditadoEn === FinancialPaymentMethod.CASH
+              ? { montoCobradoEfectivoCentavos: check.montoCentavos }
+              : { montoCobradoTransferenciaCentavos: check.montoCentavos }),
+          }, $set: { montoChequePendienteCentavos: 0, cuentaCorrientePagada: paid === sale.totalCentavos,
+            cuentaCorrientePagadaAt: paid === sale.totalCentavos ? check.cobradoAt : null } }).exec();
+          await this.clientModel.updateOne({ _id: sale.clienteId }, { $inc: { saldoCuentaCorrienteCentavos: -check.montoCentavos } }).exec();
+          await this.movementModel.updateOne({ sourceKey: `sale:${sale._id.toString()}:income` },
+            { $inc: { montoPagadoCentavos: check.montoCentavos }, $set: { pagado: paid === sale.totalCentavos,
+              pagadoAt: paid === sale.totalCentavos ? check.cobradoAt : null } }).exec();
+        }
+        return;
+      }
       await this.movementModel
         .updateOne(
           { sourceKey: `sale:${check.ventaId.toString()}:income` },
@@ -585,6 +677,9 @@ export class FinanceService {
         { upsert: true },
       )
       .exec();
+    };
+    if (this.connection) await this.connection.transaction(apply);
+    else await apply();
   }
 
   async allocateCollectedCheck(
@@ -643,6 +738,7 @@ export class FinanceService {
         categoria: { $in: [
           FinancialMovementCategory.REPLENISHMENT,
           FinancialMovementCategory.MANUAL,
+          FinancialMovementCategory.SELLER_COMMISSION,
           FinancialMovementCategory.PURCHASE,
         ] },
         ...(Object.keys(period).length ? { fechaMovimiento: period } : {}),
@@ -773,7 +869,7 @@ export class FinanceService {
             ),
             paidManual: amountWhen(
               ...activeExpense,
-              eq('categoria', FinancialMovementCategory.MANUAL),
+              { $in: ['$categoria', [FinancialMovementCategory.MANUAL, FinancialMovementCategory.SELLER_COMMISSION]] },
               paid,
             ),
             pendingManual: amountWhen(

@@ -81,6 +81,12 @@ export class PurchasesController {
       name: user.nombre,
     });
   }
+  @Get(':id/items/:lineNumber/impact') updateItemImpact(
+    @Param('id', MongoIdPipe) id: string,
+    @Param('lineNumber') lineNumber: string,
+  ) {
+    return this.service.updateItemImpact(id, Number(lineNumber));
+  }
   @Patch(':id/cancel') cancel(
     @Param('id', MongoIdPipe) id: string,
     @Body() dto: CancelPurchaseDto,

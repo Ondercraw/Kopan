@@ -5,6 +5,7 @@ import { FinancialMovement, FinancialMovementSchema } from '../finance/schemas/f
 import { PurchasesModule } from '../purchases/purchases.module';
 import { Purchase, PurchaseSchema } from '../purchases/schemas/purchase.schema';
 import { Sale, SaleSchema } from '../sales/schemas/sale.schema';
+import { Remittance, RemittanceSchema } from '../remittances/schemas/remittance.schema';
 import { AccountsController } from './accounts.controller';
 import { AccountsService } from './accounts.service';
 import { AccountPayment, AccountPaymentSchema } from './schemas/account-payment.schema';
@@ -14,6 +15,7 @@ import { Supplier, SupplierSchema } from '../suppliers/schemas/supplier.schema';
 @Module({
   imports: [PurchasesModule, MongooseModule.forFeature([
     { name: Sale.name, schema: SaleSchema }, { name: Purchase.name, schema: PurchaseSchema },
+    { name: Remittance.name, schema: RemittanceSchema },
     { name: Client.name, schema: ClientSchema }, { name: FinancialMovement.name, schema: FinancialMovementSchema },
     { name: AccountPayment.name, schema: AccountPaymentSchema },
     { name: AccountOpeningDebt.name, schema: AccountOpeningDebtSchema },

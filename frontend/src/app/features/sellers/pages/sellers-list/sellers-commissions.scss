@@ -1,0 +1,14 @@
+.commission-error{padding:11px 13px;border:1px solid #b4372e;border-radius:9px;background:#fff0ed;color:#93251e;font-weight:700}
+.commission-section{padding:16px;border-top:1px solid #d9bda7;background:#fffaf5}
+.commission-head{display:flex;justify-content:space-between;align-items:start;gap:12px;flex-wrap:wrap}
+.commission-head h3,.commission-section h4{margin:0 0 5px;color:#713508}.commission-head p{margin:0 0 15px;color:#806b5d;font-size:.82rem}
+.commission-head button,.commission-sale button{padding:9px 12px;border:1px solid #713508;border-radius:9px;background:#713508;color:white;font-weight:700;cursor:pointer}
+.commission-rules,.commission-sales{display:grid;gap:7px;margin-top:13px}.commission-rules>div,.commission-sale{display:flex;align-items:center;gap:12px;flex-wrap:wrap;padding:9px 11px;border:1px solid #e1cabb;border-radius:9px;background:#fff}
+.commission-rules>div span,.commission-sale>div{flex:1;min-width:150px}.commission-rules>div button{border:1px solid #d5b9a4;border-radius:8px;background:#fff;color:#a3362b;padding:6px 8px;cursor:pointer}
+.commission-sale small{display:block;color:#806b5d}.commission-paid{color:#25733a;font-weight:800}
+.commission-sale.cancelled{background:#eeeae7;color:#666;opacity:.8}
+.commission-overlay{position:fixed;inset:0;z-index:1000;display:grid;place-items:center;padding:16px;background:#24140799}.commission-modal{width:min(100%,620px);max-height:calc(100vh - 32px);overflow:auto;padding:22px;border:1px solid #cda98d;border-radius:16px;background:#faf3ed;box-shadow:0 20px 70px #1b0e0970}
+.commission-modal header{display:flex;justify-content:space-between;align-items:start;gap:12px}.commission-modal header h2{margin:4px 0;color:#3b2013}.commission-modal header button{border:1px solid #cda98d;border-radius:8px;background:white;color:#713508;padding:7px;cursor:pointer}
+.commission-modal p{line-height:1.5;color:#654532}.commission-form{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px}.commission-modal label{display:grid;gap:5px;color:#713508;font-weight:700}.commission-modal input,.commission-modal select{width:100%;min-width:0;min-height:42px;padding:8px 10px;border:1px solid #cfb19a;border-radius:9px;background:white;color:#312015;font:inherit}
+.commission-modal footer{display:flex;justify-content:flex-end;gap:9px;margin-top:18px}.commission-modal footer button{padding:10px 15px;border:1px solid #c9ad96;border-radius:9px;background:white;color:#713508;font-weight:700;cursor:pointer}.commission-modal footer button.primary{background:#713508;color:white}.commission-modal footer button:disabled{opacity:.6;cursor:default}
+@media(max-width:550px){.commission-form{grid-template-columns:1fr}.commission-modal{padding:17px}}

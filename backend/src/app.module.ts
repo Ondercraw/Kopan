@@ -24,6 +24,7 @@ import { FinanceModule } from './modules/finance/finance.module';
 import { PurchasesModule } from './modules/purchases/purchases.module';
 import { AccountsModule } from './modules/accounts/accounts.module';
 import { RemittancesModule } from './modules/remittances/remittances.module';
+import { SellerCommissionsModule } from './modules/seller-commissions/seller-commissions.module';
 
 @Module({
   imports: [
@@ -53,6 +54,7 @@ import { RemittancesModule } from './modules/remittances/remittances.module';
     PurchasesModule,
     AccountsModule,
     RemittancesModule,
+    SellerCommissionsModule,
   ],
   providers: [
     {

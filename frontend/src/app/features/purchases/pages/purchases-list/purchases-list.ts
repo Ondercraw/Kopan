@@ -23,6 +23,7 @@ import {
   InventoryProduct,
   Purchase,
   PurchaseItem,
+  PurchaseItemImpact,
   PurchaseKind,
   PurchasePaymentMethod,
   SupplierAccount,
@@ -71,6 +72,8 @@ export class PurchasesListPage implements OnInit {
   readonly productTargetLine = signal(0);
   readonly replenishmentSaleCode = signal<number | null>(null);
   readonly editingPurchaseLine = signal<{ purchase: Purchase; item: PurchaseItem } | null>(null);
+  readonly purchaseItemImpact = signal<PurchaseItemImpact | null>(null);
+  readonly editConfirmationOpen = signal(false);
   readonly visibleModalMode = computed(() =>
     this.supplierModalOpen() || this.productModalOpen() ? null : this.modalMode(),
   );
@@ -86,6 +89,7 @@ export class PurchasesListPage implements OnInit {
   actionPaymentAmount = 0;
   editPurchaseQuantity = 1;
   editPurchaseUnitCostPesos = 0;
+  editUnitCostCents() { return Math.round(Number(this.editPurchaseUnitCostPesos) * 100); }
   from = '';
   to = '';
   readonly supplierOptions = computed<SearchableSelectOption[]>(() =>
@@ -407,12 +411,27 @@ export class PurchasesListPage implements OnInit {
   }
   openPurchaseItemEdit(purchase: Purchase, item: PurchaseItem) {
     this.error.set(null);
+    this.purchaseItemImpact.set(null);
     this.editPurchaseQuantity = item.quantity;
     this.editPurchaseUnitCostPesos = item.unitCostCents / 100;
     this.editingPurchaseLine.set({ purchase, item });
+    this.service.updateItemImpact(purchase._id, item.lineNumber).subscribe({
+      next: (impact) => {
+        const current = this.editingPurchaseLine();
+        if (current?.purchase._id === purchase._id && current.item.lineNumber === item.lineNumber)
+          this.purchaseItemImpact.set(impact);
+      },
+      error: () => {
+        if (this.editingPurchaseLine()?.purchase._id === purchase._id)
+          this.error.set('No se pudo verificar qué ventas fueron afectadas. Intentá nuevamente.');
+      },
+    });
   }
   closePurchaseItemEdit() {
-    if (!this.saving()) this.editingPurchaseLine.set(null);
+    if (!this.saving()) {
+      this.editingPurchaseLine.set(null);
+      this.editConfirmationOpen.set(false);
+    }
   }
   savePurchaseItemEdit() {
     const target = this.editingPurchaseLine();
@@ -429,9 +448,25 @@ export class PurchasesListPage implements OnInit {
       this.error.set('Ingresá una cantidad entera mayor a cero y un costo válido');
       return;
     }
+    const impact = this.purchaseItemImpact();
+    if (!impact) {
+      this.error.set('Esperá a que se verifiquen las ventas vinculadas al lote');
+      return;
+    }
+    if (quantity < impact.consumedQuantity) {
+      this.error.set(`No podés reducir el lote por debajo de ${impact.consumedQuantity} unidades ya vendidas o retiradas`);
+      return;
+    }
+    this.editConfirmationOpen.set(true);
+  }
+  confirmPurchaseItemEdit() {
+    const target = this.editingPurchaseLine();
+    if (!target || this.saving()) return;
     this.saving.set(true);
     this.service
-      .updateItem(target.purchase._id, target.item.lineNumber, quantity, unitCostCents)
+      .updateItem(target.purchase._id, target.item.lineNumber,
+        Number(this.editPurchaseQuantity), Math.round(Number(this.editPurchaseUnitCostPesos) * 100),
+        target.item.quantity, target.item.unitCostCents)
       .subscribe({
         next: () => {
           this.success.set(
@@ -439,6 +474,7 @@ export class PurchasesListPage implements OnInit {
           );
           this.saving.set(false);
           this.editingPurchaseLine.set(null);
+          this.editConfirmationOpen.set(false);
           this.reload();
         },
         error: (e) => {

@@ -20,6 +20,7 @@ export class AccountPayment {
   @Prop({ type: String, required: true, enum: [FinancialPaymentMethod.CASH, FinancialPaymentMethod.TRANSFER] })
   medioPago: FinancialPaymentMethod.CASH | FinancialPaymentMethod.TRANSFER;
   @Prop({ required: true, default: Date.now, index: true }) fecha: Date;
+  @Prop({ type: MongooseSchema.Types.ObjectId, ref: 'BankCheck', default: null }) origenChequeId: Types.ObjectId | null;
   @Prop({ required: true }) actorId: string;
   @Prop({ required: true, trim: true }) actorName: string;
   @Prop({ default: false }) cancelado: boolean;
@@ -29,3 +30,4 @@ export class AccountPayment {
 
 export const AccountPaymentSchema = SchemaFactory.createForClass(AccountPayment);
 AccountPaymentSchema.index({ comprobanteId: 1, fecha: -1 });
+AccountPaymentSchema.index({ origenChequeId: 1 }, { unique: true, partialFilterExpression: { origenChequeId: { $type: 'objectId' } } });

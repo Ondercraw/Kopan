@@ -49,7 +49,7 @@ describe('FinanceService', () => {
       expect.objectContaining({ comprobanteId: saleId }), expect.objectContaining({ $set: expect.objectContaining({ cancelado: true }) }),
     );
     expect(movements.updateMany).toHaveBeenCalledWith(
-      expect.objectContaining({ ventaId: saleId, categoria: FinancialMovementCategory.ACCOUNT_PAYMENT }),
+      expect.objectContaining({ ventaId: saleId, sourceKey: /^account-payment:/ }),
       expect.objectContaining({ $set: expect.objectContaining({ cancelado: true, disponible: false }) }),
     );
   });
@@ -143,6 +143,73 @@ describe('FinanceService', () => {
         fechaMovimiento: new Date('2026-08-30T12:00:00Z'),
       },
     );
+  });
+  it('separa el cheque pendiente del cobro inicial de una venta mixta', async () => {
+    const saleId = new Types.ObjectId();
+    const checkId = new Types.ObjectId();
+    const updateOne = jest.fn().mockReturnValue({ exec: async () => ({ upsertedCount: 1 }) });
+    const create = jest.fn().mockResolvedValue(undefined);
+    const paymentCreate = jest.fn().mockResolvedValue({ _id: new Types.ObjectId() });
+    const service = new FinanceService({ updateOne, create } as never, {} as never, {} as never,
+      {} as never, {} as never, {} as never, {} as never, { create: paymentCreate } as never,
+      {} as never);
+    const sale = { _id: saleId, codigo: 8, estado: SaleStatus.CONFIRMED,
+      medioPago: PaymentMethod.CREDIT, totalCentavos: 10000,
+      montoCobradoCuentaCorrienteCentavos: 3000, montoCobradoEfectivoCentavos: 3000,
+      montoChequePendienteCentavos: 5000, chequeId: checkId, chequeNumero: '123',
+      clienteId: new Types.ObjectId(), clienteNombre: 'Cliente', items: [],
+      actorId: 'owner', actorName: 'Dueño', createdAt: new Date('2026-11-01T12:00:00Z') };
+    await service.recordSale(sale as never);
+    await service.recordInitialSalePayment(sale as never, 3000, 'EFECTIVO' as never);
+    expect(updateOne).toHaveBeenCalledWith(
+      { sourceKey: `check:${checkId.toString()}:income` },
+      expect.objectContaining({ $setOnInsert: expect.objectContaining({ montoCentavos: 5000, disponible: false }) }),
+      { upsert: true },
+    );
+    expect(paymentCreate).toHaveBeenCalledWith(expect.objectContaining({ montoCentavos: 3000 }));
+    expect(create).toHaveBeenCalledWith(expect.objectContaining({ montoCentavos: 3000, disponible: true }));
+  });
+  it('reimputa los cobros a la fecha corregida de la venta y conserva el registro real', async () => {
+    const saleId = new Types.ObjectId();
+    const paymentId = new Types.ObjectId();
+    const date = new Date('2026-11-01T15:00:00Z');
+    const payments = { find: jest.fn().mockReturnValue({ lean: () => ({ exec: async () => [{ _id: paymentId }] }) }),
+      updateMany: jest.fn().mockReturnValue({ exec: async () => ({}) }) };
+    const movements = { updateOne: jest.fn().mockReturnValue({ exec: async () => ({}) }) };
+    const service = new FinanceService(movements as never, {} as never, {} as never,
+      {} as never, {} as never, {} as never, {} as never, payments as never, {} as never);
+    await service.updateSalePaymentDates({ _id: saleId, fechaFacturacion: date } as never);
+    expect(payments.updateMany).toHaveBeenCalledWith(
+      { comprobanteTipo: 'VENTA', comprobanteId: saleId }, { $set: { fecha: date } },
+    );
+    expect(movements.updateOne).toHaveBeenCalledWith(
+      { sourceKey: `account-payment:${paymentId.toString()}` }, { $set: { fechaMovimiento: date } },
+    );
+  });
+  it('al cobrar un cheque mixto reduce la deuda y acredita el destino una sola vez', async () => {
+    const saleId = new Types.ObjectId();
+    const checkId = new Types.ObjectId();
+    const paymentId = new Types.ObjectId();
+    const clientId = new Types.ObjectId();
+    const updateOne = jest.fn().mockReturnValue({ exec: async () => ({ upsertedCount: 0 }) });
+    const transaction = jest.fn(async (callback: () => Promise<void>) => callback());
+    const service = new FinanceService({ exists: () => ({ exec: async () => null }), updateOne } as never,
+      { findById: () => ({ exec: async () => ({ _id: saleId, codigo: 8, medioPago: PaymentMethod.CREDIT,
+        clienteId: clientId, clienteNombre: 'Cliente', totalCentavos: 10000,
+        montoCobradoCuentaCorrienteCentavos: 3000, fechaFacturacion: new Date('2026-11-01T15:00:00Z') }) }),
+        updateOne } as never,
+      {} as never, {} as never, {} as never, {} as never, {} as never,
+      { findOneAndUpdate: () => ({ exec: async () => ({ _id: paymentId }) }) } as never,
+      { updateOne } as never, { transaction } as never);
+    await service.markCheckCollected({ _id: checkId, numero: '123', montoCentavos: 5000,
+      clienteId: clientId, clienteNombre: 'Cliente', ventaId: saleId, ventaCodigo: 8,
+      actorId: 'owner', actorName: 'Dueño', cobradoAt: new Date(), acreditadoEn: 'EFECTIVO' as never });
+    expect(transaction).toHaveBeenCalledTimes(1);
+    expect(updateOne).toHaveBeenCalledWith({ _id: saleId }, expect.objectContaining({
+      $inc: expect.objectContaining({ montoCobradoCuentaCorrienteCentavos: 5000, montoCobradoEfectivoCentavos: 5000 }),
+      $set: expect.objectContaining({ montoChequePendienteCentavos: 0 }),
+    }));
+    expect(updateOne).toHaveBeenCalledWith({ _id: clientId }, { $inc: { saldoCuentaCorrienteCentavos: -5000 } });
   });
 
   it('congela el costo de cada reposición manual en su propio movimiento', async () => {

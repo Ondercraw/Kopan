@@ -10,6 +10,7 @@ import { Purchase, PurchaseDocument } from '../purchases/schemas/purchase.schema
 import { PaymentMethod } from '../sales/enums/payment-method.enum';
 import { SaleStatus } from '../sales/enums/sale-status.enum';
 import { Sale, SaleDocument } from '../sales/schemas/sale.schema';
+import { Remittance, RemittanceDocument } from '../remittances/schemas/remittance.schema';
 import { AccountPayment, AccountPaymentDocument } from './schemas/account-payment.schema';
 import { AccountOpeningDebt, AccountOpeningDebtDocument } from './schemas/account-opening-debt.schema';
 import { Supplier, SupplierDocument } from '../suppliers/schemas/supplier.schema';
@@ -22,6 +23,7 @@ export class AccountsService implements OnModuleInit {
   constructor(
     @InjectConnection() private readonly connection: Connection,
     @InjectModel(Sale.name) private readonly saleModel: Model<SaleDocument>,
+    @InjectModel(Remittance.name) private readonly remittanceModel: Model<RemittanceDocument>,
     @InjectModel(Purchase.name) private readonly purchaseModel: Model<PurchaseDocument>,
     @InjectModel(Client.name) private readonly clientModel: Model<ClientDocument>,
     @InjectModel(AccountPayment.name) private readonly paymentModel: Model<AccountPaymentDocument>,
@@ -89,13 +91,14 @@ export class AccountsService implements OnModuleInit {
   }
 
   async statement() {
-    const [sales, purchases, payments, openingDebts, clientEntities, supplierEntities] = await Promise.all([
+    const [sales, purchases, payments, openingDebts, clientEntities, supplierEntities, remittances] = await Promise.all([
       this.saleModel.find({ estado: SaleStatus.CONFIRMED, medioPago: { $in: [PaymentMethod.CASH, PaymentMethod.TRANSFER, PaymentMethod.CREDIT, PaymentMethod.CHECK] } }).sort({ createdAt: -1 }).lean().exec(),
       this.purchaseModel.find({ estado: PurchaseStatus.CONFIRMED, medioPago: { $in: [PurchasePaymentMethod.CASH, PurchasePaymentMethod.TRANSFER, PurchasePaymentMethod.CREDIT, PurchasePaymentMethod.HISTORICAL] } }).sort({ fechaCompra: -1 }).lean().exec(),
-      this.paymentModel.find().sort({ fecha: -1 }).lean().exec(),
+      this.paymentModel.find({ cancelado: { $ne: true } }).sort({ fecha: -1 }).lean().exec(),
       this.openingDebtModel.find().sort({ fecha: -1 }).lean().exec(),
       this.clientModel.find({ activo: true }).select('_id nombre').lean().exec(),
       this.supplierModel.find({ activo: true }).select('_id nombre').lean().exec(),
+      this.remittanceModel.find().sort({ createdAt: -1 }).lean().exec(),
     ]);
     const paymentMap = new Map<string, typeof payments>();
     for (const payment of payments) {
@@ -107,12 +110,14 @@ export class AccountsService implements OnModuleInit {
       [...sales.map((sale) => {
         const saleDate = sale.fechaFacturacion ?? sale.createdAt;
         const isCredit = sale.medioPago === PaymentMethod.CREDIT;
-        const paid = isCredit ? (sale.montoCobradoCuentaCorrienteCentavos ?? 0) : sale.totalCentavos;
-        const directPayments = isCredit ? [] : [{ id: `sale-initial-${sale._id.toString()}`, montoCentavos: sale.totalCentavos, medioPago: sale.medioPago, fecha: saleDate, actorName: sale.actorName }];
+        const legacyCheckPending = sale.medioPago === PaymentMethod.CHECK && !sale.chequeCobradoAt;
+        const paid = isCredit ? (sale.montoCobradoCuentaCorrienteCentavos ?? 0) : legacyCheckPending ? 0 : sale.totalCentavos;
+        const directPayments = isCredit || legacyCheckPending ? [] : [{ id: `sale-initial-${sale._id.toString()}`, montoCentavos: sale.totalCentavos, medioPago: sale.medioPago, fecha: saleDate, actorName: sale.actorName }];
         return {
           id: sale._id.toString(), codigo: sale.codigo, entidadId: sale.clienteId.toString(), entidadNombre: sale.clienteNombre,
           tipo: 'VENTA', fecha: saleDate, totalCentavos: sale.totalCentavos, pagadoCentavos: paid,
           saldoCentavos: Math.max(0, sale.totalCentavos - paid), estado: status(sale.totalCentavos, paid),
+          chequePendienteCentavos: legacyCheckPending ? sale.totalCentavos : (sale.montoChequePendienteCentavos ?? 0),
           detalle: [...sale.items.map((item) => `${item.productoNombre} x${item.cantidad}`),
             ...(sale.transporteDescargaCentavos > 0 ? ['Transporte y descarga'] : [])].join(', '),
           items: [...sale.items.map((item) => ({
@@ -128,7 +133,15 @@ export class AccountsService implements OnModuleInit {
           }] : [])],
           pagos: directPayments.concat((paymentMap.get(sale._id.toString()) ?? []).map(this.serializePayment)),
         };
-      }), ...openingDebts.filter((debt) => debt.tipoCuenta === 'CLIENTE').map((debt) => this.openingDocument(debt, paymentMap.get(debt._id.toString()) ?? [], status))],
+      }), ...remittances.map((remittance) => ({
+        id: remittance._id.toString(), codigo: remittance.codigo,
+        entidadId: remittance.clienteId.toString(), entidadNombre: remittance.clienteNombre,
+        tipo: 'REMITO', fecha: remittance.createdAt, totalCentavos: 0, pagadoCentavos: 0,
+        saldoCentavos: 0, estado: 'PAGADO',
+        detalle: remittance.items.map((item) => `${item.productoNombre} x${item.cantidad}`).join(', '),
+        items: remittance.items.map((item) => ({ producto: item.productoNombre, cantidad: item.cantidad,
+          precioUnitarioCentavos: 0, precioTotalCentavos: 0 })), pagos: [],
+      })), ...openingDebts.filter((debt) => debt.tipoCuenta === 'CLIENTE').map((debt) => this.openingDocument(debt, paymentMap.get(debt._id.toString()) ?? [], status))],
     );
     const suppliers = this.group(
       [...purchases.map((purchase) => {
@@ -231,13 +244,16 @@ export class AccountsService implements OnModuleInit {
     });
   }
 
-  payClientSale(saleId: string, amountCents: number, method: FinancialPaymentMethod.CASH | FinancialPaymentMethod.TRANSFER, actor: Actor) {
+  payClientSale(saleId: string, amountCents: number, method: FinancialPaymentMethod.CASH | FinancialPaymentMethod.TRANSFER, actor: Actor, accountingDate?: string) {
     return this.connection.transaction(async () => {
       const sale = await this.saleModel.findOne({ _id: saleId, estado: SaleStatus.CONFIRMED, medioPago: PaymentMethod.CREDIT }).exec();
       if (!sale) throw new NotFoundException('Venta a cuenta corriente inexistente');
+      const paymentDate = accountingDate ? new Date(`${accountingDate.slice(0, 10)}T12:00:00-03:00`) : (sale.fechaFacturacion ?? sale.createdAt);
+      if (Number.isNaN(paymentDate.getTime()) || (accountingDate && paymentDate.toISOString().slice(0, 10) !== accountingDate))
+        throw new BadRequestException('La fecha del cobro no es válida');
       const paid = sale.montoCobradoCuentaCorrienteCentavos ?? 0;
       const remaining = sale.totalCentavos - paid;
-      this.validateAmount(amountCents, remaining);
+      this.validateAmount(amountCents, remaining - (sale.montoChequePendienteCentavos ?? 0));
       const fullyPaid = amountCents === remaining;
       sale.montoCobradoCuentaCorrienteCentavos = paid + amountCents;
       if (method === FinancialPaymentMethod.CASH) sale.montoCobradoEfectivoCentavos = (sale.montoCobradoEfectivoCentavos ?? 0) + amountCents;
@@ -251,7 +267,7 @@ export class AccountsService implements OnModuleInit {
         { new: true },
       ).exec();
       if (!client) throw new ConflictException('El saldo del cliente cambió. Volvé a intentar');
-      const [payment] = await this.paymentModel.create([{ tipoCuenta: 'CLIENTE', entidadId: sale.clienteId, entidadNombre: sale.clienteNombre, comprobanteTipo: 'VENTA', comprobanteId: sale._id, comprobanteCodigo: sale.codigo, montoCentavos: amountCents, medioPago: method, fecha: new Date(), actorId: actor.id, actorName: actor.name }]);
+      const [payment] = await this.paymentModel.create([{ tipoCuenta: 'CLIENTE', entidadId: sale.clienteId, entidadNombre: sale.clienteNombre, comprobanteTipo: 'VENTA', comprobanteId: sale._id, comprobanteCodigo: sale.codigo, montoCentavos: amountCents, medioPago: method, fecha: paymentDate, actorId: actor.id, actorName: actor.name }]);
       await this.financeModel.create({
         sourceKey: `account-payment:${payment._id.toString()}`, tipo: FinancialMovementKind.INCOME,
         categoria: FinancialMovementCategory.ACCOUNT_PAYMENT, montoCentavos: amountCents,
@@ -317,7 +333,9 @@ export class AccountsService implements OnModuleInit {
   }
 
   private serializePayment(payment: any) {
-    return { id: payment._id.toString(), montoCentavos: payment.montoCentavos, medioPago: payment.medioPago, fecha: payment.fecha, actorName: payment.actorName };
+    return { id: payment._id.toString(), montoCentavos: payment.montoCentavos,
+      medioPago: payment.origenChequeId ? 'CHEQUE' : payment.medioPago,
+      fecha: payment.fecha, registradoAt: payment.createdAt, actorName: payment.actorName };
   }
 
   private legacyPayments(cash: number, transfer: number, date: Date) {

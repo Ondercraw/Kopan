@@ -52,6 +52,8 @@ export class FinancialMovement {
   @Prop({ required: true, min: 0, default: 0 })
   montoPagadoTransferenciaCentavos: number;
   @Prop({ type: Date, default: null }) pagadoAt: Date | null;
+  @Prop({ type: Date, default: null }) costoCorregidoAt: Date | null;
+  @Prop({ type: [String], default: [] }) productosCostoCorregido: string[];
   @Prop({ required: true, default: false, index: true }) cancelado: boolean;
   @Prop({ trim: true, maxlength: 300, default: '' }) motivoCancelacion: string;
   @Prop({ type: Date, default: null }) canceladoAt: Date | null;

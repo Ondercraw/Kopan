@@ -150,6 +150,22 @@
   color: #6e625a;
   cursor: not-allowed;
 }
+.purchase-cost-warning {
+  display: flex;
+  gap: 12px;
+  margin: 16px 0;
+  padding: 16px;
+  border: 2px solid #c87526;
+  border-radius: 12px;
+  background: #fff0dc;
+  color: #63300a;
+  font-size: 1rem;
+  line-height: 1.45;
+}
+.purchase-cost-warning > i { font-size: 2rem; flex: none; }
+.purchase-cost-warning strong { display: block; font-size: 1.12rem; }
+.purchase-cost-warning p { margin: 8px 0; }
+.purchase-cost-warning ul { margin: 6px 0 12px; padding-left: 20px; }
 .line-labels.edit-line-labels,
 .line-row.edit-line-row {
   grid-template-columns: minmax(220px, 1.8fr) 130px minmax(190px, 1fr) 150px;

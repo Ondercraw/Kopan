@@ -68,7 +68,7 @@
         <small>A pagar: - {{ money(period().gastosReposicionPendientesCentavos) }}</small>
       </article>
       <article class="manual">
-        <span>Gastos extra</span
+        <span>Gastos extra y comisiones</span
         ><strong>Pagado: - {{ money(period().gastosManualesCentavos) }}</strong>
         <small>A pagar: - {{ money(period().gastosManualesPendientesCentavos) }}</small>
       </article>
@@ -114,7 +114,7 @@
       <article
         [class.income]="item.tipo === 'INGRESO'"
         [class.automatic]="item.categoria === 'REPOSICION_AUTOMATICA'"
-        [class.manual]="item.categoria === 'GASTO_MANUAL'"
+        [class.manual]="item.categoria === 'GASTO_MANUAL' || item.categoria === 'COMISION_VENDEDOR'"
         [class.purchase]="item.categoria === 'COMPRA_PRODUCTOS'"
         [class.supplier-payment]="item.categoria === 'PAGO_CUENTA_PROVEEDOR'"
         [class.document]="item.categoria === 'REMITO'"
@@ -126,7 +126,10 @@
         </div>
         <div data-label="Detalle">
           <strong>{{ item.concepto }}</strong
-          ><small>{{ item.detalle }}</small>
+          >@if (item.clienteNombre && item.ventaId) { <strong class="sale-client-name">Cliente: {{ item.clienteNombre }}</strong> }<small>{{ saleMerchandise(item) }}</small>
+          @if (item.costoCorregidoAt) {
+            <small class="cost-correction-note"><i class="ti ti-alert-triangle"></i> Costo corregido después de esta venta: {{ item.productosCostoCorregido?.join(', ') || 'producto vendido' }}</small>
+          }
           @if (item.proveedorNombre) {
             <small>Proveedor: {{ item.proveedorNombre }}</small>
           }

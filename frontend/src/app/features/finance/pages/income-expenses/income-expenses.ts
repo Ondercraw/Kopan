@@ -159,6 +159,7 @@ export class IncomeExpensesPage implements OnInit {
         popup.document.open();
         popup.document.write(`<!doctype html><html lang="es"><head><meta charset="utf-8"><title>${esc(title)}</title><style>@page{size:A4;margin:12mm}body{font:13px Arial,sans-serif;color:#2d190e}.ticket{max-width:820px;margin:auto}.brand{display:flex;align-items:center;justify-content:space-between;gap:18px;border-bottom:3px solid #713508;padding-bottom:16px}.brand h1{font:700 25px Georgia,serif;margin:0;white-space:nowrap}.number{display:flex;gap:18px;align-items:center;white-space:nowrap;font-size:18px;font-weight:700}.notice{background:#fbf1e7;border-left:4px solid #b86719;padding:10px;margin:16px 0}.details div{border-bottom:1px solid #eaded5;padding:7px 0}.details span{display:inline-block;width:100px;color:#846b5b;text-transform:uppercase;font-size:11px}table{width:100%;border-collapse:collapse;margin-top:22px}th{background:#713508;color:white;text-align:left;padding:10px}td{padding:10px;border-bottom:1px solid #eaded5}th:first-child,td:first-child{width:100px;text-align:center}.notes{margin-top:20px;padding:12px;background:#fbf6f1;white-space:pre-wrap}@media print{button{display:none}}</style></head><body><button onclick="window.print()">Imprimir o guardar PDF</button><main class="ticket"><header class="brand"><h1>Distribuidora Kopan</h1><div class="number"><span>Numero: ${String(remittance.codigo).padStart(8, '0')}</span><span>${esc(date)}</span></div></header><p class="notice">REMITO INTERNO · NO VÁLIDO COMO FACTURA</p><section class="details"><div><span>Cliente</span>${esc(remittance.clienteNombre)}</div><div><span>Dirección</span>${esc(remittance.clienteDireccion || 'Sin informar')}</div><div><span>Localidad</span>${esc(remittance.clienteLocalidad || 'Sin informar')}</div><div><span>Vendedor</span>${esc(remittance.actorName)}</div></section><table><thead><tr><th>Cantidad</th><th>Producto</th></tr></thead><tbody>${rows}</tbody></table>${remittance.observaciones ? `<section class="notes">Observaciones: ${esc(remittance.observaciones)}</section>` : ''}</main><script>window.onload=()=>{setTimeout(()=>window.print(),150)};<\/script></body></html>`);
         popup.document.close();
+        popup.document.head.insertAdjacentHTML('beforeend', '<style>.brand{border-color:#326b80}.number{color:#326b80}.notice{background:#eaf4f7;border-color:#326b80;color:#285366;font-weight:800;font-size:15px}th{background:#326b80}.notes{background:#eaf4f7}</style>');
       },
       error: () => { popup.close(); this.error.set('No se pudo cargar el remito para reimprimir'); },
     });
@@ -535,10 +536,16 @@ export class IncomeExpensesPage implements OnInit {
   money(c: number) {
     return new Intl.NumberFormat('es-AR', { style: 'currency', currency: 'ARS' }).format(c / 100);
   }
+  saleMerchandise(item: FinancialMovement): string {
+    if (!item.clienteNombre || !item.ventaId) return item.detalle;
+    const prefix = `${item.clienteNombre} · `;
+    return item.detalle.startsWith(prefix) ? item.detalle.slice(prefix.length) : item.detalle;
+  }
   date(v: string) {
     return argentinaDateTime(v);
   }
   category(i: FinancialMovement) {
+    if (i.categoria === 'COMISION_VENDEDOR') return 'Comisión de vendedor';
     if (i.categoria === 'REMITO') return 'Remito (sin movimiento de dinero ni stock)';
     if (i.categoria === 'REPOSICION_AUTOMATICA' && i.sourceKey?.startsWith('stock:')) {
       return 'Reposición manual desde Gestión de stock';

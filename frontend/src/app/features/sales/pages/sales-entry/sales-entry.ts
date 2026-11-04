@@ -46,6 +46,7 @@ interface ReceiptView {
   clientLocation: string;
   sellerName: string;
   paymentMethod: PaymentMethod;
+  paymentDescription?: string;
   observations: string;
   transportDownloadCents: number;
   items: Array<{ quantity: number; name: string; unitPriceCents: number; totalCents: number }>;
@@ -56,7 +57,7 @@ interface ReceiptView {
   standalone: true,
   imports: [FormsModule, SearchableSelect, ClientFormModal, ProductFormModal],
   templateUrl: './sales-entry.html',
-  styleUrls: ['./sales-entry.scss', './sales-entry-adjustments.scss'],
+  styleUrls: ['./sales-entry.scss', './sales-entry-adjustments.scss', './sales-entry-payment.scss'],
   changeDetection: ChangeDetectionStrategy.OnPush,
 })
 export class SalesEntryPage implements OnInit {
@@ -88,6 +89,18 @@ export class SalesEntryPage implements OnInit {
   selectedListId = '';
   productId = '';
   paymentMethod: PaymentMethod = 'EFECTIVO';
+  splitPayment = false;
+  initialPaymentInput = '';
+  includeCheck = false;
+  checkAmountInput = '';
+  private parsePaymentCents(value: string): number | null {
+    const clean = value.trim().replace(',', '.');
+    if (!/^\d+(?:\.\d{1,2})?$/.test(clean)) return null;
+    const cents = Math.round(Number(clean) * 100);
+    return Number.isSafeInteger(cents) ? cents : null;
+  }
+  initialPaymentCents(): number { return this.paymentMethod === 'CHEQUE' ? 0 : this.splitPayment ? (this.parsePaymentCents(this.initialPaymentInput) ?? -1) : this.total(); }
+  checkPaymentCents(): number { return this.includeCheck || this.paymentMethod === 'CHEQUE' ? (this.splitPayment ? (this.parsePaymentCents(this.checkAmountInput) ?? -1) : this.total()) : 0; }
   deliveryMode: 'MOSTRADOR' | 'REPARTO' = 'MOSTRADOR';
   onDeliveryModeChange(): void {
     if (this.deliveryMode === 'MOSTRADOR' && this.paymentMethod === 'CREDITO') {
@@ -213,7 +226,7 @@ export class SalesEntryPage implements OnInit {
     this.priceList.set(null);
     const c = this.clients().find((client) => client._id === clientId);
     this.selectedListId = c?.listaPreciosId?._id ?? '';
-    if (this.paymentMethod === 'CHEQUE') this.prefillCheck(c ?? null);
+    if (this.paymentMethod === 'CHEQUE' || this.includeCheck) this.prefillCheck(c ?? null);
     if (!c?.permiteCuentaCorriente && this.paymentMethod === 'CREDITO') {
       this.paymentMethod = 'EFECTIVO';
     }
@@ -238,8 +251,14 @@ export class SalesEntryPage implements OnInit {
     });
   }
   onPaymentMethod(): void {
-    if (this.paymentMethod === 'CHEQUE') this.prefillCheck(this.selectedClient());
+    this.includeCheck = this.paymentMethod === 'CHEQUE';
+    if (this.includeCheck) this.prefillCheck(this.selectedClient());
   }
+  onSplitPayment(): void {
+    this.initialPaymentInput = '';
+    this.checkAmountInput = '';
+  }
+  onIncludeCheck(): void { if (this.includeCheck) this.prefillCheck(this.selectedClient()); }
   addProduct() {
     const product = this.products().find((p) => p._id === this.productId),
       list = this.priceList();
@@ -342,7 +361,15 @@ export class SalesEntryPage implements OnInit {
         return;
       }
     }
-    if (this.deliveryMode === 'MOSTRADOR' && this.paymentMethod === 'CHEQUE') {
+    if (this.deliveryMode === 'MOSTRADOR' && this.splitPayment) {
+      const initial = this.initialPaymentCents();
+      const check = this.checkPaymentCents();
+      if (initial < 0 || check < 0 || initial + check <= 0 || initial + check > this.total()) {
+        this.error.set('Ingresá importes válidos: efectivo o transferencia más cheque no pueden superar el total');
+        return;
+      }
+    }
+    if (this.deliveryMode === 'MOSTRADOR' && (this.paymentMethod === 'CHEQUE' || this.includeCheck)) {
       const required = [this.checkBank, this.checkPaymentAddress, this.checkHolder, this.checkHolderAddress, this.checkDrawerTaxId, this.checkNumber];
       if (required.some((value) => !value.trim()) || !/^\d{11}$/.test(this.checkDrawerTaxId.replace(/\D/g, ''))) {
         this.error.set('Revisá los campos marcados del cheque antes de continuar');
@@ -419,13 +446,13 @@ export class SalesEntryPage implements OnInit {
     }
   }
   invalidCheckRequired(value: string): boolean {
-    return this.reviewAttempted() && this.paymentMethod === 'CHEQUE' && !value.trim();
+    return this.reviewAttempted() && (this.paymentMethod === 'CHEQUE' || this.includeCheck) && !value.trim();
   }
   invalidCheckCuit(): boolean {
-    return this.reviewAttempted() && this.paymentMethod === 'CHEQUE' && !/^\d{11}$/.test(this.checkDrawerTaxId.replace(/\D/g, ''));
+    return this.reviewAttempted() && (this.paymentMethod === 'CHEQUE' || this.includeCheck) && !/^\d{11}$/.test(this.checkDrawerTaxId.replace(/\D/g, ''));
   }
   invalidCheckDate(): boolean {
-    return this.reviewAttempted() && this.paymentMethod === 'CHEQUE' && this.checkDeferred && !this.checkCollectionDate;
+    return this.reviewAttempted() && (this.paymentMethod === 'CHEQUE' || this.includeCheck) && this.checkDeferred && !this.checkCollectionDate;
   }
   confirm() {
     const client = this.selectedClient(),
@@ -443,6 +470,7 @@ export class SalesEntryPage implements OnInit {
         vendedorId: client.vendedorId?._id,
         listaPreciosId: list._id,
         medioPago: this.paymentMethod,
+        cobroInicialCentavos: this.deliveryMode === 'MOSTRADOR' && this.splitPayment ? this.initialPaymentCents() : undefined,
         modalidadEntrega: this.deliveryMode,
         fechaFacturacion: this.billingDate,
         referenciaTransferencia:
@@ -452,10 +480,10 @@ export class SalesEntryPage implements OnInit {
         transporteDescargaCentavos: this.includesTransportDownload
           ? this.transportDownloadCents()
           : undefined,
-        cheque: this.deliveryMode === 'MOSTRADOR' && this.paymentMethod === 'CHEQUE' ? {
+        cheque: this.deliveryMode === 'MOSTRADOR' && (this.paymentMethod === 'CHEQUE' || this.includeCheck) ? {
           banco: this.checkBank.trim(), domicilioPago: this.checkPaymentAddress.trim(),
           titular: this.checkHolder.trim(), domicilioTitular: this.checkHolderAddress.trim(),
-          libradorCuit: this.checkDrawerTaxId.replace(/\D/g, ''), montoCentavos: this.total(),
+          libradorCuit: this.checkDrawerTaxId.replace(/\D/g, ''), montoCentavos: this.checkPaymentCents(),
           fechaEmision: this.checkIssueDate || undefined, lugarEmision: this.checkIssuePlace.trim() || undefined,
           numero: this.checkNumber.trim(), diferido: this.checkDeferred,
           fechaCobro: this.checkDeferred ? this.checkCollectionDate : undefined,
@@ -546,6 +574,9 @@ export class SalesEntryPage implements OnInit {
       clientLocation: client.localidad,
       sellerName: client.vendedorId?.nombre || this.auth.currentUser()?.nombre || 'Venta mostrador',
       paymentMethod: this.deliveryMode === 'REPARTO' ? 'CREDITO' : this.paymentMethod,
+      paymentDescription: kind === 'SALE' && this.deliveryMode === 'MOSTRADOR' && this.splitPayment
+        ? `${this.initialPaymentCents() > 0 ? `${this.paymentMethod === 'TRANSFERENCIA' ? 'Transferencia' : 'Efectivo'} ${this.money(this.initialPaymentCents())}` : ''}${this.checkPaymentCents() > 0 ? ` · Cheque pendiente ${this.money(this.checkPaymentCents())}` : ''}${this.total() > this.initialPaymentCents() + this.checkPaymentCents() ? ` · Saldo a cobrar ${this.money(this.total() - this.initialPaymentCents() - this.checkPaymentCents())}` : ''}`.replace(/^ · /, '')
+        : undefined,
       observations: this.observations.trim(),
       transportDownloadCents: this.transportDownloadCents(),
       items: this.lines().map((line) => ({
@@ -574,6 +605,10 @@ export class SalesEntryPage implements OnInit {
     this.transportDownloadInput = '';
     this.transportDownloadEdited = false;
     this.resetCheck();
+    this.splitPayment = false;
+    this.initialPaymentInput = '';
+    this.includeCheck = false;
+    this.checkAmountInput = '';
     this.paymentMethod = 'EFECTIVO';
     this.deliveryMode = 'MOSTRADOR';
     this.reviewAttempted.set(false);
@@ -599,7 +634,7 @@ export class SalesEntryPage implements OnInit {
       timeZone: 'America/Argentina/Buenos_Aires',
       dateStyle: 'short',
     }).format(receipt.date);
-    const payment = this.receiptPaymentLabel(receipt.paymentMethod);
+    const payment = receipt.paymentDescription || this.receiptPaymentLabel(receipt.paymentMethod);
     const observations = receipt.observations
       ? `<section class="observations"><span>Observaciones</span><p>${this.escapeHtml(receipt.observations)}</p></section>`
       : '';
@@ -617,7 +652,8 @@ export class SalesEntryPage implements OnInit {
       @page{size:A4;margin:0}*{box-sizing:border-box}body{margin:0;background:#f4ece5;color:#2d190e;font-family:Arial,sans-serif}.ticket{width:min(100%,820px);min-height:calc(100vh - 48px);margin:24px auto;padding:34px;border:1px solid #d8c2b2;background:#fff;box-shadow:0 12px 34px #3f210f20}.brand{display:flex;justify-content:space-between;align-items:flex-start;gap:24px;padding-bottom:18px;border-bottom:3px solid #713508}.brand-mark{display:flex;align-items:center;gap:12px}.logo{display:grid;place-items:center;width:48px;height:48px;background:#713508;color:#fff;font:700 28px Georgia,serif}.brand h1{margin:0;font:700 25px Georgia,serif}.brand p{margin:4px 0 0;color:#8a654d;font-size:12px;letter-spacing:.08em}.number{text-align:right}.number strong{display:block;font:700 24px Georgia,serif;color:#713508}.number .receipt-date{display:block;margin-top:5px;color:#4c2b18;font-size:20px;font-weight:800}.internal{margin:16px 0;padding:9px 12px;border-left:4px solid #b86719;background:#fbf1e7;color:#713508;font-size:12px;font-weight:700}.data{display:grid;grid-template-columns:1fr;gap:10px;margin:18px 0 24px}.data div{display:grid;grid-template-columns:110px 1fr;gap:8px;padding-bottom:7px;border-bottom:1px solid #eaded5}.data span,.observations span{color:#846b5b;font-size:11px;font-weight:700;text-transform:uppercase}.data strong{font-size:13px;overflow-wrap:anywhere}.observations{margin:18px 0 0;padding:12px 14px;border-left:4px solid #b86719;background:#fbf6f1}.observations p{margin:5px 0 0;font-size:13px;line-height:1.45;white-space:pre-wrap;overflow-wrap:anywhere}table{width:100%;border-collapse:collapse}th{padding:10px 9px;background:#713508;color:#fff;font-size:11px;letter-spacing:.06em;text-align:left;text-transform:uppercase}td{padding:12px 9px;border-bottom:1px solid #eaded5;font-size:13px}.quantity{width:72px;text-align:center}.money{width:145px;text-align:right;font-variant-numeric:tabular-nums}.total-line{font-weight:700}.grand-total{display:flex;justify-content:flex-end;align-items:center;gap:30px;margin-top:28px;padding:20px 22px;background:#f1e2d4;border:2px solid #713508}.grand-total span{font-size:14px;font-weight:800;letter-spacing:.08em;text-transform:uppercase}.grand-total strong{font:700 32px Georgia,serif;color:#713508}.footer{margin-top:26px;padding-top:14px;border-top:1px dashed #cbb5a4;color:#806858;font-size:11px;text-align:center}@media(max-width:650px){.ticket{margin:0;padding:20px;box-shadow:none}.brand,.data{grid-template-columns:1fr;display:grid}.number{text-align:left}.data div{grid-template-columns:90px 1fr}.money{width:auto}.grand-total{justify-content:space-between}.grand-total strong{font-size:25px}}@media print{body{background:#fff}.ticket{width:100%;min-height:auto;margin:0;padding:12mm;border:0;box-shadow:none}.no-print{display:none!important}.number .receipt-date{font-size:22px}}
       .brand{display:flex;flex-wrap:nowrap;align-items:center;justify-content:space-between}.brand-mark{min-width:0}.brand h1{white-space:nowrap;font-size:22px}.number{display:flex;align-items:center;gap:12px;white-space:nowrap;text-align:right}.number strong,.number .receipt-date{display:inline;margin:0;font-size:16px}
       @media print{.brand{display:flex!important;flex-wrap:nowrap;align-items:center!important;justify-content:space-between}.number{text-align:right!important}}
-    </style></head><body><button class="no-print" type="button" onclick="window.print()" style="display:block;margin:16px auto;padding:10px 16px;border:1px solid #713508;border-radius:9px;background:#fff7ef;color:#713508;font-weight:700;cursor:pointer">Imprimir o guardar PDF</button><main class="ticket"><header class="brand"><div class="brand-mark"><div class="logo">K</div><div><h1>Distribuidora Kopan</h1><p>${documentLabel}</p></div></div><div class="number"><strong>Numero: ${receiptNumber}</strong><span class="receipt-date">${this.escapeHtml(date)}</span></div></header><p class="internal">${receipt.kind === 'SALE' ? 'COMPROBANTE INTERNO' : 'REMITO INTERNO'} · NO VÁLIDO COMO FACTURA</p><section class="data"><div><span>Cliente</span><strong>#${receipt.clientCode} · ${this.escapeHtml(receipt.clientName)}</strong></div><div><span>Dirección</span><strong>${this.escapeHtml(receipt.clientAddress || 'Sin informar')}</strong></div><div><span>Localidad</span><strong>${this.escapeHtml(receipt.clientLocation || 'Sin informar')}</strong></div>${receipt.kind === 'SALE' ? `<div><span>Pago</span><strong>${this.escapeHtml(payment)}</strong></div>` : ''}<div><span>Vendedor</span><strong>${this.escapeHtml(receipt.sellerName)}</strong></div></section><table><thead><tr><th class="quantity">Cantidad</th><th>Producto</th>${isRemittance ? '' : '<th class="money">Precio unitario</th><th class="money">Total</th>'}</tr></thead><tbody>${rows}</tbody></table>${isRemittance ? '' : `<section class="grand-total"><span>Total</span><strong>${this.escapeHtml(this.money(receipt.totalCents))}</strong></section><p class="footer">Gracias por su compra · Distribuidora Kopan.</p>`}${observations}</main><script>window.onload=()=>{document.title=${JSON.stringify(title)};setTimeout(()=>window.print(),150)};<\/script></body></html>`);
+      body.remittance .brand{border-color:#326b80}body.remittance .logo,body.remittance th{background:#326b80}body.remittance .number strong{color:#326b80}body.remittance .internal{background:#eaf4f7;border-color:#326b80;color:#285366}body.remittance .brand p{font-size:17px;font-weight:800;color:#326b80}
+    </style></head><body class="${isRemittance ? 'remittance' : 'sale'}"><button class="no-print" type="button" onclick="window.print()" style="display:block;margin:16px auto;padding:10px 16px;border:1px solid #713508;border-radius:9px;background:#fff7ef;color:#713508;font-weight:700;cursor:pointer">Imprimir o guardar PDF</button><main class="ticket"><header class="brand"><div class="brand-mark"><div class="logo">K</div><div><h1>Distribuidora Kopan</h1><p>${documentLabel}</p></div></div><div class="number"><strong>Numero: ${receiptNumber}</strong><span class="receipt-date">${this.escapeHtml(date)}</span></div></header><p class="internal">${receipt.kind === 'SALE' ? 'COMPROBANTE INTERNO · NO VÁLIDO COMO FACTURA' : 'REMITO DE ENTREGA · SIN MOVIMIENTO DE STOCK NI DINERO · NO VÁLIDO COMO FACTURA'}</p><section class="data"><div><span>Cliente</span><strong>#${receipt.clientCode} · ${this.escapeHtml(receipt.clientName)}</strong></div><div><span>Dirección</span><strong>${this.escapeHtml(receipt.clientAddress || 'Sin informar')}</strong></div><div><span>Localidad</span><strong>${this.escapeHtml(receipt.clientLocation || 'Sin informar')}</strong></div>${receipt.kind === 'SALE' ? `<div><span>Pago</span><strong>${this.escapeHtml(payment)}</strong></div>` : ''}<div><span>Vendedor</span><strong>${this.escapeHtml(receipt.sellerName)}</strong></div></section><table><thead><tr><th class="quantity">Cantidad</th><th>Producto</th>${isRemittance ? '' : '<th class="money">Precio unitario</th><th class="money">Total</th>'}</tr></thead><tbody>${rows}</tbody></table>${isRemittance ? '' : `<section class="grand-total"><span>Total</span><strong>${this.escapeHtml(this.money(receipt.totalCents))}</strong></section><p class="footer">Gracias por su compra · Distribuidora Kopan.</p>`}${observations}</main><script>window.onload=()=>{document.title=${JSON.stringify(title)};setTimeout(()=>window.print(),150)};<\/script></body></html>`);
     popup.document.close();
     popup.focus();
   }
@@ -671,7 +707,7 @@ export class SalesEntryPage implements OnInit {
     if (this.paymentMethod === 'CHEQUE') return `cheque #${this.checkNumber}`;
     return 'efectivo';
   }
-  checkAmountWords(): string { return amountInWords(this.total()); }
+  checkAmountWords(): string { return amountInWords(Math.max(0, this.checkPaymentCents())); }
   private prefillCheck(client: Client | null): void {
     if (!client) return;
     if (!this.checkHolder) this.checkHolder = client.nombre;

@@ -1,12 +1,16 @@
 export const ARGENTINA_TIME_ZONE = 'America/Argentina/Buenos_Aires';
 
 export function argentinaToday(): string {
+  return argentinaDateKey(new Date());
+}
+
+export function argentinaDateKey(date: Date): string {
   const parts = new Intl.DateTimeFormat('en-CA', {
     timeZone: ARGENTINA_TIME_ZONE,
     year: 'numeric',
     month: '2-digit',
     day: '2-digit',
-  }).formatToParts(new Date());
+  }).formatToParts(date);
   const value = Object.fromEntries(parts.map((part) => [part.type, part.value]));
   return `${value['year']}-${value['month']}-${value['day']}`;
 }

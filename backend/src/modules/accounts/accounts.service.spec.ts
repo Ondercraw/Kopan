@@ -16,6 +16,9 @@ describe('AccountsService.statement', () => {
         montoCobradoCuentaCorrienteCentavos: 4000, fechaFacturacion: saleDate,
         createdAt: new Date('2026-10-07T12:00:00Z'),
         items: [{ productoNombre: 'Harina', cantidad: 2, totalCentavos: 10000 }] }]) } as never,
+      { find: () => query([{ _id: new Types.ObjectId(), codigo: 3, clienteId: clientId,
+        clienteNombre: 'Cliente', createdAt: saleDate,
+        items: [{ productoNombre: 'Harina', cantidad: 4 }] }]) } as never,
       { find: () => query([]) } as never,
       { find: () => entities([{ _id: clientId, nombre: 'Cliente' }]) } as never,
       { find: () => query([{ _id: new Types.ObjectId(), comprobanteId: saleId,
@@ -33,5 +36,7 @@ describe('AccountsService.statement', () => {
       producto: 'TRANSPORTE Y DESCARGA', cantidad: 1,
       precioUnitarioCentavos: 1500, precioTotalCentavos: 1500,
     }]);
+    expect(result.clients[0].documentos[1]).toMatchObject({ tipo: 'REMITO', codigo: 3,
+      totalCentavos: 0, saldoCentavos: 0, detalle: 'Harina x4' });
   });
 });
