@@ -14,7 +14,7 @@ import {
   argentinaToday,
   shiftDate,
 } from '../../../../shared/utils/argentina-date';
-import { Sale } from '../../../sales/models/sale.model';
+import { Sale, SaleItem } from '../../../sales/models/sale.model';
 import { SalesService } from '../../../sales/services/sales.service';
 import { FinanceService } from '../../../finance/services/finance.service';
 import { FinancialMovement } from '../../../finance/models/financial-movement.model';
@@ -33,7 +33,7 @@ type ReportSection = 'days' | 'clients';
   standalone: true,
   imports: [FormsModule, SearchableSelect, PaginationControls],
   templateUrl: './financial-reports.html',
-  styleUrls: ['./financial-reports.scss', './financial-reports-dashboard.scss'],
+  styleUrls: ['./financial-reports.scss', './financial-reports-dashboard.scss', './financial-reports-missing-cost.scss'],
   changeDetection: ChangeDetectionStrategy.OnPush,
 })
 export class FinancialReports implements OnInit {
@@ -47,6 +47,7 @@ export class FinancialReports implements OnInit {
   readonly expenseMovements = signal<FinancialMovement[]>([]);
   readonly purchases = signal<Purchase[]>([]);
   readonly reportPageSize = 15;
+  readonly missingCostPage = signal(1);
   readonly reportSearch = signal<Record<ReportGroupKey, Record<ReportSection, string>>>(
     { azucares: { days: '', clients: '' }, varios: { days: '', clients: '' } },
   );
@@ -84,13 +85,16 @@ export class FinancialReports implements OnInit {
       ? new Set(this.products().filter(product => product.tipo === this.rubro()).map(product => product._id)) : null;
     const purchaseMap = new Map(this.purchases().map(purchase => [purchase._id, purchase]));
     const groups = {
-      azucares: { key: 'azucares' as const, label: 'AZÚCARES', revenue: 0, cost: 0, expenses: 0, sales: new Set<string>(), products: new Map<string, { name: string; quantity: number; amount: number }>(), days: new Map<string, number>(), clients: new Map<string, number>(), cash: 0, transfers: 0, credit: 0, checks: 0 },
-      varios: { key: 'varios' as const, label: 'PRODUCTOS VARIOS', revenue: 0, cost: 0, expenses: 0, sales: new Set<string>(), products: new Map<string, { name: string; quantity: number; amount: number }>(), days: new Map<string, number>(), clients: new Map<string, number>(), cash: 0, transfers: 0, credit: 0, checks: 0 },
+      azucares: { key: 'azucares' as const, label: 'AZÚCARES', revenue: 0, cost: 0, missingCostRevenue: 0, expenses: 0, sales: new Set<string>(), products: new Map<string, { name: string; quantity: number; amount: number; cost: number; costedQuantity: number; pendingQuantity: number }>(), days: new Map<string, number>(), clients: new Map<string, number>(), cash: 0, transfers: 0, credit: 0, checks: 0 },
+      varios: { key: 'varios' as const, label: 'PRODUCTOS VARIOS', revenue: 0, cost: 0, missingCostRevenue: 0, expenses: 0, sales: new Set<string>(), products: new Map<string, { name: string; quantity: number; amount: number; cost: number; costedQuantity: number; pendingQuantity: number }>(), days: new Map<string, number>(), clients: new Map<string, number>(), cash: 0, transfers: 0, credit: 0, checks: 0 },
     };
     for (const row of this.rows()) for (const item of row.items) {
       const group = groups[productGroup.get(String(item.productoId)) ?? 'varios'];
       group.revenue += item.totalCentavos;
-      group.cost += item.costoPromedioTotalCentavos ?? (item.costoPromedioUnitarioCentavos ?? item.costoUnitarioCentavos ?? 0) * item.cantidad;
+      const itemCost = this.itemCost(item);
+      const pending = this.pendingQuantity(item);
+      group.cost += itemCost;
+      group.missingCostRevenue += this.pendingRevenue(item);
       group.sales.add(row.sale._id);
       group.cash += this.methodAmount(row.sale, item.totalCentavos, 'EFECTIVO');
       group.transfers += this.methodAmount(row.sale, item.totalCentavos, 'TRANSFERENCIA');
@@ -100,8 +104,9 @@ export class FinancialReports implements OnInit {
       group.days.set(day, (group.days.get(day) ?? 0) + item.totalCentavos);
       group.clients.set(row.sale.clienteNombre, (group.clients.get(row.sale.clienteNombre) ?? 0) + item.totalCentavos);
       const key = String(item.productoId);
-      const previous = group.products.get(key) ?? { name: item.productoNombre, quantity: 0, amount: 0 };
+      const previous = group.products.get(key) ?? { name: item.productoNombre, quantity: 0, amount: 0, cost: 0, costedQuantity: 0, pendingQuantity: 0 };
       previous.quantity += item.cantidad; previous.amount += item.totalCentavos;
+      previous.cost += itemCost; previous.costedQuantity += item.cantidad - pending; previous.pendingQuantity += pending;
       group.products.set(key, previous);
     }
     if (!this.rubro() && !this.selectedProductIds().length) for (const row of this.rows()) {
@@ -192,7 +197,26 @@ export class FinancialReports implements OnInit {
     this.rows().reduce((sum, row) => sum + row.cost, 0),
   );
   readonly pendingCostUnits = computed(() => this.rows().reduce((sum, row) =>
-    sum + row.items.reduce((count, item) => count + (item.costoPendienteCantidad ?? 0), 0), 0));
+    sum + row.items.reduce((count, item) => count + this.pendingQuantity(item), 0), 0));
+  readonly missingCostRows = computed(() => this.rows().flatMap(row => row.items.flatMap(item => {
+    const quantity = this.pendingQuantity(item);
+    return quantity ? [{ sale: row.sale, item, quantity, amount: this.pendingRevenue(item) }] : [];
+  })).sort((a, b) => (b.sale.fechaFacturacion ?? b.sale.createdAt).localeCompare(a.sale.fechaFacturacion ?? a.sale.createdAt) || b.sale.codigo - a.sale.codigo));
+  readonly missingCostAmount = computed(() => this.missingCostRows().reduce((sum, row) => sum + row.amount, 0));
+  readonly missingCostPages = computed(() => Math.max(1, Math.ceil(this.missingCostRows().length / this.reportPageSize)));
+  readonly visibleMissingCostRows = computed(() => this.missingCostRows().slice((Math.min(this.missingCostPage(), this.missingCostPages()) - 1) * this.reportPageSize, Math.min(this.missingCostPage(), this.missingCostPages()) * this.reportPageSize));
+  private itemCost(item: SaleItem): number {
+    return item.costoPromedioTotalCentavos ?? (item.costoPromedioUnitarioCentavos ?? item.costoUnitarioCentavos ?? 0) * item.cantidad;
+  }
+  private pendingQuantity(item: SaleItem): number {
+    return Math.min(item.cantidad, Math.max(0, item.costoPendienteCantidad ?? 0));
+  }
+  private pendingRevenue(item: SaleItem): number {
+    return item.cantidad > 0 ? Math.round(item.totalCentavos * this.pendingQuantity(item) / item.cantidad) : 0;
+  }
+  costPerUnit(cost: number, costedQuantity: number): number {
+    return costedQuantity > 0 ? Math.round(cost / costedQuantity) : 0;
+  }
   readonly detailedRows = computed(() => this.rows().filter((row) => row.detailed));
   readonly legacyCount = computed(() => this.rows().length - this.detailedRows().length);
   readonly detailedRevenue = computed(() =>
@@ -281,10 +305,10 @@ export class FinancialReports implements OnInit {
     });
     this.load();
   }
-  selectRubro(value: string) { this.rubro.set(value); this.selectedProductIds.set([]); this.productSearch.set(''); this.resetReportPages(); }
-  toggleProduct(id: string) { this.selectedProductIds.update((ids) => ids.includes(id) ? ids.filter((value) => value !== id) : [...ids, id]); this.resetReportPages(); }
-  selectAllProducts() { this.selectedProductIds.set(this.visibleProductOptions().map((option) => option.value)); this.resetReportPages(); }
-  clearSelectedProducts() { this.selectedProductIds.set([]); this.resetReportPages(); }
+  selectRubro(value: string) { this.rubro.set(value); this.selectedProductIds.set([]); this.productSearch.set(''); this.resetReportPages(); this.missingCostPage.set(1); }
+  toggleProduct(id: string) { this.selectedProductIds.update((ids) => ids.includes(id) ? ids.filter((value) => value !== id) : [...ids, id]); this.resetReportPages(); this.missingCostPage.set(1); }
+  selectAllProducts() { this.selectedProductIds.set(this.visibleProductOptions().map((option) => option.value)); this.resetReportPages(); this.missingCostPage.set(1); }
+  clearSelectedProducts() { this.selectedProductIds.set([]); this.resetReportPages(); this.missingCostPage.set(1); }
   load() {
     if (!this.from || !this.to || this.from > this.to) {
       this.error.set('Revisá el período seleccionado');
@@ -292,6 +316,7 @@ export class FinancialReports implements OnInit {
     }
     this.loading.set(true);
     this.resetReportPages();
+    this.missingCostPage.set(1);
     this.error.set(null);
     this.detailError.set(null);
     this.purchaseDetailsLoading.set(false);
@@ -355,6 +380,7 @@ export class FinancialReports implements OnInit {
       new Date(`${date}T12:00:00-03:00`),
     );
   }
+  reportDate(value: string) { return this.dateKey(value); }
   private dateKey(value: string) {
     return new Intl.DateTimeFormat('en-CA', {
       timeZone: 'America/Argentina/Buenos_Aires',

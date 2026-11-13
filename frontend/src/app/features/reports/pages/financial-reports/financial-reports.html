@@ -40,11 +40,12 @@
             <article><span>Ventas facturadas</span><strong>{{ money(group.revenue) }}</strong><small>{{ group.sales.size }} ventas</small></article>
             <article><span>Costo de lo vendido</span><strong>{{ money(group.cost) }}</strong></article>
             <article><span>Gastos registrados</span><strong>{{ money(group.expenses) }}</strong><small>Pagados o pendientes</small></article>
-            <article [class.negative]="group.revenue - group.cost < 0"><span>Margen bruto</span><strong>{{ money(group.revenue - group.cost) }}</strong></article>
+            <article [class.negative]="group.revenue - group.cost < 0"><span>Margen bruto</span><strong>{{ money(group.revenue - group.cost) }}</strong>@if (group.missingCostRevenue > 0) { <small class="uncosted-margin">Incluye {{ money(group.missingCostRevenue) }} de ventas sin costo asignado</small> }</article>
           </div>
-          <div class="rubro-products"><h3>Productos vendidos</h3>
+          <div class="rubro-products sold-products"><h3>Productos vendidos</h3>
+            <div class="sold-products-head"><span>Producto</span><span>Vendido</span><span>Costo promedio por unidad</span><span>Costo total</span></div>
             @for (product of group.products.values(); track product.name) {
-              <div><span>{{ product.name }} · {{ product.quantity }} unidades</span><strong>{{ money(product.amount) }}</strong></div>
+              <div class="sold-product-row"><span>{{ product.name }} · {{ product.quantity }} unidades @if (product.pendingQuantity > 0) { <small>{{ product.pendingQuantity }} sin costo</small> }</span><strong>{{ money(product.amount) }}</strong><span>{{ product.costedQuantity ? money(costPerUnit(product.cost, product.costedQuantity)) : 'Sin costo' }}</span><strong>{{ product.costedQuantity ? money(product.cost) : 'Sin costo' }}</strong></div>
             } @empty { <p>Sin ventas de este grupo.</p> }
           </div>
           <div class="rubro-products"><h3>Ventas por día</h3>
@@ -67,6 +68,18 @@
           </div>
         </div>
       }
+    </section>
+    <section class="missing-cost-section">
+      <header><div><h2>Ventas sin costo asignado</h2><p>El importe indicado se suma provisionalmente al margen bruto hasta que se asigne el costo.</p></div><strong>{{ money(missingCostAmount()) }}</strong></header>
+      @for (row of visibleMissingCostRows(); track row.sale._id + '-' + row.item.productoId + '-' + $index) {
+        <div class="missing-cost-row">
+          <span><b>Venta #{{ row.sale.codigo }}</b> · {{ reportDate(row.sale.fechaFacturacion || row.sale.createdAt) }}</span>
+          <span>{{ row.sale.clienteNombre }}</span>
+          <span>{{ row.item.productoNombre }} · {{ row.quantity }} unidad{{ row.quantity === 1 ? '' : 'es' }} sin costo</span>
+          <strong>{{ money(row.amount) }}</strong>
+        </div>
+      } @empty { <p class="missing-cost-empty">No hay ventas sin costo asignado en este filtro.</p> }
+      @if (missingCostPages() > 1) { <app-pagination-controls [page]="missingCostPage()" [totalPages]="missingCostPages()" (pageChange)="missingCostPage.set($event)" /> }
     </section>
     @if (legacyCount() > 0) {
       <p class="scope-note warning">
