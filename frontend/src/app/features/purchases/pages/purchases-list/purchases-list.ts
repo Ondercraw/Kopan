@@ -337,7 +337,7 @@ export class PurchasesListPage implements OnInit {
           !Number.isInteger(Number(x.quantity)) ||
           x.quantity <= 0 ||
           !Number.isFinite(x.unitCostPesos) ||
-          x.unitCostPesos < 0 ||
+          Math.round(x.unitCostPesos * 100) < 1 ||
           x.quantity > 1000000,
       )
     ) {
@@ -443,7 +443,7 @@ export class PurchasesListPage implements OnInit {
       quantity < 1 ||
       quantity > 1_000_000 ||
       !Number.isSafeInteger(unitCostCents) ||
-      unitCostCents < 0
+      unitCostCents < 1
     ) {
       this.error.set('Ingresá una cantidad entera mayor a cero y un costo válido');
       return;

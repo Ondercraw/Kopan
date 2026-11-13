@@ -16,6 +16,9 @@ import {
 } from '../../../../shared/utils/argentina-date';
 import { PaymentMethod, Sale } from '../../models/sale.model';
 import { SalesService } from '../../services/sales.service';
+import { StockService } from '../../../stock/services/stock.service';
+import { Product } from '../../../stock/models/product.model';
+import { forkJoin, of, catchError } from 'rxjs';
 
 @Component({
   selector: 'app-payment-movements',
@@ -27,15 +30,19 @@ import { SalesService } from '../../services/sales.service';
 })
 export class PaymentMovementsPage implements OnInit {
   private readonly api = inject(SalesService);
+  private readonly stockApi = inject(StockService);
   readonly sales = signal<Sale[]>([]);
+  readonly products = signal<Product[]>([]);
   readonly loading = signal(true);
   readonly error = signal<string | null>(null);
   from = argentinaToday();
   to = argentinaToday();
   payment: PaymentMethod | '' = '';
-  search = '';
+  private readonly searchTerm = signal('');
+  get search() { return this.searchTerm(); }
+  set search(value: string) { this.searchTerm.set(value); }
   readonly filtered = computed(() => {
-    const term = this.search.trim().toLocaleLowerCase('es');
+    const term = this.searchTerm().trim().toLocaleLowerCase('es');
     return this.sales().filter(
       (s) =>
         !term ||
@@ -71,8 +78,33 @@ export class PaymentMovementsPage implements OnInit {
   readonly average = computed(() =>
     this.filtered().length ? Math.round(this.total() / this.filtered().length) : 0,
   );
+  readonly rubroGroups = computed(() => {
+    const sugarIds = new Set(this.products().filter(product => /^AZUCAR(?:ES)?(?:\b|$)/.test(product.tipo.normalize('NFD').replace(/[\u0300-\u036f]/g, '').trim().toUpperCase())).map(product => product._id));
+    const groups = [
+      { key: 'azucares', label: 'AZÚCARES', rows: [] as { sale: Sale; amount: number }[], sold: 0, cash: 0, transfer: 0, credit: 0, check: 0 },
+      { key: 'varios', label: 'PRODUCTOS VARIOS', rows: [] as { sale: Sale; amount: number }[], sold: 0, cash: 0, transfer: 0, credit: 0, check: 0 },
+    ];
+    for (const sale of this.filtered()) {
+      const sugar = sale.items.reduce((sum, item) => sum + (sugarIds.has(String(item.productoId)) ? item.totalCentavos : 0), 0);
+      for (const [index, amount] of [sugar, sale.totalCentavos - sugar].entries()) {
+        if (!amount) continue;
+        const group = groups[index];
+        group.rows.push({ sale, amount });
+        group.sold += amount;
+        if (sale.medioPago === 'EFECTIVO') group.cash += amount;
+        else if (sale.medioPago === 'TRANSFERENCIA') group.transfer += amount;
+        else if (sale.medioPago === 'CREDITO') group.credit += amount;
+        else group.check += amount;
+      }
+    }
+    return groups;
+  });
   ngOnInit() {
     this.load();
+    forkJoin({ active: this.stockApi.findAll(), inactive: this.stockApi.findInactive().pipe(catchError(() => of([] as Product[]))) }).subscribe({
+      next: ({ active, inactive }) => this.products.set([...active, ...inactive]),
+      error: () => this.error.set('No se pudieron cargar los rubros de los productos'),
+    });
   }
   load() {
     if (!this.from || !this.to || this.from > this.to) {

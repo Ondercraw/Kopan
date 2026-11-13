@@ -2,6 +2,24 @@ import { Types } from 'mongoose';
 import { InventoryLotsService } from './inventory-lots.service';
 
 describe('InventoryLotsService', () => {
+  it('detecta unidades iniciales sin valorar antes de permitir una venta FIFO', async () => {
+    const productId = new Types.ObjectId();
+    const find = jest.fn().mockReturnValue({ sort: () => ({ exec: async () => [
+      { remainingQuantity: 8, unitCostCents: 1000 },
+    ] }) });
+    const service = new InventoryLotsService({ find } as never);
+    await expect(service.missingCostForFifo(productId, 4, 10)).resolves.toBe(2);
+    await expect(service.missingCostForFifo(productId, 2, 10)).resolves.toBe(2);
+  });
+  it('bloquea lotes comprados con costo cero aunque el stock físico esté completo', async () => {
+    const productId = new Types.ObjectId();
+    const find = jest.fn().mockReturnValue({ sort: () => ({ exec: async () => [
+      { remainingQuantity: 3, unitCostCents: 0 },
+      { remainingQuantity: 7, unitCostCents: 1000 },
+    ] }) });
+    const service = new InventoryLotsService({ find } as never);
+    await expect(service.missingCostForFifo(productId, 5, 10)).resolves.toBe(3);
+  });
   it('valoriza una devolución con el costo del lote disponible más antiguo', async () => {
     const productId = new Types.ObjectId();
     const oldest = { remainingQuantity: 4, unitCostCents: 1000, supplierName: 'Molino' };

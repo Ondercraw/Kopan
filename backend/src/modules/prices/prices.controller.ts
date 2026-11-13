@@ -20,6 +20,7 @@ import { SavePriceListDto } from './dto/save-price-list.dto';
 import { SetPriceDto } from './dto/set-price.dto';
 import { PricesService } from './prices.service';
 import { SetListProductsDto } from './dto/set-list-products.dto';
+import { CreateDerivedPriceListDto } from './dto/create-derived-price-list.dto';
 
 const PRICE_VIEWERS = [UserRole.JEFE, UserRole.VENDEDOR];
 
@@ -45,6 +46,9 @@ export class PricesController {
   }
   @Post() @Roles(UserRole.JEFE) create(@Body() dto: SavePriceListDto) {
     return this.service.create(dto);
+  }
+  @Post('derived') @Roles(UserRole.JEFE) createDerived(@Body() dto: CreateDerivedPriceListDto, @CurrentUser() user: JwtPayload) {
+    return this.service.createDerived(dto, { id: user.sub, name: user.nombre });
   }
   @Patch(':id') @Roles(UserRole.JEFE) update(
     @Param('id', MongoIdPipe) id: string,

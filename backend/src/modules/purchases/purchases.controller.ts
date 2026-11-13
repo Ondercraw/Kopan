@@ -1,6 +1,7 @@
 import {
   Body,
   Controller,
+  Delete,
   Get,
   Param,
   Patch,
@@ -20,12 +21,33 @@ import { CreatePurchaseDto } from './dto/create-purchase.dto';
 import { PayPurchaseDto } from './dto/pay-purchase.dto';
 import { UpdatePurchaseItemDto } from './dto/update-purchase-item.dto';
 import { PurchasesService } from './purchases.service';
+import { SaleReplenishmentsService } from './sale-replenishments.service';
+import { AssignReplenishmentDto } from './dto/assign-replenishment.dto';
+import { AssignManualSaleCostDto } from './dto/assign-manual-sale-cost.dto';
 
 @UseGuards(JwtAuthGuard, RolesGuard)
 @Roles(UserRole.JEFE)
 @Controller('purchases')
 export class PurchasesController {
-  constructor(private readonly service: PurchasesService) {}
+  constructor(private readonly service: PurchasesService, private readonly replenishments: SaleReplenishmentsService) {}
+  @Get('replenishments/pending') pendingReplenishments() {
+    return this.replenishments.pending();
+  }
+  @Get('replenishments/candidates/:productId') replenishmentCandidates(@Param('productId', MongoIdPipe) productId: string) {
+    return this.replenishments.candidates(productId);
+  }
+  @Get('replenishments/links/:saleId/:index') replenishmentLinks(@Param('saleId', MongoIdPipe) saleId: string, @Param('index') index: string) {
+    return this.replenishments.linked(saleId, Number(index));
+  }
+  @Post('replenishments/assign') assignReplenishment(@Body() dto: AssignReplenishmentDto, @CurrentUser() user: JwtPayload) {
+    return this.replenishments.assign(dto, { id: user.sub, name: user.nombre });
+  }
+  @Post('replenishments/assign-manual') assignManualSaleCost(@Body() dto: AssignManualSaleCostDto, @CurrentUser() user: JwtPayload) {
+    return this.replenishments.assignManual(dto, { id: user.sub, name: user.nombre });
+  }
+  @Delete('replenishments/links/:id') unlinkReplenishment(@Param('id', MongoIdPipe) id: string) {
+    return this.replenishments.unlink(id);
+  }
   @Get() findAll(
     @Query('from') from?: string,
     @Query('to') to?: string,
@@ -38,6 +60,9 @@ export class PurchasesController {
   }
   @Get('supplier-accounts') supplierAccounts() {
     return this.service.supplierAccounts();
+  }
+  @Get(':id') findOne(@Param('id', MongoIdPipe) id: string) {
+    return this.service.findOne(id);
   }
   @Post() create(
     @Body() dto: CreatePurchaseDto,

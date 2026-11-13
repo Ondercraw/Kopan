@@ -65,3 +65,38 @@ export interface SupplierAccount {
   compras: number;
   proximoVencimiento: string | null;
 }
+export interface PendingSaleCost {
+  saleId: string;
+  saleCode: number;
+  saleItemIndex: number;
+  saleDate: string;
+  clientName: string;
+  productId: string;
+  productCode: number;
+  productName: string;
+  quantity: number;
+  quantityAssigned: number;
+  pendingQuantity: number;
+  saleAmountCents: number;
+}
+export interface ReplenishmentCandidate {
+  purchaseId: string;
+  purchaseCode: number;
+  purchaseKind: PurchaseKind;
+  purchaseLineNumber: number;
+  supplierName: string;
+  date: string;
+  quantity: number;
+  assignedQuantity: number;
+  availableQuantity: number;
+  unitCostCents: number;
+}
+export interface SaleCostLink {
+  _id: string;
+  purchaseCode: number;
+  supplierName: string;
+  quantity: number;
+  unitCostCents: number;
+  manual: boolean;
+  createdAt: string;
+}

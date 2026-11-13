@@ -185,7 +185,9 @@ export class PriceListsPage implements OnInit, OnDestroy {
   }
   loadDerivedSource() {
     if (!this.derivedSourceId) return;
-    this.prices.findOne(this.derivedSourceId).subscribe({next:d=>this.sourceDetail.set(d),error:()=>this.error.set('No se pudo cargar la lista base')});
+    const sourceId = this.derivedSourceId;
+    this.sourceDetail.set(null);
+    this.prices.findOne(sourceId).subscribe({next:d=>{if(this.derivedSourceId===sourceId)this.sourceDetail.set(d);},error:()=>this.error.set('No se pudo cargar la lista base')});
   }
   derivedProducts() {
     return [...this.products()].sort((a,b)=>a.nombre.localeCompare(b.nombre,'es',{sensitivity:'base',numeric:true}));
@@ -193,6 +195,7 @@ export class PriceListsPage implements OnInit, OnDestroy {
   pricedDerivedProducts() {
     return this.derivedProducts().filter((product) => this.derivedBasePrice(product) > 0);
   }
+  unpricedDerivedCount() { return this.derivedProducts().filter(product => this.derivedBasePrice(product) <= 0).length; }
   derivedBasePrice(product: Product) {
     return this.derivedMode() === 'ALL' && this.derivedBase === 'COST'
       ? product.costoCentavos ?? 0
@@ -250,17 +253,17 @@ export class PriceListsPage implements OnInit, OnDestroy {
   selectDerivedDirection(direction:'ADD'|'SUBTRACT') { this.derivedDirection=direction; }
   createDerived() {
     const source=this.sourceDetail(), name=this.derivedName.trim(), percentage=this.derivedMode()==='SELECTED' ? 0 : Math.abs(Number(this.derivedPercentage));
-    if (!source || name.length<2 || !Number.isFinite(percentage) || percentage>1000) { this.error.set('Completá un nombre y un porcentaje válido'); return; }
-    const ids=this.derivedMode()==='ALL' ? new Set(this.pricedDerivedProducts().map(p=>p._id)) : this.selectedProductIds();
+    if (!source || (this.derivedBase==='SALE' && source._id!==this.derivedSourceId) || name.length<2 || !Number.isFinite(percentage) || percentage>1000) { this.error.set('Esperá a que cargue la lista base e ingresá un nombre y porcentaje válidos'); return; }
+    const ids=this.derivedMode()==='ALL' ? new Set(this.derivedProducts().map(p=>p._id)) : this.selectedProductIds();
     if (!ids.size) { this.error.set('Seleccioná al menos un producto'); return; }
     const factor=1+(this.derivedDirection==='ADD'?percentage:-percentage)/100;
     if (factor<0) { this.error.set('El descuento no puede superar el 100%'); return; }
     const pricesByProduct=new Map(this.derivedProducts().map(product=>[product._id,this.derivedBasePrice(product)]));
     const items=[...ids].map(productId=>({productId,precioCentavos:pricesByProduct.get(productId)??0}));
     this.derivedSaving.set(true); this.error.set(null);
-    this.prices.create({nombre:name,descripcion:this.derivedMode()==='SELECTED' ? `Productos seleccionados de ${source.nombre}` : `${this.derivedDirection==='ADD'?'+':'−'}${percentage}% sobre ${this.derivedBase==='COST'?'costo promedio':source.nombre}`}).pipe(
-      switchMap(list=>forkJoin(items.map(item=>this.prices.setPrice(list._id,item.productId,Math.round(item.precioCentavos*factor)))).pipe(switchMap(()=>this.prices.findOne(list._id))))
-    ).subscribe({next:list=>{this.derivedSaving.set(false);this.derivedMode.set(null);this.success.set('Lista personalizada creada');this.lists.update(current=>[...current.filter(item=>item._id!==list._id),list].sort((a,b)=>a.codigo===1?-1:b.codigo===1?1:a.nombre.localeCompare(b.nombre,'es',{sensitivity:'base',numeric:true})));this.selected.set(list);},error:e=>{this.derivedSaving.set(false);this.error.set(e.error?.message??'No se pudo crear la lista personalizada');}});
+    this.prices.createDerived({nombre:name,descripcion:this.derivedMode()==='SELECTED' ? `Productos seleccionados de ${source.nombre}` : `${this.derivedDirection==='ADD'?'+':'−'}${percentage}% sobre ${this.derivedBase==='COST'?'costo promedio':source.nombre}`,
+      items: items.map(item=>({productId:item.productId,precioFinalCentavos:Math.round(item.precioCentavos*factor)}))
+    }).subscribe({next:list=>{this.derivedSaving.set(false);this.derivedMode.set(null);this.success.set(`Lista ${list.nombre} creada con ${list.items.length} productos`);this.lists.update(current=>[...current.filter(item=>item._id!==list._id),list].sort((a,b)=>a.codigo===1?-1:b.codigo===1?1:a.nombre.localeCompare(b.nombre,'es',{sensitivity:'base',numeric:true})));this.selected.set(list);},error:e=>{this.derivedSaving.set(false);this.error.set(e.error?.message??'No se pudo crear la lista personalizada');}});
   }
   supplierNames(product:Product) { const suppliers=product.proveedorIds?.length?product.proveedorIds:(product.proveedorId?[product.proveedorId]:[]); return suppliers.map(s=>s.nombre).join(' · ')||'Sin proveedor'; }
   exportPdf() {

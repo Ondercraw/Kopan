@@ -23,7 +23,7 @@ export class PurchaseItemDto {
   @Max(1_000_000)
   quantity: number;
   @IsInt({ message: 'El costo debe expresarse en centavos' })
-  @Min(0)
+  @Min(1, { message: 'El costo por unidad debe ser mayor a cero' })
   unitCostCents: number;
 }
 

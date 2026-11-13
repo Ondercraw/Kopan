@@ -10,6 +10,7 @@ import { CreateSaleDto } from './dto/create-sale.dto';
 import { UpdateSaleDto } from './dto/update-sale.dto';
 import { CancelSaleDto } from './dto/cancel-sale.dto';
 import { SalesService } from './sales.service';
+import { CheckSaleCostDto } from './dto/check-sale-cost.dto';
 
 const SALE_CREATORS = [UserRole.JEFE, UserRole.VENDEDOR];
 @UseGuards(JwtAuthGuard, RolesGuard)
@@ -31,6 +32,9 @@ export class SalesController {
   }
   @Get('transfers') @Roles(UserRole.JEFE) transfers() {
     return this.service.findTransfers();
+  }
+  @Post('valuation-check') @Roles(...SALE_CREATORS) valuationCheck(@Body() dto: CheckSaleCostDto) {
+    return this.service.valuationCheck(dto.items);
   }
   @Get(':id') @Roles(UserRole.JEFE) findOne(@Param('id', MongoIdPipe) id: string) {
     return this.service.findOne(id);

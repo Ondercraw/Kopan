@@ -5,6 +5,23 @@ import { SaleStatus } from './enums/sale-status.enum';
 import { StockMovementType } from '../stock/enums/stock-movement-type.enum';
 
 describe('SalesService.findForFinancialReport', () => {
+  it('incluye el costo asignado a una venta histórica y muestra las unidades aún sin costo', async () => {
+    const id = new Types.ObjectId();
+    const sale = { _id: id, items: [{ cantidad: 5, costoPromedioUnitarioCentavos: 0,
+      costoUnitarioCentavos: 0 }] };
+    const find = jest.fn().mockReturnValue({ select: () => ({ sort: () => ({ lean: () => ({ exec: async () => [sale] }) }) }) });
+    const allocations = new Map([[id.toString(), new Map([[0, { assigned: 3, cost: 4500 }]])]]);
+    const service = new SalesService(
+      {} as never, { find } as never, {} as never, {} as never,
+      {} as never, {} as never, {} as never, {} as never,
+      {} as never, {} as never, {} as never, {} as never,
+      { financialCosts: async () => allocations } as never,
+    );
+    const [result] = await service.findForFinancialReport();
+    expect(result.items[0].costoPromedioTotalCentavos).toBe(4500);
+    expect(result.items[0].costoPendienteCantidad).toBe(2);
+    expect(result.costoPromedioCentavos).toBe(4500);
+  });
   it('incluye ventas confirmadas por fecha de facturación sin filtrar por cobros ni limitar a 2000', async () => {
     const exec = jest.fn().mockResolvedValue([]);
     const sort = jest.fn().mockReturnValue({ lean: () => ({ exec }) });
@@ -14,6 +31,7 @@ describe('SalesService.findForFinancialReport', () => {
       {} as never, { find } as never, {} as never, {} as never,
       {} as never, {} as never, {} as never, {} as never,
       {} as never, {} as never, {} as never, {} as never,
+      { financialCosts: jest.fn().mockResolvedValue(new Map()) } as never,
     );
     await service.findForFinancialReport({
       from: '2026-10-01T03:00:00.000Z', to: '2026-11-01T03:00:00.000Z',
@@ -53,6 +71,7 @@ describe('SalesService.cancel', () => {
       { create: jest.fn().mockResolvedValue({}) } as never,
       {} as never, {} as never, finance as never,
       { restoreConsumptions: jest.fn(), summary: () => Promise.resolve({ quantity: 1, value: 1000 }) } as never,
+      { removeForCancelledSale: jest.fn() } as never,
     );
     await service.cancel(sale._id.toString(), 'Error de carga', { id: 'owner', name: 'Dueño', roles: [] });
     expect(clients.findOneAndUpdate).toHaveBeenCalledWith(
@@ -88,6 +107,7 @@ describe('SalesService.cancel', () => {
       connection as never, sales as never, {} as never, {} as never,
       products as never, {} as never, {} as never, movements as never,
       {} as never, {} as never, finance as never, lots as never,
+      { removeForCancelledSale: jest.fn() } as never,
     );
     const result = await service.cancel(sale._id.toString(), 'Carga duplicada', {
       id: 'owner', name: 'Dueño', roles: [],

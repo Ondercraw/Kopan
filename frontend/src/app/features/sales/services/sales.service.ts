@@ -7,12 +7,16 @@ export interface SaleFilters {
   to?: string;
   medioPago?: PaymentMethod | '';
 }
+export interface SaleValuationProblem { productId: string; productName: string; missingQuantity: number; unvaluedQuantity: number; }
 @Injectable({ providedIn: 'root' })
 export class SalesService {
   private readonly http = inject(HttpClient);
   private readonly base = `${environment.apiUrl}/sales`;
   create(payload: CreateSalePayload) {
     return this.http.post<Sale>(this.base, payload, { withCredentials: true });
+  }
+  valuationCheck(items: Array<{ productId: string; quantity: number }>) {
+    return this.http.post<SaleValuationProblem[]>(`${this.base}/valuation-check`, { items }, { withCredentials: true });
   }
   findAll(filters: SaleFilters = {}) {
     let params = new HttpParams();

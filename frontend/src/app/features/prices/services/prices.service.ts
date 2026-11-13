@@ -16,6 +16,9 @@ export class PricesService {
   create(payload: { nombre: string; descripcion?: string }) {
     return this.http.post<PriceList>(this.base, payload, this.options);
   }
+  createDerived(payload: { nombre: string; descripcion: string; items: { productId: string; precioFinalCentavos: number }[] }) {
+    return this.http.post<PriceListDetail>(`${this.base}/derived`, payload, this.options);
+  }
   setPrice(listId: string, productId: string, precioFinalCentavos: number) {
     return this.http.put<PriceListItem>(
       `${this.base}/${listId}/products/${productId}`,

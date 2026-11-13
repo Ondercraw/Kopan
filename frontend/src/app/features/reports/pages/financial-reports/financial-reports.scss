@@ -2,6 +2,8 @@
   display: block;
   color: #26190f;
 }
+.cost-warning { padding: 1rem; border: 2px solid #d88329; border-radius: 12px; background: #fff0dc; color: #713b14; font-weight: 700; }
+.cost-warning a { color: inherit; text-decoration: underline; }
 header span {
   color: #8b4b10;
   font-size: 0.72rem;

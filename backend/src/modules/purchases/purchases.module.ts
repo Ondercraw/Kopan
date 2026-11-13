@@ -20,6 +20,8 @@ import { InventoryLotsService } from './inventory-lots.service';
 import { PurchasesController } from './purchases.controller';
 import { PurchasesService } from './purchases.service';
 import { Sale, SaleSchema } from '../sales/schemas/sale.schema';
+import { SaleReplenishment, SaleReplenishmentSchema } from './schemas/sale-replenishment.schema';
+import { SaleReplenishmentsService } from './sale-replenishments.service';
 
 @Module({
   imports: [
@@ -32,10 +34,11 @@ import { Sale, SaleSchema } from '../sales/schemas/sale.schema';
       { name: StockMovement.name, schema: StockMovementSchema },
       { name: FinancialMovement.name, schema: FinancialMovementSchema },
       { name: Sale.name, schema: SaleSchema },
+      { name: SaleReplenishment.name, schema: SaleReplenishmentSchema },
     ]),
   ],
   controllers: [PurchasesController],
-  providers: [PurchasesService, InventoryLotsService],
-  exports: [PurchasesService, InventoryLotsService, MongooseModule],
+  providers: [PurchasesService, InventoryLotsService, SaleReplenishmentsService],
+  exports: [PurchasesService, InventoryLotsService, SaleReplenishmentsService, MongooseModule],
 })
 export class PurchasesModule {}

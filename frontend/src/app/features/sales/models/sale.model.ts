@@ -35,6 +35,8 @@ export interface SaleItem {
   ivaCentavos: number;
   costoUnitarioCentavos: number;
   costoPromedioUnitarioCentavos?: number | null;
+  costoPromedioTotalCentavos?: number;
+  costoPendienteCantidad?: number;
   costoCorregidoAt?: string | null;
   costoCorregidoPorNombre?: string;
   totalCentavos: number;

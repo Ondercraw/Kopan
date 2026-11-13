@@ -8,6 +8,9 @@ import {
   PurchaseItemImpact,
   PurchasePaymentMethod,
   SupplierAccount,
+  PendingSaleCost,
+  ReplenishmentCandidate,
+  SaleCostLink,
 } from '../models/purchase.model';
 
 @Injectable({ providedIn: 'root' })
@@ -15,12 +18,33 @@ export class PurchasesService {
   private readonly http = inject(HttpClient);
   private readonly base = `${environment.apiUrl}/purchases`;
   private readonly options = { withCredentials: true };
+  pendingSaleCosts() {
+    return this.http.get<PendingSaleCost[]>(`${this.base}/replenishments/pending`, this.options);
+  }
+  replenishmentCandidates(productId: string) {
+    return this.http.get<ReplenishmentCandidate[]>(`${this.base}/replenishments/candidates/${productId}`, this.options);
+  }
+  saleCostLinks(saleId: string, index: number) {
+    return this.http.get<SaleCostLink[]>(`${this.base}/replenishments/links/${saleId}/${index}`, this.options);
+  }
+  assignSaleCost(payload: { saleId: string; saleItemIndex: number; purchaseId: string; purchaseLineNumber: number; quantity: number }) {
+    return this.http.post(`${this.base}/replenishments/assign`, payload, this.options);
+  }
+  assignManualSaleCost(payload: { saleId: string; saleItemIndex: number; quantity: number; unitCostCents: number }) {
+    return this.http.post(`${this.base}/replenishments/assign-manual`, payload, this.options);
+  }
+  unlinkSaleCost(id: string) {
+    return this.http.delete(`${this.base}/replenishments/links/${id}`, this.options);
+  }
   findAll(filters: { from?: string; to?: string; supplierId?: string } = {}) {
     let params = new HttpParams();
     Object.entries(filters).forEach(([key, value]) => {
       if (value) params = params.set(key, value);
     });
     return this.http.get<Purchase[]>(this.base, { ...this.options, params });
+  }
+  findOne(id: string) {
+    return this.http.get<Purchase>(`${this.base}/${id}`, this.options);
   }
   inventory() {
     return this.http.get<InventoryProduct[]>(`${this.base}/inventory`, this.options);

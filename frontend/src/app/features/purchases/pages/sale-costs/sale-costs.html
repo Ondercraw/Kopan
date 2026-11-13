@@ -1,0 +1,56 @@
+<section class="page">
+  <header class="page-header">
+    <div><span>CONTROL DE COSTOS</span><h1>Costos pendientes de ventas</h1>
+      <p>Vinculá compras o valorizaciones a unidades vendidas sin costo. El costo de esa compra se usa como estimación histórica en el informe financiero, sin mover stock ni crear otro gasto.</p></div>
+  </header>
+  @if (error()) { <p class="message error">{{ error() }}</p> }
+  @if (success()) { <p class="message success">{{ success() }}</p> }
+  <section class="filters">
+    <label>Buscar venta, cliente o producto<input type="search" [(ngModel)]="search" placeholder="Nombre, número de venta o producto" /></label>
+    <label>Rubro<select [(ngModel)]="rubro"><option value="">Todos los rubros</option>@for (value of rubroOptions(); track value) { <option [value]="value">{{ value }}</option> }</select></label>
+    <label class="completed-filter"><input type="checkbox" [(ngModel)]="showCompleted" /> Mostrar también ventas ya vinculadas</label>
+  </section>
+  @if (loading()) { <p class="empty">Cargando ventas...</p> }
+  @else {
+    <div class="list-head"><span>Venta y fecha</span><span>Cliente</span><span>Producto y rubro</span><span>Unidades</span><span>Importe vendido</span><span>Acción</span></div>
+    @for (row of visible(); track row.saleId + ':' + row.saleItemIndex) {
+      <article class="sale-row">
+        <div data-label="Venta"><strong>#{{ row.saleCode }}</strong><small>{{ date(row.saleDate) }}</small></div>
+        <div data-label="Cliente">{{ row.clientName }}</div>
+        <div data-label="Producto"><strong>#{{ row.productCode }} · {{ row.productName }}</strong><small>{{ rubros().get(row.productId) || 'Sin rubro' }}</small></div>
+        <div data-label="Unidades"><strong>{{ row.pendingQuantity ? row.pendingQuantity + ' pendientes' : 'Completado' }}</strong><small>{{ row.quantityAssigned }} vinculadas de {{ row.quantity }}</small></div>
+        <div data-label="Importe">{{ money(row.saleAmountCents) }}</div>
+        <button type="button" class="action" (click)="open(row)"><i class="ti ti-link"></i> {{ row.pendingQuantity ? 'Vincular compra' : 'Ver vínculos' }}</button>
+      </article>
+    } @empty { <p class="empty">No hay ventas con unidades sin costo para estos filtros.</p> }
+  }
+</section>
+@if (selected(); as sale) {
+  <div class="overlay" role="presentation"><section class="modal" role="dialog" aria-modal="true" aria-labelledby="replenishment-title">
+    <header><div><span>VENTA #{{ sale.saleCode }} · {{ sale.clientName }}</span><h2 id="replenishment-title">Vincular compra a {{ sale.productName }}</h2>
+      <p>{{ sale.pendingQuantity }} unidades pendientes de costo. Elegí una compra del mismo producto y cuántas unidades vincular.</p></div>
+      <button type="button" class="close" (click)="close()" aria-label="Cerrar"><i class="ti ti-x"></i></button></header>
+    @if (links().length) { <section class="linked"><h3>Compras ya vinculadas</h3>@for (link of links(); track link._id) {
+      <div><span>{{ link.manual ? 'Costo manual' : 'Compra #' + link.purchaseCode + ' · ' + link.supplierName }} · {{ link.quantity }} unidades a {{ money(link.unitCostCents) }}</span>
+        <button type="button" class="unlink" (click)="unlinkTarget.set(link)" [disabled]="saving()">Quitar vínculo</button></div>
+    }</section> }
+    <div class="modal-filters">
+      <label>Buscar compra o proveedor<input type="search" [(ngModel)]="purchaseSearch" placeholder="Número o proveedor" /></label>
+      <label>Desde<input type="date" [(ngModel)]="from" /></label><label>Hasta<input type="date" [(ngModel)]="to" /></label>
+      <label>Unidades a asignar<input type="text" inputmode="numeric" placeholder="Ingresá la cantidad" [(ngModel)]="quantityInput" /></label>
+    </div>
+    <section class="manual-cost"><div><strong>Asignar costo manualmente</strong><small>Útil si no hay una compra registrada para esta venta histórica.</small></div>
+      <label>Costo por unidad (ARS)<input type="text" inputmode="decimal" placeholder="Ej.: 38500" [(ngModel)]="manualCostInput" /></label>
+      <button type="button" class="action" [disabled]="saving() || !quantityInput.trim() || quantityValue() < 1 || quantityValue() > sale.pendingQuantity || quantityValue() % 1 !== 0 || manualCostCents() < 1" (click)="assignManual()">Asignar costo</button>
+    </section>
+    <div class="candidate-list">@for (purchase of visibleCandidates(); track purchase.purchaseId + ':' + purchase.purchaseLineNumber) {
+      <article><div><strong>#{{ purchase.purchaseCode }} · {{ purchase.supplierName }}</strong><small>{{ date(purchase.date) }} · {{ purchase.purchaseKind === 'COMPRA' ? 'Compra' : 'Valorización' }}</small></div>
+        <div><strong>{{ money(purchase.unitCostCents) }} / unidad</strong><small>{{ purchase.availableQuantity }} disponibles de {{ purchase.quantity }}</small></div>
+        <button type="button" class="action" [disabled]="saving() || purchase.unitCostCents < 1 || purchase.availableQuantity < 1 || !quantityInput.trim() || quantityValue() > purchase.availableQuantity || quantityValue() > sale.pendingQuantity || quantityValue() < 1 || quantityValue() % 1 !== 0" (click)="assign(purchase)">Vincular</button></article>
+    } @empty { <p class="empty">No hay compras de este producto para los filtros elegidos.</p> }</div>
+    <footer><p>Esta acción usa el costo de la compra como referencia para la venta anterior. No suma stock ni registra un egreso nuevo. Si cambia el costo de la compra, el informe se actualizará.</p><button type="button" class="secondary" (click)="close()">Cerrar</button></footer>
+  </section></div>
+}
+@if (unlinkTarget(); as link) {
+  <app-confirmation-modal title="Quitar vínculo de compra" [message]="'La compra #' + link.purchaseCode + ' dejará de aportar costo a esta venta. Las unidades volverán a figurar como pendientes.'" confirmLabel="Quitar vínculo" tone="danger" [loading]="saving()" (confirmed)="unlink()" (cancelled)="unlinkTarget.set(null)" />
+}

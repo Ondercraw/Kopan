@@ -46,6 +46,7 @@ import {
 import { InventoryLotsService } from './inventory-lots.service';
 import { Sale, SaleDocument } from '../sales/schemas/sale.schema';
 import { SaleStatus } from '../sales/enums/sale-status.enum';
+import { SaleReplenishmentsService } from './sale-replenishments.service';
 
 interface PurchaseActor {
   id: string;
@@ -72,6 +73,7 @@ export class PurchasesService {
     private readonly financeModel: Model<FinancialMovementDocument>,
     private readonly lotsService: InventoryLotsService,
     @InjectModel(Sale.name) private readonly saleModel: Model<SaleDocument>,
+    private readonly saleReplenishments: SaleReplenishmentsService,
   ) {}
 
   async updateItemImpact(id: string, lineNumber: number) {
@@ -85,13 +87,14 @@ export class PurchasesService {
       estado: SaleStatus.CONFIRMED,
       'items.lotesConsumidos.lotId': lot._id,
     }).select('codigo clienteNombre items').lean().exec();
+    const linked = await this.saleReplenishments.linkedSaleImpact(id, lineNumber);
     return {
       consumedQuantity: lot.initialQuantity - lot.remainingQuantity,
-      affectedSales: sales.map((sale) => ({ codigo: sale.codigo, clienteNombre: sale.clienteNombre,
+      affectedSales: [...sales.map((sale) => ({ codigo: sale.codigo, clienteNombre: sale.clienteNombre,
         quantity: sale.items.reduce((sum, saleItem) => sum + (saleItem.lotesConsumidos ?? [])
           .filter((entry) => entry.lotId.toString() === lot._id.toString())
           .reduce((part, entry) => part + entry.quantity, 0), 0),
-      })),
+      })), ...linked],
     };
   }
 
@@ -106,6 +109,11 @@ export class PurchasesService {
       .limit(2000)
       .lean()
       .exec();
+  }
+  async findOne(id: string) {
+    const purchase = await this.purchaseModel.findById(id).lean().exec();
+    if (!purchase) throw new NotFoundException('La compra o valorización no existe');
+    return purchase;
   }
 
   async inventory() {
@@ -473,6 +481,9 @@ export class PurchasesService {
     if (!item) throw new NotFoundException('El producto no pertenece a esta compra');
     if (item.quantity !== dto.expectedQuantity || item.unitCostCents !== dto.expectedUnitCostCents)
       throw new ConflictException('El producto fue modificado desde otro dispositivo. Recargá la compra antes de corregirlo.');
+    await this.saleReplenishments.assertPurchaseItemQuantity(id, lineNumber, dto.quantity);
+    if (dto.unitCostCents === 0 && (await this.saleReplenishments.hasPurchaseItemLinks(id, lineNumber)))
+      throw new ConflictException('Esta compra está vinculada a ventas; el costo no puede quedar en cero');
 
     const lot = await this.lotModel.findOne({
       purchaseId: purchase._id,
@@ -800,6 +811,7 @@ export class PurchasesService {
       .exec();
     if (!purchase)
       throw new ConflictException('La compra ya fue cancelada o no existe');
+    await this.saleReplenishments.assertPurchaseNotLinked(id);
     if ((purchase.montoPagadoCentavos ?? 0) > 0)
       throw new ConflictException('Esta compra tiene pagos registrados. Revertí los pagos antes de anularla');
     const lots = await this.lotModel

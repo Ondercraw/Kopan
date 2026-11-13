@@ -9,6 +9,6 @@ export class UpdatePurchaseItemDto {
   quantity: number;
 
   @IsInt({ message: 'El costo debe expresarse en centavos' })
-  @Min(0, { message: 'El costo no puede ser negativo' })
+  @Min(1, { message: 'El costo debe ser mayor a cero' })
   unitCostCents: number;
 }

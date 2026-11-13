@@ -214,6 +214,22 @@ export class InventoryLotsService implements OnModuleInit {
     };
   }
 
+  /** Cuenta las unidades que FIFO consumiría sin un costo positivo. */
+  async missingCostForFifo(productId: Types.ObjectId, quantity: number, physicalStockBefore: number): Promise<number> {
+    const lots = await this.activeLots(productId);
+    const tracked = lots.reduce((sum, lot) => sum + lot.remainingQuantity, 0);
+    const unvalued = Math.min(quantity, Math.max(0, physicalStockBefore - tracked));
+    let remaining = quantity - unvalued;
+    let missing = unvalued;
+    for (const lot of lots) {
+      if (!remaining) break;
+      const used = Math.min(remaining, lot.remainingQuantity);
+      if (lot.unitCostCents <= 0) missing += used;
+      remaining -= used;
+    }
+    return missing + remaining;
+  }
+
   /** Devuelve a sus lotes originales las unidades de una venta que será recalculada. */
   async restoreConsumptions(consumptions: LotConsumption[]): Promise<void> {
     for (const consumption of consumptions) {

@@ -45,6 +45,7 @@ import {
   InventoryLotsService,
   LotConsumption,
 } from '../purchases/inventory-lots.service';
+import { SaleReplenishmentsService } from '../purchases/sale-replenishments.service';
 
 export interface SaleActor {
   id: string;
@@ -75,6 +76,7 @@ export class SalesService {
     private readonly checksService: ChecksService,
     private readonly financeService: FinanceService,
     private readonly inventoryLots: InventoryLotsService,
+    private readonly saleReplenishments: SaleReplenishmentsService,
   ) {}
 
   findAll(filters: { from?: string; to?: string; medioPago?: string } = {}) {
@@ -101,7 +103,22 @@ export class SalesService {
       .lean()
       .exec();
   }
-  findForFinancialReport(filters: { from?: string; to?: string } = {}) {
+  async valuationCheck(items: Array<{ productId: string; quantity: number }>) {
+    const grouped = new Map<string, number>();
+    for (const item of items) grouped.set(item.productId, (grouped.get(item.productId) ?? 0) + item.quantity);
+    const products = await this.productModel.find({ _id: { $in: [...grouped.keys()] }, activo: true }).exec();
+    if (products.length !== grouped.size) throw new NotFoundException('Uno de los productos ya no está disponible');
+    const result = await Promise.all(products.map(async (product) => {
+      const quantity = grouped.get(product._id.toString()) ?? 0;
+      const summary = await this.inventoryLots.summary(product._id);
+      return { productId: product._id.toString(), productName: product.nombre,
+        missingQuantity: await this.inventoryLots.missingCostForFifo(product._id, quantity, product.cantidadStock),
+        unvaluedQuantity: Math.max(0, product.cantidadStock - summary.quantity),
+      };
+    }));
+    return result.filter((row) => row.missingQuantity > 0);
+  }
+  async findForFinancialReport(filters: { from?: string; to?: string } = {}) {
     const range: Record<string, Date> = {};
     if (filters.from) {
       const from = new Date(filters.from);
@@ -119,9 +136,26 @@ export class SalesService {
       { fechaFacturacion: null, createdAt: range },
     ];
     // Sin límite de 2000 ventas: el informe debe incluir todo el período facturado.
-    return this.saleModel.find(query)
-      .select('codigo clienteNombre items netoCentavos ivaCentavos costoCentavos costoPromedioCentavos transporteDescargaCentavos totalCentavos medioPago modalidadEntrega fechaFacturacion createdAt')
+    const sales = await this.saleModel.find(query)
+      .select('codigo clienteNombre items netoCentavos ivaCentavos costoCentavos costoPromedioCentavos transporteDescargaCentavos totalCentavos medioPago medioPagoInformado montoCobradoInicialCentavos montoChequeCentavos modalidadEntrega fechaFacturacion createdAt')
       .sort({ fechaFacturacion: -1, createdAt: -1 }).lean().exec();
+    const allocations = await this.saleReplenishments.financialCosts(sales);
+    return sales.map((sale) => {
+      const saleAllocations = allocations.get(sale._id.toString());
+      const items = sale.items.map((item, index) => {
+        const allocation = saleAllocations?.get(index);
+        const originalCost = item.costoPromedioUnitarioCentavos ?? item.costoUnitarioCentavos ?? 0;
+        return {
+          ...item,
+          costoPromedioTotalCentavos: originalCost * item.cantidad + (allocation?.cost ?? 0),
+          costoPendienteCantidad: originalCost === 0
+            ? Math.max(0, item.cantidad - (allocation?.assigned ?? 0)) : 0,
+        };
+      });
+      return { ...sale, items,
+        costoPromedioCentavos: items.reduce((sum, item) => sum + item.costoPromedioTotalCentavos, 0),
+      };
+    });
   }
   findTransfers() {
     return this.saleModel
@@ -200,6 +234,7 @@ export class SalesService {
       sale.anuladaAt = new Date();
       sale.anuladaPorNombre = actor.name;
       await sale.save();
+      await this.saleReplenishments.removeForCancelledSale(sale._id.toString());
       await this.financeService.cancelSaleRecord(sale, reason.trim(), actor);
       // La respuesta de éxito se entrega únicamente después de registrar cada devolución
       // y su movimiento de historial, además de revertir el ingreso.
@@ -209,6 +244,13 @@ export class SalesService {
 
   private async updateInTransaction(id: string, dto: UpdateSaleDto, actor: SaleActor) {
     const sale = await this.saleModel.findOne({ _id: id, estado: SaleStatus.CONFIRMED }).exec();
+    if (sale) {
+      const assigned = await this.saleReplenishments.assignedForSale(id);
+      for (const [index, quantity] of assigned) {
+        if ((dto.items[index]?.cantidad ?? 0) < quantity)
+          throw new ConflictException(`La venta tiene ${quantity} unidades del renglón ${index + 1} vinculadas a compras. Quitá el vínculo antes de reducir la cantidad.`);
+      }
+    }
     if (!sale) throw new NotFoundException('Venta inexistente');
     const isDelivery = sale.modalidadEntrega === 'REPARTO';
     const effectiveMethod = isDelivery ? PaymentMethod.CREDIT : dto.medioPago;
@@ -708,6 +750,15 @@ export class SalesService {
           throw new ConflictException(
             `Stock insuficiente para ${item.productoNombre}`,
           );
+        const withoutCost = await this.inventoryLots.missingCostForFifo(
+          product._id, item.cantidad, product.cantidadStock + item.cantidad,
+        );
+        if (withoutCost > 0) throw new ConflictException({
+          code: 'UNVALUED_STOCK',
+          message: `${item.productoNombre} tiene ${withoutCost} unidades de esta venta sin costo. Valorizalas antes de confirmar.`,
+          productId: product._id.toString(),
+          missingQuantity: withoutCost,
+        });
         // La ganancia usa el promedio vigente cuando se confirma, no cuando se abrió el borrador.
         item.costoPromedioUnitarioCentavos = product.costoCentavos;
         const fifo = await this.inventoryLots.consumeFifo(

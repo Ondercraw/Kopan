@@ -53,6 +53,18 @@
       ><small>{{ filtered().length }} operaciones</small>
     </article>
   </div>
+  <section class="cash-rubro-summary">
+    @for (group of rubroGroups(); track group.key) {
+      <article>
+        <h2>{{ group.label }}</h2>
+        <div><span>Vendido</span><strong>{{ money(group.sold) }}</strong></div>
+        <div><span>Efectivo</span><strong>{{ money(group.cash) }}</strong></div>
+        <div><span>Transferencia / MP</span><strong>{{ money(group.transfer) }}</strong></div>
+        <div><span>Cuenta corriente</span><strong>{{ money(group.credit) }}</strong></div>
+        <div><span>Cheque</span><strong>{{ money(group.check) }}</strong></div>
+      </article>
+    }
+  </section>
   <label class="search"
     ><i class="ti ti-search"></i
     ><input
@@ -69,6 +81,8 @@
   @if (error()) {
     <p class="error">{{ error() }}</p>
   }
+  @for (group of rubroGroups(); track group.key) {
+  <section class="cash-rubro-list"><h2>{{ group.label }} <small>{{ group.rows.length }} ventas</small></h2>
   <div class="list">
     <div class="head">
       <span>Venta</span><span>Fecha</span><span>Cliente</span><span>Medio</span
@@ -77,14 +91,14 @@
     @if (loading()) {
       <p class="empty">Cargando caja...</p>
     }
-    @for (sale of filtered(); track sale._id) {
+    @for (row of group.rows; track row.sale._id) {
       <article>
-        <strong data-label="Venta">#{{ sale.codigo }}</strong
-        ><span data-label="Fecha">{{ date(sale.createdAt) }}</span
-        ><span data-label="Cliente">{{ sale.clienteNombre }}</span
-        ><span data-label="Medio" class="method">{{ paymentLabel(sale.medioPago) }}</span
-        ><span data-label="Referencia">{{ sale.referenciaTransferencia || sale.chequeNumero || '-' }}</span
-        ><strong data-label="Importe">{{ money(sale.totalCentavos) }}</strong>
+        <strong data-label="Venta">#{{ row.sale.codigo }}</strong
+        ><span data-label="Fecha">{{ date(row.sale.createdAt) }}</span
+        ><span data-label="Cliente">{{ row.sale.clienteNombre }}</span
+        ><span data-label="Medio" class="method">{{ paymentLabel(row.sale.medioPago) }}</span
+        ><span data-label="Referencia">{{ row.sale.referenciaTransferencia || row.sale.chequeNumero || '-' }}</span
+        ><strong data-label="Importe">{{ money(row.amount) }}</strong>
       </article>
     } @empty {
       @if (!loading()) {
@@ -92,4 +106,6 @@
       }
     }
   </div>
+  </section>
+  }
 </section>

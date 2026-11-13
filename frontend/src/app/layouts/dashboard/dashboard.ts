@@ -53,6 +53,12 @@ const NAV_GROUPS: NavGroup[] = [
         rolesPermitidos: [UserRole.JEFE],
       },
       {
+        label: 'Costos pendientes de ventas',
+        icon: 'ti-link',
+        path: '/costos-pendientes-ventas',
+        rolesPermitidos: [UserRole.JEFE],
+      },
+      {
         label: 'Clientes',
         icon: 'ti-users',
         path: '/clientes',

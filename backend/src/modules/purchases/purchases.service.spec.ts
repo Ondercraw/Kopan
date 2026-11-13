@@ -45,6 +45,7 @@ describe('PurchasesService', () => {
       financeModel as never,
       {} as never,
       {} as never,
+      {} as never,
     );
 
     const result = await service.pay(
@@ -109,6 +110,7 @@ describe('PurchasesService', () => {
           .mockResolvedValueOnce({ quantity: 3, averageCostCents: 150 }),
         latestUnitCost: jest.fn().mockResolvedValue(150) } as never,
       { find: jest.fn().mockReturnValue({ exec: async () => [sale] }) } as never,
+      { assertPurchaseItemQuantity: jest.fn() } as never,
     );
 
     await service.updateItem(purchaseId.toString(), 1,
@@ -132,6 +134,7 @@ describe('PurchasesService', () => {
       { findOne: jest.fn().mockReturnValue({ exec: async () => purchase }) } as never,
       { findOne: jest.fn().mockReturnValue({ exec: async () => ({ initialQuantity: 5, remainingQuantity: 2 }) }) } as never,
       {} as never, {} as never, {} as never, {} as never, {} as never, {} as never, {} as never,
+      { assertPurchaseItemQuantity: jest.fn() } as never,
     );
     await expect(service.updateItem('purchase-id', 1,
       { quantity: 2, unitCostCents: 150, expectedQuantity: 5, expectedUnitCostCents: 100 },

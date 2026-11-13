@@ -11,6 +11,11 @@ export class OperationalReports implements OnInit{
   readonly products=signal<Product[]>([]);readonly clients=signal<Client[]>([]);readonly loading=signal(true);readonly error=signal<string|null>(null);
   readonly noStock=computed(()=>this.products().filter(p=>p.cantidadStock===0));
   readonly lowStock=computed(()=>this.products().filter(p=>p.cantidadStock>0&&p.stockMinimo>0&&p.cantidadStock<=p.stockMinimo));
+  readonly rubroGroups=computed(()=>[
+    {label:'AZÚCARES',products:this.products().filter(p=>this.isSugar(p.tipo))},
+    {label:'PRODUCTOS VARIOS',products:this.products().filter(p=>!this.isSugar(p.tipo))},
+  ].map(group=>({...group,noStock:group.products.filter(p=>p.cantidadStock===0),lowStock:group.products.filter(p=>p.cantidadStock>0&&p.stockMinimo>0&&p.cantidadStock<=p.stockMinimo),bySupplier:this.group(group.products.map(p=>p.proveedorId?.nombre||'Sin proveedor')),byType:this.group(group.products.map(p=>p.tipo||'Sin rubro'))})));
+  private isSugar(value:string){return /^AZUCAR(?:ES)?(?:\b|$)/.test(value.normalize('NFD').replace(/[\u0300-\u036f]/g,'').trim().toUpperCase());}
   readonly bySupplier=computed(()=>this.group(this.products().map(p=>p.proveedorId?.nombre||'Sin proveedor')));
   readonly byType=computed(()=>this.group(this.products().map(p=>p.tipo||'Sin tipo')));
   readonly byLocation=computed(()=>this.group(this.clients().filter(c=>c.activo).map(c=>c.localidad||'Sin localidad')));

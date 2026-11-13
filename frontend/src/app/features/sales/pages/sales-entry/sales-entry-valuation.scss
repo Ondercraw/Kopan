@@ -1,0 +1,10 @@
+:host .quick-valuation { width: min(760px, calc(100vw - 24px)); max-height: 90vh; overflow: auto; }
+:host .quick-valuation > p { margin: 12px 0; }
+:host .valuation-fields { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; margin: 18px 0; }
+:host .valuation-fields label { display: grid; gap: 6px; min-width: 0; }
+:host .valuation-fields input, :host .valuation-fields select { width: 100%; min-width: 0; box-sizing: border-box; padding: 10px 12px; border-radius: 9px; border: 1px solid #d8c4b4; background: #fff; color: #2b160b; }
+:host .valuation-error { padding: 12px; color: #922b20; background: #fff1ee; border: 1px solid #dba9a2; border-radius: 9px; }
+:host .valuation-problems { display: flex; gap: 8px; flex-wrap: wrap; margin: 12px 0; }
+:host .valuation-problems button { border: 1px solid #d8c4b4; background: #fff; color: #713508; border-radius: 8px; padding: 8px 10px; cursor: pointer; }
+:host .valuation-problems button.active { background: #7d3900; color: #fff; }
+@media (max-width: 600px) { :host .valuation-fields { grid-template-columns: 1fr; } }

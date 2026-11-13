@@ -140,3 +140,4 @@
     grid-template-columns: 1fr;
   }
 }
+.cash-rubro-summary{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:14px;margin:16px 0}.cash-rubro-summary article{min-width:0;background:#fffaf5;border:1px solid #dfc9b8;border-radius:14px;padding:16px}.cash-rubro-summary h2,.cash-rubro-list h2{font:700 1.25rem Georgia,serif;color:#713b14;margin:0 0 12px}.cash-rubro-summary article>div{display:flex;justify-content:space-between;gap:12px;border-top:1px solid #ead8ca;padding:8px 0;font-size:.85rem}.cash-rubro-summary strong{white-space:nowrap}.cash-rubro-list{margin:20px 0 28px}.cash-rubro-list h2 small{font:600 .78rem sans-serif;color:#806858}@media(max-width:700px){.cash-rubro-summary{grid-template-columns:1fr}}

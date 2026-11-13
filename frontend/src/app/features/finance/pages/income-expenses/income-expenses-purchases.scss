@@ -2,6 +2,11 @@
   border-left-color: #b52d24;
   background: #fff1ef;
 }
+.purchase-cost-items { display: grid; gap: 8px; max-height: 220px; overflow: auto; margin: 15px 0; }
+.purchase-cost-items button { display: grid; text-align: left; gap: 3px; padding: 10px 12px; border: 1px solid #dcc7b7; border-radius: 9px; background: #fff; color: #2b160b; cursor: pointer; }
+.purchase-cost-items button.active { border: 2px solid #8b4b10; background: #fff2e4; }
+.purchase-cost-impact { padding: 12px; border: 1px solid #d79d66; border-radius: 9px; background: #fff3e4; }
+.purchase-cost-confirm { z-index: 1010; }
 .movement-list > article.supplier-payment:not(.cancelled) {
   border-left-color: #b52d24;
   background: #fff1ef;
@@ -55,3 +60,5 @@
     grid-template-columns: 110px minmax(150px, 1fr) 135px 125px 125px 115px 170px;
   }
 }
+.period-rubro-columns{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px;padding:12px}.period-rubro-section{min-width:0;padding:14px;border:1px solid #dfc9b8;border-radius:12px;background:#fffaf5}.period-rubro-section h2,.movement-group h2{margin:0 0 10px;color:#713b14;font:700 1.25rem Georgia,serif}.period-rubro-section>div{display:flex;justify-content:space-between;gap:10px;padding:7px 0;border-top:1px solid #ead8ca;font-size:.86rem}.period-rubro-section strong{white-space:nowrap}.period-rubro-section .rubro-result{font-weight:800;border-top:2px solid #b87544}.period-combined-heading{font:700 1.05rem Georgia,serif;margin:12px}.movement-group{margin:18px 0 26px}.movement-group h2{display:flex;align-items:baseline;gap:10px}.movement-group h2 small{font:600 .75rem sans-serif;color:#806858}@media(max-width:760px){.period-rubro-columns{grid-template-columns:1fr}.period-rubro-section strong{white-space:normal;text-align:right}}
+.group-action-note{font-size:.78rem;color:#755b49;margin:-3px 0 8px}

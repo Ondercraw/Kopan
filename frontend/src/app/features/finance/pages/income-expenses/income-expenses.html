@@ -57,6 +57,22 @@
         <span>PERÍODO SELECCIONADO</span><strong>{{ from }} — {{ to }}</strong>
       </div>
     </header>
+    <div class="period-rubro-columns">
+      @for (group of movementGroups(); track group.key) {
+        <section class="period-rubro-section">
+          <h2>{{ group.label }}</h2>
+          <div><span>Ingresos cobrados</span><strong>{{ money(group.income) }}</strong></div>
+          <div><span>Pagos a recibir</span><strong>{{ money(group.pendingIncome) }}</strong></div>
+          <div><span>Egresos pagados</span><strong>− {{ money(group.paidExpenses) }}</strong></div>
+          <div><span>Egresos pendientes</span><strong>− {{ money(group.pendingExpenses) }}</strong></div>
+          <div class="rubro-result"><span>Resultado cobrado</span><strong>{{ money(group.income - group.paidExpenses) }}</strong></div>
+        </section>
+      }
+    </div>
+    @if (!loading() && groupTotalsIncomplete()) { <p class="warning" role="alert">El desglose por rubro no cubre todos los movimientos del período. Los totales contables completos se muestran debajo.</p> }
+    @if (!loading() && unclassifiedMovementCount()) { <p class="warning" role="alert">{{ unclassifiedMovementCount() }} movimientos no tienen su venta o compra disponible en esta carga para clasificarlos; figuran temporalmente en Productos varios.</p> }
+    @if (classificationError()) { <p class="warning" role="alert">{{ classificationError() }} El desglose no es confiable hasta recargar la página.</p> }
+    <h2 class="period-combined-heading">Totales del período</h2>
     <div class="period-totals">
       <article class="income">
         <span>Ingresos</span><strong>{{ money(period().ingresosCentavos) }}</strong>
@@ -102,6 +118,8 @@
   @if (success()) {
     <p class="message success">{{ success() }}</p>
   }
+  @for (group of movementGroups(); track group.key) {
+  <section class="movement-group"><h2>{{ group.label }} <small>{{ groupFiltered(group.key).length }} movimientos</small></h2><p class="group-action-note">En operaciones mixtas, el importe se reparte por producto. Las acciones modifican la operación completa.</p>
   <div class="movement-list">
     <div class="head">
       <span>Tipo</span><span>Detalle</span><span>Comprobante</span><span>Fecha</span><span>Medio / estado</span
@@ -110,7 +128,7 @@
     @if (loading()) {
       <p class="empty">Cargando movimientos...</p>
     }
-    @for (item of visible(); track item._id) {
+    @for (item of groupVisible(group.key); track item._id) {
       <article
         [class.income]="item.tipo === 'INGRESO'"
         [class.automatic]="item.categoria === 'REPOSICION_AUTOMATICA'"
@@ -174,7 +192,7 @@
             >
           }</span
         ><strong data-label="Importe"
-          >{{ item.categoria === 'REMITO' ? '—' : (item.tipo === 'GASTO' ? '− ' : '+ ') + money(item.montoCentavos) }}</strong
+          >{{ item.categoria === 'REMITO' ? '—' : (item.tipo === 'GASTO' ? '− ' : '+ ') + money(item.groupAmountCentavos) }}</strong
         ><span class="action">
           @if (item.cancelado) {
             <i class="ti ti-lock" title="Movimiento cancelado"></i>
@@ -185,6 +203,7 @@
           } @else if (item.categoria === 'COMPRA_PRODUCTOS') {
             <a routerLink="/compras">Gestionar compra</a>
             @if (item.compraId) {
+              <button type="button" (click)="openPurchaseCostEdit(item)"><i class="ti ti-pencil"></i> Corregir costo</button>
               <button type="button" class="sale-cancel-action" (click)="openPurchaseCancellation(item)">Anular compra</button>
             }
           } @else if (item.categoria === 'VENTA' && item.ventaId) {
@@ -211,8 +230,10 @@
       }
     }
   </div>
-  @if (filtered().length > pageSize) {
-    <app-pagination-controls [page]="page()" [totalPages]="pages()" (pageChange)="setPage($event)" />
+  @if (groupFiltered(group.key).length > pageSize) {
+    <app-pagination-controls [page]="groupPage(group.key)" [totalPages]="groupPages(group.key)" (pageChange)="setGroupPage(group.key, $event)" />
+  }
+  </section>
   }
 </section>
 @if (expenseOpen()) {
@@ -422,6 +443,38 @@
       </footer>
     </section>
   </div>
+}
+@if (editingPurchase(); as purchase) {
+  <div class="overlay"><section class="modal pay purchase-cost-modal" role="dialog" aria-modal="true" aria-labelledby="purchase-cost-title">
+    <span>CORRECCIÓN DE COSTO</span><h2 id="purchase-cost-title">Compra o valorización #{{ purchase.codigo }}</h2>
+    <p>Elegí el producto cuyo costo por unidad querés corregir. La cantidad y los demás datos de la compra se conservan.</p>
+    @if (error()) { <p class="warning" role="alert">{{ error() }}</p> }
+    <div class="purchase-cost-items">@for (product of purchase.items; track product.lineNumber) {
+      <button type="button" [class.active]="editingPurchaseItem()?.lineNumber === product.lineNumber" (click)="selectPurchaseCostItem(product)">
+        <strong>{{ product.productName }}</strong><small>{{ product.quantity }} unidades · Costo actual {{ money(product.unitCostCents) }} por unidad</small>
+      </button>
+    }</div>
+    @if (editingPurchaseItem(); as product) {
+      <label><span>Nuevo costo por unidad (ARS)</span><input type="text" inputmode="decimal" [(ngModel)]="purchaseCostInput" placeholder="Ej.: 38500" /></label>
+      @if (purchaseCostImpact(); as impact) {
+        <p class="purchase-cost-impact"><strong>{{ impact.affectedSales.length }} ventas afectadas.</strong>
+          @if (impact.affectedSales.length) { Se recalculará su costo en los informes: @for (sale of impact.affectedSales; track sale.codigo) { #{{ sale.codigo }} ({{ sale.quantity }} unidades) } }
+          El ingreso cobrado y la cantidad vendida no cambian.</p>
+      } @else { <p>Verificando ventas vinculadas...</p> }
+    }
+    <footer><button type="button" class="secondary" (click)="editingPurchase.set(null)" [disabled]="saving()">Cerrar</button>
+      <button type="button" class="primary" [disabled]="!editingPurchaseItem() || !purchaseCostImpact() || purchaseCostCents() < 1 || saving()" (click)="purchaseCostReview.set(true)">Revisar cambio</button></footer>
+  </section></div>
+}
+@if (purchaseCostReview()) {
+  <div class="overlay purchase-cost-confirm"><section class="modal pay" role="alertdialog" aria-modal="true">
+    <span>CONFIRMAR CORRECCIÓN</span><h2>¿Modificar el costo histórico?</h2>
+    <p>{{ editingPurchaseItem()?.productName }} pasará de {{ money(editingPurchaseItem()?.unitCostCents ?? 0) }} a {{ money(purchaseCostCents()) }} por unidad.</p>
+    <p>Se corregirán la compra o valorización, el costo de sus ventas vinculadas y el margen del informe financiero. No cambiarán los importes cobrados a clientes.</p>
+    @if (error()) { <p class="warning" role="alert">{{ error() }}</p> }
+    <footer><button type="button" class="secondary" (click)="purchaseCostReview.set(false)" [disabled]="saving()">Volver</button>
+      <button type="button" class="primary" (click)="confirmPurchaseCostEdit()" [disabled]="saving()">{{ saving() ? 'Guardando...' : 'Confirmar cambio' }}</button></footer>
+  </section></div>
 }
 @if (collecting(); as item) {
   <div class="overlay">

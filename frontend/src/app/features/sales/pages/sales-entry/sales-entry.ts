@@ -23,6 +23,10 @@ import { Product } from '../../../stock/models/product.model';
 import { StockService } from '../../../stock/services/stock.service';
 import { PaymentMethod } from '../../models/sale.model';
 import { SalesService } from '../../services/sales.service';
+import { SaleValuationProblem } from '../../services/sales.service';
+import { PurchasesService } from '../../../purchases/services/purchases.service';
+import { SuppliersService } from '../../../suppliers/services/suppliers.service';
+import { Supplier } from '../../../suppliers/models/supplier.model';
 import { RemittancesService } from '../../services/remittances.service';
 import { argentinaToday } from '../../../../shared/utils/argentina-date';
 import { amountInWords } from '../../../checks/utils/amount-in-words';
@@ -57,7 +61,7 @@ interface ReceiptView {
   standalone: true,
   imports: [FormsModule, SearchableSelect, ClientFormModal, ProductFormModal],
   templateUrl: './sales-entry.html',
-  styleUrls: ['./sales-entry.scss', './sales-entry-adjustments.scss', './sales-entry-payment.scss'],
+  styleUrls: ['./sales-entry.scss', './sales-entry-adjustments.scss', './sales-entry-payment.scss', './sales-entry-valuation.scss'],
   changeDetection: ChangeDetectionStrategy.OnPush,
 })
 export class SalesEntryPage implements OnInit {
@@ -66,6 +70,8 @@ export class SalesEntryPage implements OnInit {
   private readonly stockApi = inject(StockService);
   private readonly pricesApi = inject(PricesService);
   private readonly salesApi = inject(SalesService);
+  private readonly purchasesApi = inject(PurchasesService);
+  private readonly suppliersApi = inject(SuppliersService);
   private readonly remittancesApi = inject(RemittancesService);
   private readonly auth = inject(AuthService);
   readonly clients = signal<Client[]>([]);
@@ -85,6 +91,15 @@ export class SalesEntryPage implements OnInit {
   readonly success = signal<string | null>(null);
   readonly reviewAttempted = signal(false);
   readonly confirmedReceipt = signal<ReceiptView | null>(null);
+  readonly valuationChecking = signal(false);
+  readonly valuationSaving = signal(false);
+  readonly valuationProblems = signal<SaleValuationProblem[]>([]);
+  readonly valuationTarget = signal<SaleValuationProblem | null>(null);
+  readonly valuationSuppliers = signal<Supplier[]>([]);
+  valuationSupplierId = '';
+  valuationPaymentMethod: 'EFECTIVO' | 'TRANSFERENCIA' | 'CUENTA_CORRIENTE' | 'PAGADO_ANTES_SISTEMA' | '' = '';
+  valuationQuantityInput = '';
+  valuationCostInput = '';
   clientId = '';
   selectedListId = '';
   productId = '';
@@ -380,9 +395,63 @@ export class SalesEntryPage implements OnInit {
         return;
       }
     }
-    this.reviewedAt = new Date();
-    this.billingDate = argentinaToday();
-    this.reviewing.set(true);
+    if (this.valuationChecking()) return;
+    this.valuationChecking.set(true);
+    this.salesApi.valuationCheck(this.lines().map((line) => ({ productId: line.product._id, quantity: line.quantity }))).subscribe({
+      next: (problems) => {
+        this.valuationChecking.set(false);
+        if (problems.length) {
+          this.valuationProblems.set(problems);
+          this.openValuation(problems[0]);
+          return;
+        }
+        this.valuationProblems.set([]);
+        this.reviewedAt = new Date();
+        this.billingDate = argentinaToday();
+        this.reviewing.set(true);
+      },
+      error: (error) => { this.valuationChecking.set(false);
+        this.error.set(error.error?.message ?? 'No se pudo comprobar el costo del stock'); },
+    });
+  }
+  openValuation(problem: SaleValuationProblem) {
+    this.valuationTarget.set(problem);
+    this.valuationQuantityInput = problem.unvaluedQuantity > 0 ? String(problem.unvaluedQuantity) : '';
+    this.valuationCostInput = '';
+    this.valuationPaymentMethod = '';
+    const product = this.products().find((row) => row._id === problem.productId);
+    this.valuationSupplierId = product?.proveedorId?._id ?? product?.proveedorIds?.[0]?._id ?? '';
+    this.suppliersApi.findActive().subscribe({
+      next: (suppliers) => this.valuationSuppliers.set(suppliers),
+      error: () => this.error.set('No se pudieron cargar los proveedores para valorizar'),
+    });
+  }
+  valuationQuantity() { return /^\d+$/.test(this.valuationQuantityInput.trim()) ? Number(this.valuationQuantityInput.trim()) : 0; }
+  valuationCostCents() {
+    const value = this.valuationCostInput.trim().replace(',', '.');
+    return /^\d+(?:\.\d{1,2})?$/.test(value) ? Math.round(Number(value) * 100) : 0;
+  }
+  saveValuation() {
+    const target = this.valuationTarget();
+    const quantity = this.valuationQuantity();
+    const unitCostCents = this.valuationCostCents();
+    if (!target || !this.canChangePrice() || !this.valuationSupplierId || !this.valuationPaymentMethod
+      || !Number.isSafeInteger(quantity) || quantity !== target.unvaluedQuantity
+      || !Number.isSafeInteger(unitCostCents) || unitCostCents < 1) {
+      this.error.set('Completá proveedor, forma de pago, cantidad sin valorar y costo por unidad mayor a $0.');
+      return;
+    }
+    this.valuationSaving.set(true);
+    this.purchasesApi.create({ supplierId: this.valuationSupplierId, kind: 'STOCK_INICIAL',
+      paymentMethod: this.valuationPaymentMethod, items: [{ productId: target.productId, quantity, unitCostCents }],
+      purchaseDate: argentinaToday(), notes: 'Valorización realizada durante la preparación de una venta' }).subscribe({
+      next: () => { this.valuationSaving.set(false); this.valuationTarget.set(null);
+        this.success.set(`${quantity} unidades de ${target.productName} valorizadas. Revisá nuevamente la venta.`);
+        this.stockApi.findAll().subscribe({ next: (products) => this.products.set(products) });
+        this.review(); },
+      error: (error) => { this.valuationSaving.set(false);
+        this.error.set(error.error?.message ?? 'No se pudo valorizar el producto'); },
+    });
   }
 
   reviewRemittance() {

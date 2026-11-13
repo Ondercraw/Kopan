@@ -32,8 +32,11 @@ import { RouterLink } from '@angular/router';
 import { PaymentMethod, Sale } from '../../../sales/models/sale.model';
 import { SalesService } from '../../../sales/services/sales.service';
 import { PurchasesService } from '../../../purchases/services/purchases.service';
+import { StockService } from '../../../stock/services/stock.service';
+import { Product } from '../../../stock/models/product.model';
+import { Purchase, PurchaseItem, PurchaseItemImpact } from '../../../purchases/models/purchase.model';
 import { ClientsService } from '../../../clients/services/clients.service';
-import { forkJoin } from 'rxjs';
+import { forkJoin, of, catchError } from 'rxjs';
 import { RemittancesService, RemittanceRecord } from '../../../sales/services/remittances.service';
 
 interface EditableSaleLine {
@@ -81,15 +84,87 @@ export class IncomeExpensesPage implements OnInit {
   private readonly checksApi = inject(ChecksService);
   private readonly salesApi = inject(SalesService);
   private readonly purchasesApi = inject(PurchasesService);
+  private readonly stockApi = inject(StockService);
   private readonly clientsApi = inject(ClientsService);
   private readonly remittancesApi = inject(RemittancesService);
   readonly items = signal<FinancialMovement[]>([]);
+  readonly products = signal<Product[]>([]);
+  readonly salesForGroups = signal<Sale[]>([]);
+  readonly purchasesForGroups = signal<Purchase[]>([]);
+  readonly movementGroups = computed(() => {
+    const productGroup = new Map(this.products().map(p => [p._id, this.isSugar(p.tipo) ? 'azucares' : 'varios']));
+    const sales = new Map(this.salesForGroups().map(s => [s._id, s]));
+    const purchases = new Map(this.purchasesForGroups().map(p => [p._id, p]));
+    const groups = [
+      { key: 'azucares', label: 'AZÚCARES', movements: [] as (FinancialMovement & { groupAmountCentavos: number })[], income: 0, pendingIncome: 0, paidExpenses: 0, pendingExpenses: 0 },
+      { key: 'varios', label: 'PRODUCTOS VARIOS', movements: [] as (FinancialMovement & { groupAmountCentavos: number })[], income: 0, pendingIncome: 0, paidExpenses: 0, pendingExpenses: 0 },
+    ];
+    for (const movement of this.items()) {
+      let sugar = 0;
+      if (movement.ventaId) {
+        const sale = sales.get(movement.ventaId);
+        if (sale) {
+          const total = sale.items.reduce((sum, item) => sum + item.totalCentavos, 0);
+          const sugarTotal = sale.items.reduce((sum, item) => sum + (productGroup.get(String(item.productoId)) === 'azucares' ? item.totalCentavos : 0), 0);
+          sugar = total ? Math.round(movement.montoCentavos * sugarTotal / Math.max(total, sale.totalCentavos)) : 0;
+        }
+      } else if (movement.compraId) {
+        const purchase = purchases.get(movement.compraId);
+        if (purchase) {
+          const total = purchase.items.reduce((sum, item) => sum + item.subtotalCents, 0);
+          const sugarTotal = purchase.items.reduce((sum, item) => sum + (productGroup.get(item.productId) === 'azucares' ? item.subtotalCents : 0), 0);
+          sugar = total ? Math.round(movement.montoCentavos * sugarTotal / total) : 0;
+        }
+      } else if (movement.productoId && productGroup.get(String(movement.productoId)) === 'azucares') sugar = movement.montoCentavos;
+      for (const [index, amount] of [sugar, movement.montoCentavos - sugar].entries()) {
+        if (!amount && !(movement.categoria === 'REMITO' && index === 1)) continue;
+        const group = groups[index];
+        group.movements.push({ ...movement, groupAmountCentavos: amount });
+        if (movement.cancelado) continue;
+        if (movement.tipo === 'INGRESO') {
+          if (movement.disponible) group.income += amount;
+          else if (movement.medioPago === 'CREDITO') {
+            const unpaid = Math.max(0, movement.montoCentavos - (movement.montoPagadoCentavos ?? 0));
+            group.pendingIncome += movement.montoCentavos ? Math.round(amount * unpaid / movement.montoCentavos) : 0;
+          }
+        } else if (movement.tipo === 'GASTO' && movement.categoria !== 'PAGO_CUENTA_PROVEEDOR') {
+          const paid = movement.montoCentavos ? Math.round(amount * (movement.montoPagadoCentavos ?? (movement.pagado ? movement.montoCentavos : 0)) / movement.montoCentavos) : 0;
+          group.paidExpenses += paid;
+          group.pendingExpenses += amount - paid;
+        }
+      }
+    }
+    return groups;
+  });
+  readonly groupTotalsIncomplete = computed(() => {
+    const groups = this.movementGroups();
+    return groups.reduce((sum, group) => sum + group.income, 0) !== this.period().ingresosCentavos
+      || groups.reduce((sum, group) => sum + group.paidExpenses, 0) !==
+        this.period().gastosReposicionPagadosCentavos + this.period().gastosManualesCentavos + this.period().comprasPagadasCentavos;
+  });
+  readonly unclassifiedMovementCount = computed(() => {
+    const sales = new Set(this.salesForGroups().map(sale => sale._id));
+    const purchases = new Set(this.purchasesForGroups().map(purchase => purchase._id));
+    return this.items().filter(item => (item.ventaId && !sales.has(item.ventaId)) || (item.compraId && !purchases.has(item.compraId))).length;
+  });
+  private isSugar(value: string) { return /^AZUCAR(?:ES)?(?:\b|$)/.test(value.normalize('NFD').replace(/[\u0300-\u036f]/g, '').trim().toUpperCase()); }
+  groupFiltered(key: string) {
+    const allowed = new Set(this.filtered().map(item => item._id));
+    return this.movementGroups().find(group => group.key === key)?.movements.filter(item => allowed.has(item._id)) ?? [];
+  }
+  groupPage(key: string) { return key === 'azucares' ? this.sugarPage() : this.otherPage(); }
+  groupPages(key: string) { return Math.max(1, Math.ceil(this.groupFiltered(key).length / this.pageSize)); }
+  groupVisible(key: string) { const page = this.groupPage(key); return this.groupFiltered(key).slice((page - 1) * this.pageSize, page * this.pageSize); }
+  setGroupPage(key: string, page: number) { (key === 'azucares' ? this.sugarPage : this.otherPage).set(page); }
+  readonly sugarPage = signal(1);
+  readonly otherPage = signal(1);
   readonly period = signal<FinancialSummary>(EMPTY);
   readonly overall = signal<FinancialSummary>(EMPTY);
   readonly suppliers = signal<Supplier[]>([]);
   readonly loading = signal(true);
   readonly saving = signal(false);
   readonly error = signal<string | null>(null);
+  readonly classificationError = signal<string | null>(null);
   readonly success = signal<string | null>(null);
   readonly expenseOpen = signal(false);
   readonly paying = signal<FinancialMovement | null>(null);
@@ -99,6 +174,54 @@ export class IncomeExpensesPage implements OnInit {
   readonly cancellingSale = signal<FinancialMovement | null>(null);
   readonly saleToCancel = signal<Sale | null>(null);
   readonly cancellingPurchase = signal<FinancialMovement | null>(null);
+  readonly editingPurchase = signal<Purchase | null>(null);
+  readonly editingPurchaseItem = signal<PurchaseItem | null>(null);
+  readonly purchaseCostImpact = signal<PurchaseItemImpact | null>(null);
+  readonly purchaseCostReview = signal(false);
+  purchaseCostInput = '';
+  purchaseCostCents() {
+    const value = this.purchaseCostInput.trim().replace(',', '.');
+    return /^\d+(?:\.\d{1,2})?$/.test(value) ? Math.round(Number(value) * 100) : 0;
+  }
+  openPurchaseCostEdit(movement: FinancialMovement) {
+    if (!movement.compraId) return;
+    this.error.set(null);
+    this.purchasesApi.findOne(movement.compraId).subscribe({
+      next: (purchase) => {
+        if (purchase.estado !== 'CONFIRMADA') { this.error.set('Esta compra ya fue anulada'); return; }
+        this.editingPurchase.set(purchase);
+        this.editingPurchaseItem.set(null);
+        this.purchaseCostImpact.set(null);
+        this.purchaseCostReview.set(false);
+      },
+      error: (error) => this.error.set(error.error?.message ?? 'No se pudo cargar la compra'),
+    });
+  }
+  selectPurchaseCostItem(item: PurchaseItem) {
+    const purchase = this.editingPurchase();
+    if (!purchase) return;
+    this.editingPurchaseItem.set(item);
+    this.purchaseCostInput = String(item.unitCostCents / 100);
+    this.purchaseCostImpact.set(null);
+    this.purchaseCostReview.set(false);
+    this.purchasesApi.updateItemImpact(purchase._id, item.lineNumber).subscribe({
+      next: (impact) => this.purchaseCostImpact.set(impact),
+      error: (error) => this.error.set(error.error?.message ?? 'No se pudo verificar el impacto en ventas'),
+    });
+  }
+  confirmPurchaseCostEdit() {
+    const purchase = this.editingPurchase(), item = this.editingPurchaseItem();
+    const cost = this.purchaseCostCents();
+    if (!purchase || !item || !this.purchaseCostImpact() || !Number.isSafeInteger(cost) || cost < 1 || this.saving()) return;
+    this.saving.set(true);
+    this.purchasesApi.updateItem(purchase._id, item.lineNumber, item.quantity, cost,
+      item.quantity, item.unitCostCents).subscribe({
+      next: () => { this.saving.set(false); this.editingPurchase.set(null); this.purchaseCostReview.set(false);
+        this.success.set(`Costo de ${item.productName} corregido. Se actualizaron las ventas vinculadas y el informe financiero.`); this.load(); },
+      error: (error) => { this.saving.set(false); this.purchaseCostReview.set(false);
+        this.error.set(error.error?.message ?? 'No se pudo corregir el costo'); },
+    });
+  }
   purchaseCancelReason = '';
   openPurchaseCancellation(movement: FinancialMovement) {
     this.error.set(null);
@@ -189,9 +312,9 @@ export class IncomeExpensesPage implements OnInit {
   private readonly searchTerm = signal('');
   private readonly kindFilter = signal('');
   get search() { return this.searchTerm(); }
-  set search(value: string) { this.searchTerm.set(value); this.page.set(1); }
+  set search(value: string) { this.searchTerm.set(value); this.sugarPage.set(1); this.otherPage.set(1); this.page.set(1); }
   get kind() { return this.kindFilter(); }
-  set kind(value: string) { this.kindFilter.set(value); this.page.set(1); }
+  set kind(value: string) { this.kindFilter.set(value); this.sugarPage.set(1); this.otherPage.set(1); this.page.set(1); }
   concept = '';
   amount = 0;
   detail = '';
@@ -254,6 +377,7 @@ export class IncomeExpensesPage implements OnInit {
   ngOnInit() {
     this.load();
     this.suppliersApi.findActive().subscribe({ next: (v) => this.suppliers.set(v) });
+    forkJoin({ active: this.stockApi.findAll(), inactive: this.stockApi.findInactive().pipe(catchError(() => of([] as Product[]))) }).subscribe({ next: ({ active, inactive }) => this.products.set([...active, ...inactive]), error: () => this.classificationError.set('No se pudieron cargar los productos para clasificar los movimientos por rubro.') });
   }
   load() {
     if (!this.from || !this.to || this.from > this.to) {
@@ -261,10 +385,15 @@ export class IncomeExpensesPage implements OnInit {
       return;
     }
     this.loading.set(true);
+    this.classificationError.set(null);
     this.page.set(1);
+    this.sugarPage.set(1);
+    this.otherPage.set(1);
     const range = argentinaRange(this.from, this.to);
-    forkJoin({ finance: this.api.findAll(range), remittances: this.remittancesApi.findAll(range) }).subscribe({
-      next: ({ finance, remittances }) => {
+    forkJoin({ finance: this.api.findAll(range), remittances: this.remittancesApi.findAll(range).pipe(catchError(() => of([] as RemittanceRecord[]))), sales: this.salesApi.findAll().pipe(catchError(() => { this.classificationError.set('No se pudieron cargar las ventas para clasificar los movimientos por rubro.'); return of([] as Sale[]); })), purchases: this.purchasesApi.findAll().pipe(catchError(() => { this.classificationError.set('No se pudieron cargar las compras para clasificar los movimientos por rubro.'); return of([] as Purchase[]); })) }).subscribe({
+      next: ({ finance, remittances, sales, purchases }) => {
+        this.salesForGroups.set(sales);
+        this.purchasesForGroups.set(purchases);
         const documents = remittances.map((remittance) => this.remittanceMovement(remittance));
         this.items.set([...finance.items, ...documents].sort((a, b) =>
           new Date(b.fechaMovimiento).getTime() - new Date(a.fechaMovimiento).getTime()));

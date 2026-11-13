@@ -9,6 +9,7 @@ import { Model, Types, Connection } from 'mongoose';
 import { Counter, CounterDocument } from '../stock/schemas/counter.schema';
 import { Product, ProductDocument } from '../stock/schemas/product.schema';
 import { SavePriceListDto } from './dto/save-price-list.dto';
+import { CreateDerivedPriceListDto } from './dto/create-derived-price-list.dto';
 import {
   PriceListItem,
   PriceListItemDocument,
@@ -136,6 +137,40 @@ export class PricesService {
     } catch (error: unknown) {
       if (this.isDuplicate(error))
         throw new ConflictException('Ya existe una lista con ese nombre');
+      throw error;
+    }
+  }
+
+  async createDerived(dto: CreateDerivedPriceListDto, actor: PriceActor) {
+    const ids = dto.items.map(item => item.productId);
+    if (new Set(ids).size !== ids.length) throw new BadRequestException('No repitas productos en la lista');
+    try {
+      return await this.connection.transaction(async () => {
+        const products = await this.productModel.find({ _id: { $in: ids }, activo: true })
+          .select('_id alicuotaIva').lean().exec();
+        if (products.length !== ids.length) throw new BadRequestException('Uno o más productos ya no están activos');
+        const byId = new Map(products.map(product => [product._id.toString(), product]));
+        const list = await this.listModel.create({
+          codigo: await this.nextCode(), nombre: dto.nombre.trim(), descripcion: dto.descripcion?.trim() ?? '',
+        });
+        const now = new Date();
+        const rows = dto.items.map(item => {
+          const product = byId.get(item.productId)!;
+          const final = item.precioFinalCentavos;
+          return {
+            listaId: list._id, productoId: product._id,
+            precioCentavos: Math.round(final / (1 + Number(product.alicuotaIva ?? 21) / 100)),
+            precioFinalCentavos: final, actorId: actor.id, actorName: actor.name,
+          };
+        });
+        await this.itemModel.insertMany(rows);
+        await this.historyModel.insertMany(rows.map(row => ({ ...row,
+          precioAnteriorCentavos: null, precioFinalAnteriorCentavos: null, vigenteDesde: now,
+        })));
+        return this.findOne(list._id.toString());
+      });
+    } catch (error: unknown) {
+      if (this.isDuplicate(error)) throw new ConflictException('Ya existe una lista con ese nombre');
       throw error;
     }
   }

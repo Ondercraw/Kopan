@@ -14,125 +14,59 @@
     <label><span>Desde</span><input type="date" [(ngModel)]="from" /></label
     ><label><span>Hasta</span><input type="date" [(ngModel)]="to" /></label>
     <label><span>Rubro</span><app-searchable-select [ngModel]="rubro()" (ngModelChange)="selectRubro($event)" [options]="rubroOptions()" placeholder="Todos los rubros..." /></label>
-    <div class="product-multi-filter"><span>Productos</span><input class="product-multi-search" type="search" placeholder="Buscar producto..." [value]="productSearch()" (input)="productSearch.set($any($event.target).value)" /><div class="product-multi-actions"><button type="button" (click)="selectAllProducts()">Seleccionar visibles</button><button type="button" (click)="selectedProductIds.set([])">Todos del rubro</button></div><div class="product-multi-options">@for (option of visibleProductOptions(); track option.value) { <label><input type="checkbox" [checked]="selectedProductIds().includes(option.value)" (change)="toggleProduct(option.value)" />{{ option.label }}</label> } @empty { <small>No hay productos para mostrar</small> }</div></div>
+    <div class="product-multi-filter"><span>Productos</span><input class="product-multi-search" type="search" placeholder="Buscar producto..." [value]="productSearch()" (input)="productSearch.set($any($event.target).value)" /><div class="product-multi-actions"><button type="button" (click)="selectAllProducts()">Seleccionar visibles</button><button type="button" (click)="clearSelectedProducts()">Todos del rubro</button></div><div class="product-multi-options">@for (option of visibleProductOptions(); track option.value) { <label><input type="checkbox" [checked]="selectedProductIds().includes(option.value)" (change)="toggleProduct(option.value)" />{{ option.label }}</label> } @empty { <small>No hay productos para mostrar</small> }</div></div>
     <button class="apply" type="button" (click)="load()">Generar informe</button>
     <button class="apply" type="button" (click)="printSales()" [disabled]="loading() || !sales().length"><i class="ti ti-printer"></i> Imprimir ventas</button>
   </section>
   @if (error()) {
     <p class="error">{{ error() }}</p>
   }
+  @if (detailError()) { <p class="cost-warning">{{ detailError() }} Las ventas siguen disponibles; el desglose de gastos puede estar incompleto.</p> }
   @if (loading()) {
     <div class="loading">Generando informe...</div>
   } @else {
-    <section class="kpis">
-      <article class="primary">
-        <span>Ventas confirmadas (IVA incluido)</span><strong>{{ money(revenue()) }}</strong
-        ><small>{{ sales().length }} ventas · Promedio {{ money(average()) }}</small>
-      </article>
-      <article>
-        <span>Costo de lo vendido</span><strong>{{ money(cost()) }}</strong
-        ><small>Costo registrado en la venta, actualizado si se corrige después el costo de un lote consumido</small>
-      </article>
-      <article>
-        <span>Total de gastos</span><strong>{{ money(totalExpenses()) }}</strong
-        ><small>Compras, reposiciones, gastos extra y comisiones del período, pagados o pendientes. No cambia con el filtro de producto.</small>
-      </article>
-      <article [class.negative]="margin() < 0">
-        <span>Margen bruto estimado</span><strong>{{ money(margin()) }}</strong
-        ><small>
-          @if (detailedRows().length) {
-            {{ percent(margin(), detailedRevenue()) }} sobre {{ detailedRows().length }} ventas con
-            desglose
-          } @else {
-            Sin ventas nuevas con desglose
-          }
-        </small>
-      </article>
-    </section>
-    <section class="report-grid">
-      <article class="panel evolution">
-        <header>
-          <div>
-            <span>EVOLUCIÓN</span>
-            <h2>Ventas por día</h2>
+    @if (pendingCostUnits() > 0) {
+      <p class="cost-warning"><i class="ti ti-alert-triangle"></i> Hay {{ pendingCostUnits() }} unidades vendidas sin costo asignado en este filtro. El costo y el margen son parciales. Revisalas en <a href="/costos-pendientes-ventas">Costos pendientes de ventas</a>.</p>
+    }
+    @if (!purchaseDetailsLoading() && rubroExpenseIncomplete()) {
+      <p class="cost-warning"><i class="ti ti-alert-triangle"></i> El desglose por rubro no cubre todos los gastos del período. Total contable: {{ money(totalExpenses()) }}. Revisá movimientos antiguos o fuera del límite del historial antes de usar este desglose.</p>
+    }
+    @if (!purchaseDetailsLoading() && purchasesWithoutDetail()) { <p class="cost-warning"><i class="ti ti-alert-triangle"></i> {{ purchasesWithoutDetail() }} compras del período no tienen detalle disponible para separar gastos por rubro.</p> }
+    <section class="rubro-report-columns">
+      @for (group of rubroGroups(); track group.label) {
+        <div class="rubro-report-section">
+          <h2>{{ group.label }}</h2>
+          <div class="rubro-kpis">
+            <article><span>Ventas facturadas</span><strong>{{ money(group.revenue) }}</strong><small>{{ group.sales.size }} ventas</small></article>
+            <article><span>Costo de lo vendido</span><strong>{{ money(group.cost) }}</strong></article>
+            <article><span>Gastos registrados</span><strong>{{ money(group.expenses) }}</strong><small>Pagados o pendientes</small></article>
+            <article [class.negative]="group.revenue - group.cost < 0"><span>Margen bruto</span><strong>{{ money(group.revenue - group.cost) }}</strong></article>
           </div>
-          <strong>{{ money(revenue()) }}</strong>
-        </header>
-        <div class="bars">
-          @for (day of daily(); track day.date) {
-            <div class="bar-row">
-              <span>{{ dateLabel(day.date) }}</span>
-              <div><i [style.width]="barWidth(day.amount)"></i></div>
-              <strong>{{ money(day.amount) }}</strong
-              ><small>{{ day.count }} venta{{ day.count === 1 ? '' : 's' }}</small>
-            </div>
-          } @empty {
-            <p class="empty">No hay ventas en este período.</p>
-          }
-        </div>
-      </article>
-      <article class="panel">
-        <header>
-          <div>
-            <span>VENTAS POR MEDIO</span>
-            <h2>Facturado por medio de pago</h2>
+          <div class="rubro-products"><h3>Productos vendidos</h3>
+            @for (product of group.products.values(); track product.name) {
+              <div><span>{{ product.name }} · {{ product.quantity }} unidades</span><strong>{{ money(product.amount) }}</strong></div>
+            } @empty { <p>Sin ventas de este grupo.</p> }
           </div>
-        </header>
-        <div class="split">
-          <div>
-            <span>Efectivo</span><strong>{{ money(cash()) }}</strong
-            ><small>{{ percent(cash(), revenue()) }}</small>
+          <div class="rubro-products"><h3>Ventas por día</h3>
+            <label class="rubro-list-search"><i class="ti ti-search"></i><input type="search" placeholder="Buscar fecha (AAAA-MM-DD)..." [ngModel]="reportSearch()[group.key].days" (ngModelChange)="setReportSearch(group.key, 'days', $event)" /></label>
+            @for (day of visibleReportEntries(group.key, 'days'); track day[0]) { <div><span>{{ day[0] }}</span><strong>{{ money(day[1]) }}</strong></div> }
+            @empty { <p>Sin fechas que coincidan.</p> }
+            <app-pagination-controls [page]="reportPages()[group.key].days" [totalPages]="reportTotalPages(group.key, 'days')" (pageChange)="setReportPage(group.key, 'days', $event)" />
           </div>
-          <div>
-            <span>Transferencia / MP</span><strong>{{ money(transfers()) }}</strong
-            ><small>{{ percent(transfers(), revenue()) }}</small>
+          <div class="rubro-products"><h3>Clientes</h3>
+            <label class="rubro-list-search"><i class="ti ti-search"></i><input type="search" placeholder="Buscar cliente..." [ngModel]="reportSearch()[group.key].clients" (ngModelChange)="setReportSearch(group.key, 'clients', $event)" /></label>
+            @for (client of visibleReportEntries(group.key, 'clients'); track client[0]) { <div><span>{{ client[0] }}</span><strong>{{ money(client[1]) }}</strong></div> }
+            @empty { <p>Sin clientes que coincidan.</p> }
+            @if (reportTotalPages(group.key, 'clients') > 1) { <app-pagination-controls [page]="reportPages()[group.key].clients" [totalPages]="reportTotalPages(group.key, 'clients')" (pageChange)="setReportPage(group.key, 'clients', $event)" /> }
           </div>
-          <div>
-            <span>Crédito / cuenta corriente</span><strong>{{ money(credit()) }}</strong
-            ><small>{{ percent(credit(), revenue()) }}</small>
-          </div>
-          <div>
-            <span>Cheques</span><strong>{{ money(checks()) }}</strong
-            ><small>{{ percent(checks(), revenue()) }}</small>
+          <div class="rubro-products"><h3>Ventas por medio de pago</h3>
+            <div><span>Efectivo</span><strong>{{ money(group.cash) }}</strong></div>
+            <div><span>Transferencia / MP</span><strong>{{ money(group.transfers) }}</strong></div>
+            <div><span>Cuenta corriente</span><strong>{{ money(group.credit) }}</strong></div>
+            <div><span>Cheques</span><strong>{{ money(group.checks) }}</strong></div>
           </div>
         </div>
-      </article>
-      <article class="panel">
-        <header>
-          <div>
-            <span>PRODUCTOS</span>
-            <h2>Mayor facturación</h2>
-          </div>
-        </header>
-        <div class="data-list">
-          @for (row of topProducts(); track row.name) {
-            <div>
-              <strong>{{ row.name }}</strong
-              ><span>{{ row.quantity }} unidades</span><b>{{ money(row.amount) }}</b>
-            </div>
-          } @empty {
-            <p class="empty">Sin productos para mostrar.</p>
-          }
-        </div>
-      </article>
-      <article class="panel">
-        <header>
-          <div>
-            <span>CLIENTES</span>
-            <h2>Principales clientes</h2>
-          </div>
-        </header>
-        <div class="data-list">
-          @for (row of topClients(); track row.name) {
-            <div>
-              <strong>{{ row.name }}</strong
-              ><span>{{ row.sales }} compras</span><b>{{ money(row.amount) }}</b>
-            </div>
-          } @empty {
-            <p class="empty">Sin clientes para mostrar.</p>
-          }
-        </div>
-      </article>
+      }
     </section>
     @if (legacyCount() > 0) {
       <p class="scope-note warning">

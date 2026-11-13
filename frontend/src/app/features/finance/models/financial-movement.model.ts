@@ -30,6 +30,7 @@ export interface FinancialMovement {
   ventaId?: string | null;
   remitoId?: string | null;
   compraId?: string | null;
+  productoId?: string | null;
   clienteNombre: string;
   proveedorNombre: string;
   chequeNumero: string;

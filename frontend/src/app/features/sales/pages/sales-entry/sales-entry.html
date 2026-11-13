@@ -232,8 +232,8 @@
         <button class="receipt-action" type="button" (click)="reviewRemittance()" [disabled]="!lines().length || hasInvalidQuantities()">
           <i class="ti ti-file-text"></i> Generar remito
         </button>
-        <button class="confirm" type="button" (click)="review()" [disabled]="!lines().length || hasInvalidQuantities()">
-          Revisar y confirmar
+        <button class="confirm" type="button" (click)="review()" [disabled]="!lines().length || hasInvalidQuantities() || valuationChecking()">
+          {{ valuationChecking() ? 'Verificando costos...' : 'Revisar y confirmar' }}
         </button>
       </div>
     </footer>
@@ -242,6 +242,30 @@
 </section>
 @if (clientModalOpen()) { <app-client-form-modal [client]="editingClient()" [options]="clientFormOptions()" (closed)="closeClientModal()" (saved)="onClientSaved($event)" /> }
 @if (productModalOpen()) { <app-product-form-modal [product]="editingProduct()" [typeOptions]="productTypeOptions()" [disableStockSubtraction]="true" (cerrado)="productModalOpen.set(false)" (guardado)="onProductSaved($event)" /> }
+@if (valuationTarget(); as target) {
+  <div class="overlay"><section class="modal quick-valuation" role="dialog" aria-modal="true" aria-labelledby="valuation-title">
+    <span>COSTO PENDIENTE</span><h2 id="valuation-title">Valorizá antes de confirmar la venta</h2>
+    <p>FIFO tomaría {{ target.missingQuantity }} unidades de <strong>{{ target.productName }}</strong> sin un costo positivo. La venta todavía no se confirmó.</p>
+    @if (error()) { <p class="valuation-error" role="alert">{{ error() }}</p> }
+    @if (valuationProblems().length > 1) { <div class="valuation-problems">@for (problem of valuationProblems(); track problem.productId) {
+      <button type="button" [class.active]="target.productId === problem.productId" (click)="openValuation(problem)">{{ problem.productName }} · {{ problem.missingQuantity }} sin costo</button>
+    }</div> }
+    @if (!canChangePrice()) { <p class="valuation-error">La valorización debe registrarla un Dueño. La venta queda sin confirmar hasta que se valorice el stock.</p> }
+    @else if (target.unvaluedQuantity < 1) { <p class="valuation-error">Estas unidades ya pertenecen a una compra o valorización con costo $0. Corregí el costo de ese lote desde Compras y después revisá la venta.</p> }
+    @else {
+      <div class="valuation-fields">
+        <label>Proveedor<select [(ngModel)]="valuationSupplierId"><option value="">Seleccioná un proveedor</option>@for (supplier of valuationSuppliers(); track supplier._id) { <option [value]="supplier._id">{{ supplier.nombre }}</option> }</select></label>
+        <label>Forma de pago<select [(ngModel)]="valuationPaymentMethod"><option value="">Seleccioná una opción</option><option value="PAGADO_ANTES_SISTEMA">Pagado antes de usar el sistema</option><option value="CUENTA_CORRIENTE">Cuenta corriente del proveedor</option><option value="EFECTIVO">Efectivo</option><option value="TRANSFERENCIA">Transferencia</option></select></label>
+        <label>Unidades a valorizar <small>Las {{ target.unvaluedQuantity }} sin valorar, para respetar FIFO</small><input type="text" inputmode="numeric" [(ngModel)]="valuationQuantityInput" placeholder="Cantidad" /></label>
+        <label>Costo por unidad (ARS)<input type="text" inputmode="decimal" [(ngModel)]="valuationCostInput" placeholder="Ej.: 38500" /></label>
+      </div>
+      <p>Se registrará una valorización en Compras. «Pagado antes de usar el sistema» no descuenta caja; «Cuenta corriente» deja una deuda con el proveedor.</p>
+    }
+    <footer><button type="button" (click)="valuationTarget.set(null)" [disabled]="valuationSaving()">Volver a la venta</button>
+      @if (canChangePrice() && target.unvaluedQuantity > 0) { <button class="confirm" type="button" [disabled]="valuationSaving() || !valuationSupplierId || !valuationPaymentMethod || valuationQuantity() !== target.unvaluedQuantity || valuationCostCents() < 1" (click)="saveValuation()">{{ valuationSaving() ? 'Valorizando...' : 'Valorizar y revisar venta' }}</button> }
+    </footer>
+  </section></div>
+}
 @if (reviewing()) {
   <div class="overlay">
     <section class="modal" role="dialog" aria-modal="true">

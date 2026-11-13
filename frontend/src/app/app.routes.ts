@@ -42,6 +42,12 @@ export const routes: Routes = [
         canActivate: [roleGuard([UserRole.JEFE])],
       },
       {
+        path: 'costos-pendientes-ventas',
+        loadComponent: () => import('./features/purchases/pages/sale-costs/sale-costs').then((m) => m.SaleCostsPage),
+        data: { titulo: 'Costos pendientes de ventas' },
+        canActivate: [roleGuard([UserRole.JEFE])],
+      },
+      {
         path: 'stock',
         loadComponent: () =>
           import('./features/stock/pages/stock-list/stock-list').then((m) => m.StockList),
