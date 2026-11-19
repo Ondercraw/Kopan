@@ -5,6 +5,7 @@ import { SaveCheckDto } from '../../checks/dto/save-check.dto';
 
 export class CreateSaleItemDto {
   @IsMongoId() productoId: string;
+  @IsOptional() @IsMongoId() listaPreciosId?: string;
   @IsInt() @Min(1) cantidad: number;
   @IsOptional() @IsInt() @Min(0) precioUnitarioCentavos?: number;
   @IsOptional() @IsInt() @Min(0) precioFinalUnitarioCentavos?: number;

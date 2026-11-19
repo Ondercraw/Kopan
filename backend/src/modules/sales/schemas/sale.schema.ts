@@ -8,6 +8,9 @@ import { PaymentMethod } from '../enums/payment-method.enum';
 export class SaleItem {
   @Prop({ required: true, type: MongooseSchema.Types.ObjectId, ref: 'Product' })
   productoId: Types.ObjectId;
+  @Prop({ type: MongooseSchema.Types.ObjectId, ref: 'PriceList', default: null })
+  listaPreciosId: Types.ObjectId | null;
+  @Prop({ trim: true, default: '' }) listaPreciosNombre: string;
   @Prop({ required: true }) productoCodigo: number;
   @Prop({ required: true }) productoNombre: string;
   @Prop({ required: true, min: 1 }) cantidad: number;

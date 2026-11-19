@@ -312,6 +312,8 @@ export class SalesService {
       const net = Math.round(total / (1 + Number(oldItem.alicuotaIva) / 100));
       nextItems.push({
         productoId: oldItem.productoId,
+        listaPreciosId: oldItem.listaPreciosId ?? sale.listaPreciosId,
+        listaPreciosNombre: oldItem.listaPreciosNombre || sale.listaPreciosNombre,
         productoCodigo: oldItem.productoCodigo,
         productoNombre: oldItem.productoNombre,
         cantidad: next.cantidad,
@@ -535,8 +537,14 @@ export class SalesService {
       .find({ _id: { $in: productIds }, activo: true })
       .populate('proveedorId', 'nombre')
       .exec();
+    const listIds = [...new Set(dto.items.map((item) => item.listaPreciosId ?? dto.listaPreciosId))];
+    const lists = await this.listModel.find({ _id: { $in: listIds }, activo: true }).exec();
+    if (lists.length !== listIds.length) throw new NotFoundException('Una lista de precios no existe o está inactiva');
+    if (!normalizeUserRoles(actor.roles).includes(UserRole.JEFE) && listIds.some((id) =>
+      client.listaPreciosId?.toString() !== id && !(client.listasPreciosIds ?? []).some((assigned) => assigned.toString() === id)))
+      throw new ConflictException('La venta contiene una lista no asignada al cliente');
     const prices = await this.priceItemModel
-      .find({ listaId: list._id, productoId: { $in: productIds } })
+      .find({ listaId: { $in: listIds }, productoId: { $in: productIds } })
       .exec();
     if (products.length !== productIds.length)
       throw new NotFoundException(
@@ -547,9 +555,10 @@ export class SalesService {
       const product = productById.get(id)!;
       if (quantity > product.cantidadStock) throw new ConflictException(`Stock insuficiente para ${product.nombre}: se solicitaron ${quantity} unidades en total`);
     }
+    const listById = new Map(lists.map((row) => [row._id.toString(), row]));
     const priceByProduct = new Map(
       prices.map((price) => [
-        price.productoId.toString(),
+        `${price.listaId.toString()}:${price.productoId.toString()}`,
         {
           net: price.precioCentavos,
           final: price.precioFinalCentavos,
@@ -558,10 +567,12 @@ export class SalesService {
     );
     const items: SaleItem[] = dto.items.map((requested) => {
       const product = productById.get(requested.productoId)!;
-      const listPrice = priceByProduct.get(product._id.toString());
-      const specialPrice = client.preciosEspeciales?.find(
+      const lineListId = requested.listaPreciosId ?? dto.listaPreciosId;
+      const lineList = listById.get(lineListId)!;
+      const listPrice = priceByProduct.get(`${lineListId}:${product._id.toString()}`);
+      const specialPrice = lineListId === client.listaPreciosId?.toString() ? client.preciosEspeciales?.find(
         (price) => price.productoId.toString() === product._id.toString(),
-      )?.precioFinalCentavos;
+      )?.precioFinalCentavos : undefined;
       const listFinalPrice = specialPrice ?? (listPrice
         ? (listPrice.final ?? Math.round(listPrice.net * (1 + Number(product.alicuotaIva) / 100)))
         : 0);
@@ -593,6 +604,8 @@ export class SalesService {
       } | null;
       return {
         productoId: product._id,
+        listaPreciosId: lineList._id,
+        listaPreciosNombre: lineList.nombre,
         productoCodigo: product.codigo,
         productoNombre: product.nombre,
         cantidad: requested.cantidad,

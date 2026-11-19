@@ -33,12 +33,15 @@ import { amountInWords } from '../../../checks/utils/amount-in-words';
 interface DraftLine {
   lineId: number;
   product: Product;
+  listId: string;
+  listName: string;
   quantity: number;
   quantityInput: string;
   unitPriceCents: number;
   priceInput: string;
   discountPercent: number;
   saveClientPrice: boolean;
+  priceEdited: boolean;
 }
 interface ReceiptView {
   documentCode: number;
@@ -77,7 +80,9 @@ export class SalesEntryPage implements OnInit {
   readonly clients = signal<Client[]>([]);
   readonly products = signal<Product[]>([]);
   readonly priceList = signal<PriceListDetail | null>(null);
+  readonly listDetails = signal<Record<string, PriceListDetail>>({});
   readonly availableLists = signal<PriceList[]>([]);
+  readonly lineListLoading = signal(false);
   readonly lines = signal<DraftLine[]>([]);
   readonly saving = signal(false);
   readonly reviewing = signal(false);
@@ -239,6 +244,8 @@ export class SalesEntryPage implements OnInit {
     this.clientId = clientId;
     this.lines.set([]);
     this.priceList.set(null);
+    this.listDetails.set({});
+    this.lineListLoading.set(false);
     const c = this.clients().find((client) => client._id === clientId);
     this.selectedListId = c?.listaPreciosId?._id ?? '';
     if (this.paymentMethod === 'CHEQUE' || this.includeCheck) this.prefillCheck(c ?? null);
@@ -251,7 +258,7 @@ export class SalesEntryPage implements OnInit {
     }
     this.error.set(null);
     this.pricesApi.findOne(this.selectedListId).subscribe({
-      next: (v) => this.priceList.set(v),
+      next: (v) => { if (this.clientId === clientId) { this.priceList.set(v); this.listDetails.update((details) => ({ ...details, [v._id]: v })); } },
       error: () => this.error.set('No se pudo cargar la lista de precios'),
     });
   }
@@ -259,10 +266,46 @@ export class SalesEntryPage implements OnInit {
     if (!this.canChangePrice() && !this.selectedClient()?.listasPreciosIds?.some((list) => list._id === listId) && this.selectedClient()?.listaPreciosId?._id !== listId) return;
     this.selectedListId = listId;
     this.priceList.set(null);
-    this.lines.set([]);
+    const cached = this.listDetails()[listId];
+    if (cached) { this.priceList.set(cached); return; }
     this.pricesApi.findOne(listId).subscribe({
-      next: (list) => this.priceList.set(list),
+      next: (list) => { this.listDetails.update((details) => ({ ...details, [list._id]: list })); if (this.selectedListId === listId) this.priceList.set(list); },
       error: () => this.error.set('No se pudo cargar la lista seleccionada'),
+    });
+  }
+  allowedLineLists(): PriceList[] {
+    const client = this.selectedClient();
+    if (!client) return [];
+    const assigned = new Set([client.listaPreciosId?._id, ...(client.listasPreciosIds ?? []).map((list) => list._id)]);
+    return this.availableLists().filter((list) => this.canChangePrice() || assigned.has(list._id));
+  }
+  usedListNames(): string {
+    return [...new Set(this.lines().map((line) => line.listName))].join(', ');
+  }
+  chooseLineList(lineId: number, listId: string): void {
+    if (!this.allowedLineLists().some((list) => list._id === listId)) return;
+    const apply = (list: PriceListDetail) => {
+      const line = this.lines().find((item) => item.lineId === lineId);
+      if (!line || this.clientId !== clientId) return;
+      const item = list.items.find((row) => row.productoId._id === line.product._id);
+      const listedPrice = item?.precioFinalCentavos ?? Math.round((item?.precioCentavos ?? 0) * (1 + Number(line.product.alicuotaIva ?? 21) / 100));
+      const special = listId === this.selectedClient()?.listaPreciosId?._id
+        ? this.selectedClient()?.preciosEspeciales?.find((row) => row.productoId === line.product._id)?.precioFinalCentavos
+        : undefined;
+      const price = special && special > 0 ? special : listedPrice;
+      this.lines.update((lines) => lines.map((row) => row.lineId === lineId ? {
+        ...row, listId, listName: list.nombre, unitPriceCents: price,
+        priceInput: price > 0 ? String(price / 100) : '', priceEdited: false,
+      } : row));
+      this.lineListLoading.set(false);
+    };
+    const clientId = this.clientId;
+    const cached = this.listDetails()[listId];
+    if (cached) { apply(cached); return; }
+    this.lineListLoading.set(true);
+    this.pricesApi.findOne(listId).subscribe({
+      next: (list) => { this.listDetails.update((details) => ({ ...details, [list._id]: list })); apply(list); },
+      error: () => { this.lineListLoading.set(false); this.error.set('No se pudo cargar la lista elegida para el producto'); },
     });
   }
   onPaymentMethod(): void {
@@ -280,9 +323,10 @@ export class SalesEntryPage implements OnInit {
     if (!product || !list) return;
     const listItem = list.items.find((i) => i.productoId._id === product._id);
     const listedPrice = listItem?.precioCentavos ?? 0;
-    const specialPrice = this.selectedClient()?.preciosEspeciales?.find((item) => item.productoId === product._id)?.precioFinalCentavos ?? 0;
+    const specialPrice = list._id === this.selectedClient()?.listaPreciosId?._id
+      ? this.selectedClient()?.preciosEspeciales?.find((item) => item.productoId === product._id)?.precioFinalCentavos ?? 0 : 0;
     const price = specialPrice > 0 ? specialPrice : (listItem?.precioFinalCentavos ?? Math.round(listedPrice * (1 + Number(product.alicuotaIva ?? 21) / 100)));
-    this.lines.update((lines) => [...lines, { lineId: this.nextLineId++, product, quantity: 0, quantityInput: '', unitPriceCents: price, priceInput: price > 0 ? String(price / 100) : '', discountPercent: 0, saveClientPrice: true }]);
+    this.lines.update((lines) => [...lines, { lineId: this.nextLineId++, product, listId: list._id, listName: list.nombre, quantity: 0, quantityInput: '', unitPriceCents: price, priceInput: price > 0 ? String(price / 100) : '', discountPercent: 0, saveClientPrice: true, priceEdited: false }]);
     this.productId = '';
     this.error.set(
       price === 0
@@ -323,13 +367,13 @@ export class SalesEntryPage implements OnInit {
     input.value = cleaned;
     const finalCents = cleaned ? Number(cleaned) * 100 : 0;
     this.lines.update((lines) =>
-      lines.map((l) => (l.lineId === id ? { ...l, unitPriceCents: finalCents, priceInput: cleaned } : l)),
+      lines.map((l) => (l.lineId === id ? { ...l, unitPriceCents: finalCents, priceInput: cleaned, priceEdited: true } : l)),
     );
   }
   canEditLinePrice(line: DraftLine): boolean {
     return this.canChangePrice() ||
-      !!this.selectedClient()?.preciosEspeciales?.some((price) => price.productoId === line.product._id) ||
-      !this.priceList()?.items.some((item) => item.productoId._id === line.product._id && item.precioCentavos > 0);
+      (line.listId === this.selectedClient()?.listaPreciosId?._id && !!this.selectedClient()?.preciosEspeciales?.some((price) => price.productoId === line.product._id)) ||
+      !this.listDetails()[line.listId]?.items.some((item) => item.productoId._id === line.product._id && item.precioCentavos > 0);
   }
   setSaveClientPrice(id: number, save: boolean): void {
     this.lines.update((lines) => lines.map((line) => line.lineId === id ? { ...line, saveClientPrice: save } : line));
@@ -345,6 +389,7 @@ export class SalesEntryPage implements OnInit {
   }
   review() {
     this.reviewAttempted.set(true);
+    if (this.lineListLoading()) { this.error.set('Esperá a que se cargue el precio de la lista elegida'); return; }
     if (!this.selectedClient() || !this.priceList() || !this.lines().length) {
       this.error.set('Revisá los campos marcados antes de continuar');
       return;
@@ -559,10 +604,11 @@ export class SalesEntryPage implements OnInit {
         } : undefined,
         items: this.lines().map((l) => ({
           productoId: l.product._id,
+          listaPreciosId: l.listId,
           cantidad: l.quantity,
           precioFinalUnitarioCentavos: l.unitPriceCents,
           bonificacionPuntosBase: Math.round(l.discountPercent * 100),
-          guardarPrecioCliente: l.saveClientPrice,
+          guardarPrecioCliente: l.priceEdited && l.saveClientPrice,
         })),
       })
       .subscribe({

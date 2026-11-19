@@ -28,7 +28,7 @@
         @if (invalidSaleSelection(clientId)) { <small class="field-error">Seleccioná el cliente que realiza la compra.</small> }
       </label>
       <div class="summary" [class.missing-list]="!priceList()">
-        <span>Lista de precios</span
+        <span>Lista para agregar productos</span
         ><strong>{{ priceList()?.nombre || 'Sin lista seleccionada' }}</strong
         ><small>{{ selectedClient()?.condicionIva?.replaceAll('_', ' ') || '' }}</small>
         @if (selectedClient() && (canChangePrice() || (selectedClient()?.listasPreciosIds?.length ?? 0) > 1)) {
@@ -70,10 +70,10 @@
     </div>
     @if (deliveryMode === 'MOSTRADOR') {
       <section class="split-payment">
-        <label><input type="checkbox" [(ngModel)]="splitPayment" (ngModelChange)="onSplitPayment()" /> Cobro parcial o mixto</label>
+        <label class="split-toggle"><input type="checkbox" [(ngModel)]="splitPayment" (ngModelChange)="onSplitPayment()" /><span class="split-toggle-track" aria-hidden="true"><span></span></span><span>Cobro parcial o mixto</span></label>
         @if (splitPayment) {
           @if (paymentMethod !== 'CHEQUE') { <label><span>Importe recibido por {{ paymentMethod === 'TRANSFERENCIA' ? 'transferencia' : 'efectivo' }}</span><input type="text" inputmode="decimal" [(ngModel)]="initialPaymentInput" placeholder="0" /></label>
-            <label><input type="checkbox" [(ngModel)]="includeCheck" (ngModelChange)="onIncludeCheck()" /> También recibe un cheque</label> }
+            <label class="split-toggle"><input type="checkbox" [(ngModel)]="includeCheck" (ngModelChange)="onIncludeCheck()" /><span class="split-toggle-track" aria-hidden="true"><span></span></span><span>También recibe un cheque</span></label> }
           @if (includeCheck || paymentMethod === 'CHEQUE') { <label><span>Importe del cheque</span><input type="text" inputmode="decimal" [(ngModel)]="checkAmountInput" placeholder="0" /></label> }
           <small>El saldo restante y el cheque pendiente quedarán en cuenta corriente hasta que se cobren.</small>
         }
@@ -165,8 +165,9 @@
     @for (line of lines(); track line.lineId) {
       <article class="line">
         <div>
-          <strong>#{{ line.product.codigo }} · {{ line.product.nombre }}</strong
-          ><small
+          <strong>#{{ line.product.codigo }} · {{ line.product.nombre }} <span class="line-list-tag">({{ line.listName }})</span></strong>
+          @if (allowedLineLists().length > 1) { <label class="line-list-picker"><span>Lista para este producto</span><select [ngModel]="line.listId" (ngModelChange)="chooseLineList(line.lineId, $event)" [disabled]="lineListLoading()">@for (list of allowedLineLists(); track list._id) { <option [value]="list._id">{{ list.nombre }}</option> }</select></label> }
+          <small
             >Disponible: {{ line.product.cantidadStock }} · Precio:
             {{ money(finalUnitPrice(line)) }} · IVA
             {{ line.product.alicuotaIva ?? 21 }}%</small
@@ -193,7 +194,7 @@
           [value]="line.priceInput"
           (input)="updatePrice(line.lineId, $event)"
           [attr.aria-label]="'Precio final de ' + line.product.nombre"
-        /><small class="client-price-save"><input type="checkbox" [checked]="line.saveClientPrice" (change)="setSaveClientPrice(line.lineId, $any($event.target).checked)" /> Guardar precio para este cliente</small></label><label class="discount"
+        />@if (line.priceEdited) { <small class="client-price-save"><input type="checkbox" [checked]="line.saveClientPrice" (change)="setSaveClientPrice(line.lineId, $any($event.target).checked)" /> Guardar precio para este cliente</small> }</label><label class="discount"
           ><input
             type="number"
             min="0"
@@ -232,7 +233,7 @@
         <button class="receipt-action" type="button" (click)="reviewRemittance()" [disabled]="!lines().length || hasInvalidQuantities()">
           <i class="ti ti-file-text"></i> Generar remito
         </button>
-        <button class="confirm" type="button" (click)="review()" [disabled]="!lines().length || hasInvalidQuantities() || valuationChecking()">
+        <button class="confirm" type="button" (click)="review()" [disabled]="!lines().length || hasInvalidQuantities() || valuationChecking() || lineListLoading()">
           {{ valuationChecking() ? 'Verificando costos...' : 'Revisar y confirmar' }}
         </button>
       </div>
@@ -282,7 +283,7 @@
         <label class="billing-date"><span>Fecha de facturación</span><input type="date" [(ngModel)]="billingDate" [class.field-invalid]="!validBillingDate()" required /><small>Esta fecha figurará en el comprobante y los movimientos de la venta.</small>
           @if (!validBillingDate()) { <small class="field-error">Seleccioná una fecha válida.</small> }
         </label>
-        <div><span>Lista de precios</span><strong>{{ priceList()?.nombre }}</strong></div>
+        <div><span>Listas aplicadas</span><strong>{{ usedListNames() }}</strong></div>
         <div><span>Horario</span><strong>{{ reviewTime() }}</strong></div>
         @if (includesTransportDownload) {
           <div><span>Transporte y descarga</span><strong>{{ money(transportDownloadCents()) }}</strong></div>
@@ -306,7 +307,7 @@
           @for (line of lines(); track line.lineId) {
             <article class="review-line">
               <div>
-                <strong>#{{ line.product.codigo }} · {{ line.product.nombre }}</strong>
+                <strong>#{{ line.product.codigo }} · {{ line.product.nombre }} <span class="line-list-tag">({{ line.listName }})</span></strong>
                 <small>IVA {{ line.product.alicuotaIva ?? 21 }}%</small>
               </div>
               <span data-label="Cantidad">{{ line.quantity }}</span>

@@ -27,6 +27,10 @@
 .confirmed-message i { font-size: 1.35rem; }
 .client-price-save { display:flex;align-items:center;gap:5px;margin-top:5px;color:#713508;font-size:.66rem;line-height:1.2;cursor:pointer; }
 .client-price-save input { width:15px;height:15px;flex:0 0 15px;accent-color:#713508; }
+.line-list-tag { color:#a4500b; font-size:.82em; font-weight:800; white-space:normal; }
+.line-list-picker { display:grid; gap:4px; max-width:280px; margin-top:3px; }
+.line-list-picker>span { color:#795e4d; font-size:.68rem; font-weight:700; }
+.line-list-picker>select { width:100%; min-width:0; padding:6px 26px 6px 8px; border:1px solid #d8c2b2; border-radius:8px; background:#fffaf5; color:#713508; font:inherit; font-size:.76rem; cursor:pointer; }
 .sale-card > footer > .document-actions {
   display: flex;
   flex-direction: row;

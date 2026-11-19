@@ -2,6 +2,7 @@ import { SaveCheckPayload } from '../../checks/models/check.model';
 export type PaymentMethod = 'EFECTIVO' | 'TRANSFERENCIA' | 'CREDITO' | 'CHEQUE';
 export interface SaleItemPayload {
   productoId: string;
+  listaPreciosId?: string;
   cantidad: number;
   precioUnitarioCentavos?: number;
   precioFinalUnitarioCentavos?: number;
@@ -25,6 +26,8 @@ export interface CreateSalePayload {
 }
 export interface SaleItem {
   productoId: string;
+  listaPreciosId?: string | null;
+  listaPreciosNombre?: string;
   productoCodigo: number;
   productoNombre: string;
   cantidad: number;
