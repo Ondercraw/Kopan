@@ -1,4 +1,4 @@
-import { Body, Controller, Get, Param, Post, Query, UseGuards } from '@nestjs/common';
+import { Body, Controller, Get, Param, Patch, Post, Query, UseGuards } from '@nestjs/common';
 import { CurrentUser } from '../../common/decorators/current-user.decorator';
 import { Roles } from '../../common/decorators/roles.decorator';
 import { UserRole } from '../../common/enums/user-role.enum';
@@ -8,6 +8,7 @@ import { MongoIdPipe } from '../../common/pipes/mongo-id.pipe';
 import type { JwtPayload } from '../auth/interfaces/jwt-payload.interface';
 import { CreateRemittanceDto } from './dto/create-remittance.dto';
 import { RemittancesService } from './remittances.service';
+import { CancelRemittanceDto, UpdateRemittanceDto } from './dto/update-remittance.dto';
 
 @UseGuards(JwtAuthGuard, RolesGuard)
 @Controller('remittances')
@@ -24,5 +25,13 @@ export class RemittancesController {
   @Post() @Roles(UserRole.JEFE, UserRole.VENDEDOR)
   create(@Body() dto: CreateRemittanceDto, @CurrentUser() user: JwtPayload) {
     return this.service.create(dto, { id: user.sub, name: user.nombre });
+  }
+  @Patch(':id') @Roles(UserRole.JEFE)
+  update(@Param('id', MongoIdPipe) id: string, @Body() dto: UpdateRemittanceDto, @CurrentUser() user: JwtPayload) {
+    return this.service.update(id, dto, { id: user.sub, name: user.nombre });
+  }
+  @Patch(':id/cancel') @Roles(UserRole.JEFE)
+  cancel(@Param('id', MongoIdPipe) id: string, @Body() dto: CancelRemittanceDto, @CurrentUser() user: JwtPayload) {
+    return this.service.cancel(id, dto.reason ?? '', { id: user.sub, name: user.nombre });
   }
 }

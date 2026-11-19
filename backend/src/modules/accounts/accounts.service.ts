@@ -14,6 +14,7 @@ import { Remittance, RemittanceDocument } from '../remittances/schemas/remittanc
 import { AccountPayment, AccountPaymentDocument } from './schemas/account-payment.schema';
 import { AccountOpeningDebt, AccountOpeningDebtDocument } from './schemas/account-opening-debt.schema';
 import { Supplier, SupplierDocument } from '../suppliers/schemas/supplier.schema';
+import { ReviseClientPaymentDto } from './dto/revise-client-payment.dto';
 
 interface Actor { id: string; name: string }
 
@@ -94,7 +95,7 @@ export class AccountsService implements OnModuleInit {
     const [sales, purchases, payments, openingDebts, clientEntities, supplierEntities, remittances] = await Promise.all([
       this.saleModel.find({ estado: SaleStatus.CONFIRMED, medioPago: { $in: [PaymentMethod.CASH, PaymentMethod.TRANSFER, PaymentMethod.CREDIT, PaymentMethod.CHECK] } }).sort({ createdAt: -1 }).lean().exec(),
       this.purchaseModel.find({ estado: PurchaseStatus.CONFIRMED, medioPago: { $in: [PurchasePaymentMethod.CASH, PurchasePaymentMethod.TRANSFER, PurchasePaymentMethod.CREDIT, PurchasePaymentMethod.HISTORICAL] } }).sort({ fechaCompra: -1 }).lean().exec(),
-      this.paymentModel.find({ cancelado: { $ne: true } }).sort({ fecha: -1 }).lean().exec(),
+      this.paymentModel.find().sort({ fecha: -1 }).lean().exec(),
       this.openingDebtModel.find().sort({ fecha: -1 }).lean().exec(),
       this.clientModel.find({ activo: true }).select('_id nombre').lean().exec(),
       this.supplierModel.find({ activo: true }).select('_id nombre').lean().exec(),
@@ -137,8 +138,8 @@ export class AccountsService implements OnModuleInit {
         id: remittance._id.toString(), codigo: remittance.codigo,
         entidadId: remittance.clienteId.toString(), entidadNombre: remittance.clienteNombre,
         tipo: 'REMITO', fecha: remittance.createdAt, totalCentavos: 0, pagadoCentavos: 0,
-        saldoCentavos: 0, estado: 'PAGADO',
-        detalle: remittance.items.map((item) => `${item.productoNombre} x${item.cantidad}`).join(', '),
+        saldoCentavos: 0, estado: remittance.cancelado ? 'CANCELADO' : 'PAGADO',
+        detalle: `${remittance.items.map((item) => `${item.productoNombre} x${item.cantidad}`).join(', ')}${remittance.cancelado ? ` · Anulado: ${remittance.motivoCancelacion}` : ''}`,
         items: remittance.items.map((item) => ({ producto: item.productoNombre, cantidad: item.cantidad,
           precioUnitarioCentavos: 0, precioTotalCentavos: 0 })), pagos: [],
       })), ...openingDebts.filter((debt) => debt.tipoCuenta === 'CLIENTE').map((debt) => this.openingDocument(debt, paymentMap.get(debt._id.toString()) ?? [], status))],
@@ -289,6 +290,76 @@ export class AccountsService implements OnModuleInit {
     });
   }
 
+  reviseClientPayment(id: string, dto: ReviseClientPaymentDto, actor: Actor) {
+    return this.changeClientPayment(id, dto, false, actor);
+  }
+
+  cancelClientPayment(id: string, reason: string, actor: Actor) {
+    return this.changeClientPayment(id, null, true, actor, reason);
+  }
+
+  private changeClientPayment(id: string, dto: ReviseClientPaymentDto | null, cancel: boolean, actor: Actor, reason = '') {
+    return this.connection.transaction(async () => {
+      const payment = await this.paymentModel.findOne({ _id: id, tipoCuenta: 'CLIENTE', cancelado: { $ne: true } }).exec();
+      if (!payment) throw new NotFoundException('Cobro inexistente o anulado');
+      if (payment.origenChequeId) throw new ConflictException('Los cobros con cheque se corrigen desde el módulo de cheques');
+      const oldAmount = payment.montoCentavos;
+      const newAmount = cancel ? 0 : dto!.amountCents;
+      if (!cancel && (!Number.isSafeInteger(newAmount) || newAmount <= 0)) throw new BadRequestException('Ingresá un importe válido');
+      const delta = newAmount - oldAmount;
+      let accountingDate = payment.fecha;
+      if (!cancel) {
+        accountingDate = new Date(`${dto!.accountingDate.slice(0, 10)}T12:00:00-03:00`);
+        const dateParts = new Intl.DateTimeFormat('en-US', { timeZone: 'America/Argentina/Buenos_Aires', year: 'numeric', month: '2-digit', day: '2-digit' }).formatToParts(accountingDate);
+        const actualDay = ['year', 'month', 'day'].map((type) => dateParts.find((part) => part.type === type)?.value).join('-');
+        if (Number.isNaN(accountingDate.getTime()) || !/^\d{4}-\d{2}-\d{2}$/.test(dto!.accountingDate) || actualDay !== dto!.accountingDate)
+          throw new BadRequestException('La fecha contable no es válida');
+      }
+      if (payment.comprobanteTipo === 'VENTA') {
+        const sale = await this.saleModel.findOne({ _id: payment.comprobanteId, estado: SaleStatus.CONFIRMED }).exec();
+        if (!sale) throw new ConflictException('La venta ya no está disponible');
+        const nextPaid = (sale.montoCobradoCuentaCorrienteCentavos ?? 0) + delta;
+        if (nextPaid < 0 || nextPaid > sale.totalCentavos - (sale.montoChequePendienteCentavos ?? 0))
+          throw new ConflictException('El cobro corregido supera el saldo de la venta');
+        const oldMethod = payment.medioPago;
+        sale.montoCobradoCuentaCorrienteCentavos = nextPaid;
+        sale.montoCobradoEfectivoCentavos = (sale.montoCobradoEfectivoCentavos ?? 0) - (oldMethod === FinancialPaymentMethod.CASH ? oldAmount : 0) + (!cancel && dto!.paymentMethod === FinancialPaymentMethod.CASH ? newAmount : 0);
+        sale.montoCobradoTransferenciaCentavos = (sale.montoCobradoTransferenciaCentavos ?? 0) - (oldMethod === FinancialPaymentMethod.TRANSFER ? oldAmount : 0) + (!cancel && dto!.paymentMethod === FinancialPaymentMethod.TRANSFER ? newAmount : 0);
+        sale.cuentaCorrientePagada = nextPaid >= sale.totalCentavos;
+        sale.cuentaCorrientePagadaAt = sale.cuentaCorrientePagada ? new Date() : null;
+        await sale.save();
+        await this.financeModel.updateOne({ sourceKey: `sale:${sale._id.toString()}:income` }, { $inc: {
+          montoPagadoCentavos: delta,
+          montoPagadoEfectivoCentavos: -(oldMethod === FinancialPaymentMethod.CASH ? oldAmount : 0) + (!cancel && dto!.paymentMethod === FinancialPaymentMethod.CASH ? newAmount : 0),
+          montoPagadoTransferenciaCentavos: -(oldMethod === FinancialPaymentMethod.TRANSFER ? oldAmount : 0) + (!cancel && dto!.paymentMethod === FinancialPaymentMethod.TRANSFER ? newAmount : 0),
+        }, $set: { pagado: sale.cuentaCorrientePagada, pagadoAt: sale.cuentaCorrientePagada ? new Date() : null } }).exec();
+      } else if (payment.comprobanteTipo === 'SALDO_INICIAL') {
+        const debt = await this.openingDebtModel.findOne({ _id: payment.comprobanteId, cancelada: { $ne: true } }).exec();
+        if (!debt) throw new ConflictException('La deuda anterior ya no está disponible');
+        const nextPaid = debt.pagadoCentavos + delta;
+        if (nextPaid < 0 || nextPaid > debt.montoCentavos) throw new ConflictException('El cobro corregido supera el saldo de la deuda');
+        debt.pagadoCentavos = nextPaid;
+        await debt.save();
+      } else throw new ConflictException('Este pago no corresponde a una cuenta de cliente');
+      if (delta) await this.clientModel.updateOne({ _id: payment.entidadId }, { $inc: { saldoCuentaCorrienteCentavos: -delta } }).exec();
+      const movement = await this.financeModel.findOne({ sourceKey: `${payment.comprobanteTipo === 'VENTA' ? 'account-payment' : 'opening-debt-payment'}:${payment._id.toString()}`, cancelado: { $ne: true } }).exec();
+      if (!movement) throw new ConflictException('No se encontró el movimiento de caja asociado al cobro');
+      payment.historialCorrecciones.push({ fecha: new Date(), montoCentavos: oldAmount, medioPago: payment.medioPago, fechaContable: payment.fecha, actorName: actor.name, motivo: cancel ? reason.trim() : dto!.reason?.trim() ?? '' });
+      if (cancel) { payment.cancelado = true; payment.motivoCancelacion = reason.trim() || `Anulado por ${actor.name}`; }
+      else { payment.montoCentavos = newAmount; payment.medioPago = dto!.paymentMethod; payment.fecha = accountingDate; payment.corregidoAt = new Date(); payment.corregidoPorNombre = actor.name; payment.motivoCorreccion = dto!.reason?.trim() ?? ''; }
+      await payment.save();
+      if (cancel) {
+        movement.cancelado = true; movement.disponible = false; movement.motivoCancelacion = payment.motivoCancelacion;
+        movement.canceladoAt = new Date(); movement.canceladoPorId = actor.id; movement.canceladoPorNombre = actor.name;
+      } else {
+        movement.montoCentavos = newAmount; movement.medioPago = dto!.paymentMethod;
+        movement.acreditadoEn = dto!.paymentMethod; movement.fechaMovimiento = accountingDate;
+      }
+      await movement.save();
+      return payment;
+    });
+  }
+
   async paySupplierPurchase(purchaseId: string, amountCents: number, method: FinancialPaymentMethod.CASH | FinancialPaymentMethod.TRANSFER, actor: Actor) {
     const purchase = await this.purchaseModel.findById(purchaseId).exec();
     if (!purchase) throw new NotFoundException('Compra inexistente');
@@ -335,7 +406,10 @@ export class AccountsService implements OnModuleInit {
   private serializePayment(payment: any) {
     return { id: payment._id.toString(), montoCentavos: payment.montoCentavos,
       medioPago: payment.origenChequeId ? 'CHEQUE' : payment.medioPago,
-      fecha: payment.fecha, registradoAt: payment.createdAt, actorName: payment.actorName };
+      fecha: payment.fecha, registradoAt: payment.createdAt, actorName: payment.actorName,
+      cancelado: !!payment.cancelado, motivoCancelacion: payment.motivoCancelacion ?? '',
+      corregidoAt: payment.corregidoAt, corregidoPorNombre: payment.corregidoPorNombre,
+      historialCorrecciones: payment.historialCorrecciones ?? [], editable: !payment.origenChequeId };
   }
 
   private legacyPayments(cash: number, transfer: number, date: Date) {

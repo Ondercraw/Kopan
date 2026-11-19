@@ -31,9 +31,9 @@
         <span>Lista de precios</span
         ><strong>{{ priceList()?.nombre || 'Sin lista seleccionada' }}</strong
         ><small>{{ selectedClient()?.condicionIva?.replaceAll('_', ' ') || '' }}</small>
-        @if (canChangePrice() && selectedClient()) {
+        @if (selectedClient() && (canChangePrice() || (selectedClient()?.listasPreciosIds?.length ?? 0) > 1)) {
           <select [ngModel]="selectedListId" (ngModelChange)="choosePriceList($event)" aria-label="Lista de precios para esta venta">
-            @for (list of availableLists(); track list._id) { <option [value]="list._id">{{ list.nombre }}</option> }
+            @for (list of availableLists(); track list._id) { @if (canChangePrice() || selectedClient()?.listaPreciosId?._id === list._id || selectedClient()?.listasPreciosIds?.some(selected => selected._id === list._id)) { <option [value]="list._id">{{ list.nombre }}</option> } }
           </select>
         }
         @if (selectedClient(); as client) {

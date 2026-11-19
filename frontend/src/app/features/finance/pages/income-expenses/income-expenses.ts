@@ -36,6 +36,7 @@ import { StockService } from '../../../stock/services/stock.service';
 import { Product } from '../../../stock/models/product.model';
 import { Purchase, PurchaseItem, PurchaseItemImpact } from '../../../purchases/models/purchase.model';
 import { ClientsService } from '../../../clients/services/clients.service';
+import { Client } from '../../../clients/models/client.model';
 import { forkJoin, of, catchError } from 'rxjs';
 import { RemittancesService, RemittanceRecord } from '../../../sales/services/remittances.service';
 
@@ -75,6 +76,7 @@ const EMPTY: FinancialSummary = {
     './income-expenses-responsive.scss',
     './income-expenses-adjustments.scss',
     './income-expenses-purchases.scss',
+    './income-expenses-remittances.scss',
   ],
   changeDetection: ChangeDetectionStrategy.OnPush,
 })
@@ -89,6 +91,46 @@ export class IncomeExpensesPage implements OnInit {
   private readonly remittancesApi = inject(RemittancesService);
   readonly items = signal<FinancialMovement[]>([]);
   readonly products = signal<Product[]>([]);
+  readonly remittanceClients = signal<Client[]>([]);
+  readonly editingRemittance = signal<RemittanceRecord | null>(null);
+  readonly cancellingRemittance = signal<RemittanceRecord | null>(null);
+  remittanceClientId = ''; remittanceNotes = ''; remittanceCancelReason = '';
+  remittanceLines: Array<{ productoId: string; cantidad: number | null }> = [];
+  openRemittanceEdit(item: FinancialMovement) {
+    if (!item.remitoId) return;
+    this.error.set(null);
+    forkJoin({ remittance: this.remittancesApi.findOne(item.remitoId), clients: this.clientsApi.findAll() }).subscribe({
+      next: ({ remittance, clients }) => {
+        if (remittance.cancelado) { this.error.set('El remito está anulado'); return; }
+        this.remittanceClients.set(clients.filter((client) => client.activo));
+        this.editingRemittance.set(remittance); this.remittanceClientId = remittance.clienteId;
+        this.remittanceNotes = remittance.observaciones ?? '';
+        this.remittanceLines = remittance.items.map((line) => ({ productoId: line.productoId, cantidad: line.cantidad }));
+      }, error: (err) => this.error.set(err?.error?.message ?? 'No se pudo cargar el remito'),
+    });
+  }
+  saveRemittance() {
+    const remittance = this.editingRemittance(); if (!remittance || this.saving()) return;
+    if (!this.remittanceClientId || !this.remittanceLines.length || this.remittanceLines.some((line) => !line.productoId || !Number.isSafeInteger(line.cantidad) || (line.cantidad ?? 0) < 1)) { this.error.set('Elegí cliente, producto y cantidades enteras mayores a cero'); return; }
+    this.saving.set(true);
+    this.remittancesApi.update(remittance._id, { clienteId: this.remittanceClientId, observaciones: this.remittanceNotes.trim(), items: this.remittanceLines as Array<{ productoId: string; cantidad: number }> }).subscribe({
+      next: () => { this.saving.set(false); this.editingRemittance.set(null); this.success.set('Remito corregido. Se conservó la versión anterior en su historial.'); this.load(); },
+      error: (err) => { this.saving.set(false); this.error.set(err?.error?.message ?? 'No se pudo modificar el remito'); },
+    });
+  }
+  openRemittanceCancel(item: FinancialMovement) {
+    if (!item.remitoId) return;
+    this.error.set(null); this.remittanceCancelReason = '';
+    this.remittancesApi.findOne(item.remitoId).subscribe({ next: (remittance) => this.cancellingRemittance.set(remittance), error: () => this.error.set('No se pudo cargar el remito') });
+  }
+  cancelRemittance() {
+    const remittance = this.cancellingRemittance(); if (!remittance || this.saving()) return;
+    this.saving.set(true);
+    this.remittancesApi.cancel(remittance._id, this.remittanceCancelReason.trim()).subscribe({
+      next: () => { this.saving.set(false); this.cancellingRemittance.set(null); this.success.set(`Remito #${remittance.codigo} anulado`); this.load(); },
+      error: (err) => { this.saving.set(false); this.error.set(err?.error?.message ?? 'No se pudo anular el remito'); },
+    });
+  }
   readonly salesForGroups = signal<Sale[]>([]);
   readonly purchasesForGroups = signal<Purchase[]>([]);
   readonly movementGroups = computed(() => {
@@ -414,8 +456,8 @@ export class IncomeExpensesPage implements OnInit {
       concepto: `Remito #${remittance.codigo}`,
       detalle: `${remittance.clienteNombre} · ${remittance.items.map((item) => `${item.productoNombre} x${item.cantidad}`).join(', ')}`,
       medioPago: null, acreditadoEn: null, disponible: false, pagado: false,
-      pagadoAt: null, cancelado: false, motivoCancelacion: '', canceladoAt: null,
-      canceladoPorNombre: '', fechaMovimiento: remittance.createdAt, ventaCodigo: null,
+      pagadoAt: null, cancelado: !!remittance.cancelado, motivoCancelacion: remittance.motivoCancelacion ?? '', canceladoAt: null,
+      canceladoPorNombre: remittance.canceladoPorNombre ?? '', fechaMovimiento: remittance.createdAt, ventaCodigo: null,
       remitoId: remittance._id, clienteNombre: remittance.clienteNombre,
       proveedorNombre: '', chequeNumero: '', chequeId: null, actorName: remittance.actorName,
     };

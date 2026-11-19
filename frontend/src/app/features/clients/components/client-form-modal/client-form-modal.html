@@ -88,6 +88,11 @@
             <small class="field-error">Seleccioná una lista de precios.</small>
           }
         </label>
+        <div class="additional-lists"><strong>Otras listas habilitadas para este cliente</strong><small>La lista principal se aplicará por defecto; durante la venta se podrá elegir cualquiera de las habilitadas.</small><div class="additional-list-options">
+          @for (list of options.priceLists; track list._id) { @if (list._id !== form.controls.listaPreciosId.value) {
+            <label><input type="checkbox" [checked]="form.controls.listasPreciosIds.value.includes(list._id)" (change)="togglePriceList(list._id, $any($event.target).checked)" /> {{ list.nombre }}</label>
+          } }
+        </div></div>
         <label class="credit-toggle">
           <input type="checkbox" formControlName="permiteCuentaCorriente" />
           <span class="toggle-track" aria-hidden="true"><span></span></span>

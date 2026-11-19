@@ -19,12 +19,17 @@ export interface RemittanceRecord {
   codigo: number;
   clienteNombre: string;
   clienteCodigo: number;
+  clienteId: string;
   clienteDireccion: string;
   clienteLocalidad: string;
   actorName: string;
   observaciones: string;
   createdAt: string;
-  items: Array<{ productoNombre: string; cantidad: number }>;
+  cancelado?: boolean;
+  motivoCancelacion?: string;
+  canceladoPorNombre?: string;
+  historialCorrecciones?: Array<{ fecha: string; actorName: string }>;
+  items: Array<{ productoId: string; productoNombre: string; cantidad: number }>;
 }
 
 @Injectable({ providedIn: 'root' })
@@ -44,5 +49,11 @@ export class RemittancesService {
     return this.http.post<{ codigo: number; createdAt: string }>(
       `${environment.apiUrl}/remittances`, payload, { withCredentials: true },
     );
+  }
+  update(id: string, payload: { clienteId: string; observaciones: string; items: Array<{ productoId: string; cantidad: number }> }) {
+    return this.http.patch<RemittanceRecord>(`${environment.apiUrl}/remittances/${id}`, payload, { withCredentials: true });
+  }
+  cancel(id: string, reason: string) {
+    return this.http.patch<RemittanceRecord>(`${environment.apiUrl}/remittances/${id}/cancel`, { reason }, { withCredentials: true });
   }
 }

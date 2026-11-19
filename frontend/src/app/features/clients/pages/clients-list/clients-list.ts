@@ -31,6 +31,9 @@ type ClientSort = 'NAME_ASC' | 'NAME_DESC' | 'CODE_ASC' | 'CODE_DESC';
   changeDetection: ChangeDetectionStrategy.OnPush,
 })
 export class ClientsList implements OnInit {
+  clientListNames(client: Client): string {
+    return [...new Set([client.listaPreciosId?.nombre, ...(client.listasPreciosIds ?? []).map((list) => list.nombre)].filter((name): name is string => !!name))].join(', ');
+  }
   private readonly service = inject(ClientsService);
   private readonly auth = inject(AuthService);
   private readonly csv = inject(CsvExportService);

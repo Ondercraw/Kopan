@@ -86,6 +86,7 @@ export class ClientFormModal implements OnInit, OnChanges {
     condicionIva: this.fb.nonNullable.control<TaxCondition>('NO_DEFINIDA'),
     observaciones: ['', Validators.maxLength(500)],
     listaPreciosId: ['', Validators.required],
+    listasPreciosIds: this.fb.nonNullable.control<string[]>([]),
     permiteCuentaCorriente: [false],
     limiteCredito: [0, [Validators.required, Validators.min(0)]],
   });
@@ -96,6 +97,7 @@ export class ClientFormModal implements OnInit, OnChanges {
         ...this.client,
         vendedorId: this.client.vendedorId?._id ?? '',
         listaPreciosId: this.client.listaPreciosId?._id ?? generalListId,
+        listasPreciosIds: (this.client.listasPreciosIds ?? []).map((list) => list._id),
         limiteCredito: (this.client.limiteCreditoCentavos ?? 0) / 100,
       });
     else this.form.controls.listaPreciosId.setValue(generalListId);
@@ -109,6 +111,10 @@ export class ClientFormModal implements OnInit, OnChanges {
     return this.options.priceLists.find(
       (list) => list.nombre.trim().toLocaleLowerCase('es') === 'general',
     )?._id ?? this.options.priceLists[0]?._id ?? '';
+  }
+  togglePriceList(id: string, checked: boolean): void {
+    const control = this.form.controls.listasPreciosIds;
+    control.setValue(checked ? [...new Set([...control.value, id])] : control.value.filter((value) => value !== id));
   }
   submit(): void {
     if (this.form.invalid || this.saving()) {
@@ -131,6 +137,7 @@ export class ClientFormModal implements OnInit, OnChanges {
       condicionIva: raw.condicionIva,
       observaciones: raw.observaciones.trim() || undefined,
       listaPreciosId: raw.listaPreciosId,
+      listasPreciosIds: [...new Set([raw.listaPreciosId, ...raw.listasPreciosIds])],
       permiteCuentaCorriente: raw.permiteCuentaCorriente,
       limiteCreditoCentavos: raw.permiteCuentaCorriente
         ? Math.round(Number(raw.limiteCredito) * 100)

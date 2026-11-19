@@ -3,7 +3,7 @@ import { FormsModule } from '@angular/forms';
 import { NgTemplateOutlet } from '@angular/common';
 import { CurrencyInput } from '../../../../shared/components/currency-input/currency-input';
 import { SearchableSelect, SearchableSelectOption } from '../../../../shared/components/searchable-select/searchable-select';
-import { AccountDocument, CurrentAccount } from '../../models/account.model';
+import { AccountDocument, AccountPayment, CurrentAccount } from '../../models/account.model';
 import { AccountsService } from '../../services/accounts.service';
 import { argentinaDateKey, argentinaRange } from '../../../../shared/utils/argentina-date';
 
@@ -22,6 +22,9 @@ export class CurrentAccountsPage {
   readonly paymentTarget = signal<{ side: 'CLIENTE' | 'PROVEEDOR'; entity: string; document: AccountDocument } | null>(null);
   readonly openingTarget = signal<{ side: 'CLIENTE' | 'PROVEEDOR'; account: CurrentAccount } | null>(null);
   readonly cancellationTarget = signal<AccountDocument | null>(null);
+  readonly reviseTarget = signal<{ payment: AccountPayment; document: AccountDocument } | null>(null);
+  readonly cancelPaymentTarget = signal<AccountPayment | null>(null);
+  revisedAmountPesos = 0; revisedMethod = ''; revisedDate = ''; revisedReason = ''; cancelPaymentReason = '';
   openingAmountPesos = 0; openingDetail = ''; cancellationReason = '';
   readonly saving = signal(false); amountPesos = 0; paymentMethod = ''; paymentDate = '';
   readonly paymentOptions = computed<SearchableSelectOption[]>(() => [{ value: 'EFECTIVO', label: 'Efectivo' }, { value: 'TRANSFERENCIA', label: 'Transferencia' }]);
@@ -72,6 +75,29 @@ export class CurrentAccountsPage {
       error: err => { this.saving.set(false); this.error.set(err?.error?.message ?? 'No se pudo cancelar la deuda'); },
     });
   }
+  openRevisePayment(payment: AccountPayment, document: AccountDocument) {
+    this.reviseTarget.set({ payment, document }); this.revisedAmountPesos = payment.montoCentavos / 100;
+    this.revisedMethod = payment.medioPago; this.revisedDate = argentinaDateKey(new Date(payment.fecha)); this.revisedReason = ''; this.error.set(null);
+  }
+  revisePayment() {
+    const target = this.reviseTarget(); if (!target || this.saving()) return;
+    const cents = Math.round(this.revisedAmountPesos * 100);
+    if (!Number.isSafeInteger(cents) || cents <= 0 || cents > target.document.saldoCentavos + target.payment.montoCentavos - (target.document.chequePendienteCentavos ?? 0)) { this.error.set('El importe debe ser mayor a cero y no superar el saldo de la cuenta'); return; }
+    if (!['EFECTIVO', 'TRANSFERENCIA'].includes(this.revisedMethod) || !this.revisedDate) { this.error.set('Elegí medio y fecha del cobro'); return; }
+    this.saving.set(true);
+    this.service.reviseClientPayment(target.payment.id, cents, this.revisedMethod as 'EFECTIVO' | 'TRANSFERENCIA', this.revisedDate, this.revisedReason.trim()).subscribe({
+      next: () => { this.saving.set(false); this.reviseTarget.set(null); this.load(); },
+      error: (err) => { this.saving.set(false); this.error.set(err?.error?.message ?? 'No se pudo corregir el cobro'); },
+    });
+  }
+  cancelClientPayment() {
+    const payment = this.cancelPaymentTarget(); if (!payment || this.saving()) return;
+    this.saving.set(true);
+    this.service.cancelClientPayment(payment.id, this.cancelPaymentReason.trim()).subscribe({
+      next: () => { this.saving.set(false); this.cancelPaymentTarget.set(null); this.load(); },
+      error: (err) => { this.saving.set(false); this.error.set(err?.error?.message ?? 'No se pudo anular el cobro'); },
+    });
+  }
   money(cents: number) { return new Intl.NumberFormat('es-AR', { style: 'currency', currency: 'ARS' }).format(cents / 100); }
   downloadAccounts(side: 'CLIENTE' | 'PROVEEDOR') {
     const accounts = side === 'CLIENTE' ? this.filteredClients() : this.filteredSuppliers();
@@ -115,7 +141,7 @@ export class CurrentAccountsPage {
     }).format(new Date(value));
     const events = account.documentos.flatMap((doc) => [
       { fecha: doc.fecha, label: doc.tipo === 'SALDO_INICIAL' ? (doc.estado === 'CANCELADO' ? 'Saldo anterior cancelado' : 'Saldo anterior') : `${doc.tipo === 'REMITO' ? 'Remito' : doc.tipo === 'VENTA' ? 'Venta' : 'Compra'} #${doc.codigo}`, detail: doc.detalle, amount: doc.estado === 'CANCELADO' ? 0 : doc.totalCentavos, kind: doc.tipo === 'REMITO' ? 'remittance' : doc.estado === 'CANCELADO' ? 'cancelled' : 'debt' },
-      ...doc.pagos.map((payment) => ({ fecha: payment.fecha, label: `Pago de ${doc.tipo.toLowerCase()} #${doc.codigo}`, detail: `${this.paymentLabel(payment.medioPago)} · ${payment.actorName}`, amount: payment.montoCentavos, kind: 'payment' })),
+      ...doc.pagos.map((payment) => ({ fecha: payment.fecha, label: `${payment.cancelado ? 'Cobro anulado' : 'Pago'} de ${doc.tipo.toLowerCase()} #${doc.codigo}`, detail: `${this.paymentLabel(payment.medioPago)} · ${payment.actorName}${payment.cancelado ? ` · ${payment.motivoCancelacion ?? ''}` : ''}`, amount: payment.cancelado ? 0 : payment.montoCentavos, kind: payment.cancelado ? 'cancelled' : 'payment' })),
     ]).sort((a, b) => new Date(a.fecha).getTime() - new Date(b.fecha).getTime());
     const groups = new Map<string, typeof events>();
     for (const event of events) groups.set(day(event.fecha), [...(groups.get(day(event.fecha)) ?? []), event]);

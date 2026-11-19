@@ -256,7 +256,7 @@ export class SalesEntryPage implements OnInit {
     });
   }
   choosePriceList(listId: string) {
-    if (!this.canChangePrice()) return;
+    if (!this.canChangePrice() && !this.selectedClient()?.listasPreciosIds?.some((list) => list._id === listId) && this.selectedClient()?.listaPreciosId?._id !== listId) return;
     this.selectedListId = listId;
     this.priceList.set(null);
     this.lines.set([]);

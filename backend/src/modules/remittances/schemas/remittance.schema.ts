@@ -26,6 +26,11 @@ export class Remittance {
   @Prop({ default: '' }) observaciones: string;
   @Prop({ required: true }) actorId: string;
   @Prop({ required: true }) actorName: string;
+  @Prop({ default: false, index: true }) cancelado: boolean;
+  @Prop({ type: Date, default: null }) canceladoAt: Date | null;
+  @Prop({ trim: true, default: '' }) motivoCancelacion: string;
+  @Prop({ trim: true, default: '' }) canceladoPorNombre: string;
+  @Prop({ type: [Object], default: [] }) historialCorrecciones: Array<{ fecha: Date; actorName: string; clienteNombre: string; items: Array<{ productoNombre: string; cantidad: number }>; observaciones: string }>;
   declare createdAt: Date;
 }
 export const RemittanceSchema = SchemaFactory.createForClass(Remittance);

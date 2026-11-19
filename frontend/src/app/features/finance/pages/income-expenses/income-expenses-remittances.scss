@@ -1,0 +1,11 @@
+.remittance-edit-modal { display: grid; gap: .75rem; }
+.remittance-edit-modal > label { display: grid; gap: .3rem; }
+.remittance-edit-modal select, .remittance-edit-modal input, .remittance-edit-modal textarea {
+  min-width: 0; width: 100%; box-sizing: border-box; padding: .65rem; border: 1px solid #d7c1b0;
+  border-radius: 8px; background: #fff; color: #432915; font: inherit;
+}
+.remittance-edit-modal textarea { min-height: 80px; }
+.remittance-edit-modal h3 { margin: .3rem 0 0; }
+.remittance-edit-line { display: grid; grid-template-columns: minmax(0, 1fr) 88px 42px; gap: .5rem; align-items: center; }
+.remittance-edit-line button { height: 42px; border: 1px solid #cfaaa0; border-radius: 8px; background: #fff4f2; color: #a63023; cursor: pointer; }
+@media (max-width: 550px) { .remittance-edit-line { grid-template-columns: minmax(0, 1fr) 70px 38px; } }

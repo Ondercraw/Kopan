@@ -1,4 +1,4 @@
-import { IsBoolean, IsEmail, IsEnum, IsInt, IsMongoId, IsOptional, IsString, MaxLength, Min, MinLength } from 'class-validator';
+import { IsArray, IsBoolean, IsEmail, IsEnum, IsInt, IsMongoId, IsOptional, IsString, MaxLength, Min, MinLength } from 'class-validator';
 import { TaxCondition } from '../enums/tax-condition.enum';
 
 export class SaveClientDto {
@@ -13,6 +13,7 @@ export class SaveClientDto {
   @IsOptional() @IsMongoId({ message: 'El vendedor seleccionado no es válido' }) vendedorId?: string;
   @IsEnum(TaxCondition) condicionIva: TaxCondition;
   @IsMongoId({ message: 'Seleccioná una lista de precios válida' }) listaPreciosId: string;
+  @IsOptional() @IsArray() @IsMongoId({ each: true }) listasPreciosIds?: string[];
   @IsBoolean() permiteCuentaCorriente: boolean;
   @IsInt() @Min(0) limiteCreditoCentavos: number;
   @IsOptional() @IsString() @MaxLength(500) observaciones?: string;

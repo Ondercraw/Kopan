@@ -36,6 +36,7 @@ export interface Client {
   activo: boolean;
   historialCambios: ClientChange[];
   listaPreciosId: ClientPriceList | null;
+  listasPreciosIds?: ClientPriceList[];
   permiteCuentaCorriente: boolean;
   limiteCreditoCentavos: number;
   saldoCuentaCorrienteCentavos: number;
@@ -62,6 +63,7 @@ export interface SaveClientPayload {
   condicionIva: TaxCondition;
   observaciones?: string;
   listaPreciosId: string;
+  listasPreciosIds?: string[];
   permiteCuentaCorriente: boolean;
   limiteCreditoCentavos: number;
 }

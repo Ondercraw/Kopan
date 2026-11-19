@@ -161,7 +161,7 @@
         <span data-label="Comprobante">
           @if (item.ventaId && !item.cancelado && item.categoria === 'VENTA') {
             <button type="button" class="receipt-action" (click)="reprintSale(item)"><i class="ti ti-printer"></i> Reimprimir</button>
-          } @else if (item.remitoId) {
+          } @else if (item.remitoId && !item.cancelado) {
             <button type="button" class="receipt-action" (click)="reprintRemittance(item)"><i class="ti ti-printer"></i> Reimprimir</button>
           } @else { — }
         </span
@@ -198,6 +198,8 @@
             <i class="ti ti-lock" title="Movimiento cancelado"></i>
           } @else if (item.remitoId) {
             <button type="button" (click)="reprintRemittance(item)">Reimprimir remito</button>
+            <button type="button" (click)="openRemittanceEdit(item)"><i class="ti ti-pencil"></i> Modificar</button>
+            <button type="button" class="sale-cancel-action" (click)="openRemittanceCancel(item)">Anular</button>
           } @else if (item.categoria === 'CHEQUE' && !item.disponible && item.chequeId) {
             <button type="button" (click)="openCheckCollection(item)">Cobrar cheque</button>
           } @else if (item.categoria === 'COMPRA_PRODUCTOS') {
@@ -497,4 +499,26 @@
       </footer>
     </section>
   </div>
+}
+@if (editingRemittance(); as remittance) {
+  <div class="overlay"><section class="modal remittance-edit-modal" role="dialog" aria-modal="true">
+    <span>REMITO #{{ remittance.codigo }}</span><h2>Modificar remito</h2>
+    <p>Esta corrección no modifica stock ni dinero. La versión anterior queda registrada.</p>
+    <label><span>Cliente</span><select [(ngModel)]="remittanceClientId">@for (client of remittanceClients(); track client._id) { <option [value]="client._id">{{ client.nombre }}</option> }</select></label>
+    <h3>Productos</h3>
+    @for (line of remittanceLines; track $index) { <div class="remittance-edit-line"><select [(ngModel)]="line.productoId">@for (product of products(); track product._id) { <option [value]="product._id">{{ product.nombre }}</option> }</select><input type="number" min="1" step="1" [(ngModel)]="line.cantidad" aria-label="Cantidad" /><button type="button" (click)="remittanceLines.splice($index, 1)" aria-label="Quitar producto"><i class="ti ti-trash"></i></button></div> }
+    <button type="button" class="secondary" (click)="remittanceLines.push({productoId: '', cantidad: null})">+ Agregar producto</button>
+    <label><span>Observaciones</span><textarea [(ngModel)]="remittanceNotes" maxlength="500"></textarea></label>
+    @if (error()) { <p class="warning" role="alert">{{ error() }}</p> }
+    <footer><button type="button" class="secondary" (click)="editingRemittance.set(null)">Volver</button><button type="button" class="primary" [disabled]="saving()" (click)="saveRemittance()">Guardar corrección</button></footer>
+  </section></div>
+}
+@if (cancellingRemittance(); as remittance) {
+  <div class="overlay"><section class="modal pay" role="alertdialog" aria-modal="true">
+    <span>ANULAR REMITO</span><h2>¿Anular el remito #{{ remittance.codigo }}?</h2>
+    <p>Quedará visible en gris como historial y no podrá volver a modificarse. No afecta stock ni caja.</p>
+    <label><span>Motivo opcional</span><textarea [(ngModel)]="remittanceCancelReason" maxlength="300"></textarea></label>
+    @if (error()) { <p class="warning" role="alert">{{ error() }}</p> }
+    <footer><button type="button" class="secondary" (click)="cancellingRemittance.set(null)">Volver</button><button type="button" class="danger" [disabled]="saving()" (click)="cancelRemittance()">Confirmar anulación</button></footer>
+  </section></div>
 }

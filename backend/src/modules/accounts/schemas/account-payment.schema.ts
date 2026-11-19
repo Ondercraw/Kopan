@@ -25,6 +25,10 @@ export class AccountPayment {
   @Prop({ required: true, trim: true }) actorName: string;
   @Prop({ default: false }) cancelado: boolean;
   @Prop({ trim: true, default: '' }) motivoCancelacion: string;
+  @Prop({ type: Date, default: null }) corregidoAt: Date | null;
+  @Prop({ trim: true, default: '' }) corregidoPorNombre: string;
+  @Prop({ trim: true, default: '' }) motivoCorreccion: string;
+  @Prop({ type: [Object], default: [] }) historialCorrecciones: Array<{ fecha: Date; montoCentavos: number; medioPago: string; fechaContable: Date; actorName: string; motivo: string }>;
   declare createdAt: Date;
 }
 

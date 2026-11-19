@@ -156,9 +156,10 @@
               ><span>{{ client.vendedorId?.nombre || 'Sin asignar' }}</span>
             </div>
             <div>
-              <small>Lista de precios</small
+              <small>Lista principal</small
               ><span [class.missing-price-list]="!client.listaPreciosId">{{ client.listaPreciosId?.nombre || 'Sin lista asignada' }}</span>
             </div>
+            <div><small>Listas habilitadas</small><span>{{ client.listasPreciosIds?.length ? clientListNames(client) : (client.listaPreciosId?.nombre || 'Sin lista') }}</span></div>
             <div>
               <small>Cuenta corriente</small
               ><span>{{ client.permiteCuentaCorriente ? 'Habilitada' : 'No habilitada' }}</span>

@@ -1,4 +1,4 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
+import { ConflictException, Injectable, NotFoundException } from '@nestjs/common';
 import { InjectConnection, InjectModel } from '@nestjs/mongoose';
 import { Connection, Model, Types } from 'mongoose';
 import { Client, ClientDocument } from '../clients/schemas/client.schema';
@@ -6,6 +6,7 @@ import { Product, ProductDocument } from '../stock/schemas/product.schema';
 import { Counter, CounterDocument } from '../stock/schemas/counter.schema';
 import { CreateRemittanceDto } from './dto/create-remittance.dto';
 import { Remittance, RemittanceDocument } from './schemas/remittance.schema';
+import { UpdateRemittanceDto } from './dto/update-remittance.dto';
 
 @Injectable()
 export class RemittancesService {
@@ -70,6 +71,47 @@ export class RemittancesService {
         actorId: actor.id,
         actorName: actor.name,
       });
+    });
+  }
+
+  update(id: string, dto: UpdateRemittanceDto, actor: { id: string; name: string }) {
+    return this.connection.transaction(async () => {
+      const remittance = await this.remittances.findById(id).exec();
+      if (!remittance) throw new NotFoundException('Remito inexistente');
+      if (remittance.cancelado) throw new ConflictException('Un remito anulado no puede modificarse');
+      const client = await this.clients.findOne({ _id: dto.clienteId, activo: true }).lean().exec();
+      if (!client) throw new NotFoundException('Cliente inexistente o inactivo');
+      const ids = [...new Set(dto.items.map((item) => item.productoId))];
+      const products = await this.products.find({ _id: { $in: ids } }).lean().exec();
+      if (products.length !== ids.length) throw new NotFoundException('Producto inexistente');
+      const byId = new Map(products.map((product) => [product._id.toString(), product]));
+      remittance.historialCorrecciones.push({ fecha: new Date(), actorName: actor.name,
+        clienteNombre: remittance.clienteNombre,
+        items: remittance.items.map((item) => ({ productoNombre: item.productoNombre, cantidad: item.cantidad })),
+        observaciones: remittance.observaciones });
+      remittance.clienteId = client._id; remittance.clienteCodigo = client.codigo;
+      remittance.clienteNombre = client.nombre; remittance.clienteDireccion = client.direccion;
+      remittance.clienteLocalidad = client.localidad;
+      remittance.items = dto.items.map((item) => ({ productoId: new Types.ObjectId(item.productoId),
+        productoNombre: byId.get(item.productoId)!.nombre, cantidad: item.cantidad,
+        precioFinalUnitarioCentavos: 0, totalCentavos: 0 }));
+      remittance.totalCentavos = 0; remittance.transporteDescargaCentavos = 0;
+      remittance.observaciones = dto.observaciones?.trim() ?? '';
+      await remittance.save();
+      return remittance;
+    });
+  }
+
+  cancel(id: string, reason: string, actor: { id: string; name: string }) {
+    return this.connection.transaction(async () => {
+      const remittance = await this.remittances.findById(id).exec();
+      if (!remittance) throw new NotFoundException('Remito inexistente');
+      if (remittance.cancelado) throw new ConflictException('El remito ya está anulado');
+      remittance.cancelado = true; remittance.canceladoAt = new Date();
+      remittance.motivoCancelacion = reason.trim() || `Anulado por ${actor.name}`;
+      remittance.canceladoPorNombre = actor.name;
+      await remittance.save();
+      return remittance;
     });
   }
 }

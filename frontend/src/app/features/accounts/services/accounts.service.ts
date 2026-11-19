@@ -18,4 +18,10 @@ export class AccountsService {
   cancelOpeningDebt(id: string, reason: string) {
     return this.http.patch(`${this.base}/opening-debts/${id}/cancel`, { reason }, this.options);
   }
+  reviseClientPayment(id: string, amountCents: number, paymentMethod: 'EFECTIVO' | 'TRANSFERENCIA', accountingDate: string, reason: string) {
+    return this.http.patch(`${this.base}/clients/payments/${id}`, { amountCents, paymentMethod, accountingDate, reason }, this.options);
+  }
+  cancelClientPayment(id: string, reason: string) {
+    return this.http.patch(`${this.base}/clients/payments/${id}/cancel`, { reason }, this.options);
+  }
 }

@@ -54,6 +54,8 @@ export class Client {
     index: true,
   })
   listaPreciosId: Types.ObjectId | null;
+  @Prop({ type: [{ type: MongooseSchema.Types.ObjectId, ref: 'PriceList' }], default: [] })
+  listasPreciosIds: Types.ObjectId[];
   @Prop({ default: false }) permiteCuentaCorriente: boolean;
   @Prop({ required: true, min: 0, default: 0 }) limiteCreditoCentavos: number;
   // Saldo consumido por ventas a crédito. El disponible es límite menos saldo.

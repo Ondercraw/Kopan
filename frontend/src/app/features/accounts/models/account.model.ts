@@ -1,5 +1,5 @@
 export type AccountStatus = 'PENDIENTE' | 'PARCIAL' | 'PAGADO' | 'CANCELADO';
-export interface AccountPayment { id: string; montoCentavos: number; medioPago: 'EFECTIVO' | 'TRANSFERENCIA' | 'CHEQUE' | 'PAGADO_ANTES_SISTEMA'; fecha: string; registradoAt?: string; actorName: string }
+export interface AccountPayment { id: string; montoCentavos: number; medioPago: 'EFECTIVO' | 'TRANSFERENCIA' | 'CHEQUE' | 'PAGADO_ANTES_SISTEMA'; fecha: string; registradoAt?: string; actorName: string; editable?: boolean; cancelado?: boolean; motivoCancelacion?: string; corregidoAt?: string; corregidoPorNombre?: string; historialCorrecciones?: Array<{ fecha: string; montoCentavos: number; medioPago: string; fechaContable: string; actorName: string; motivo: string }> }
 export interface AccountDocument {
   id: string; codigo: number; tipo: 'VENTA' | 'COMPRA' | 'SALDO_INICIAL' | 'REMITO'; fecha: string; totalCentavos: number;
   pagadoCentavos: number; saldoCentavos: number; estado: AccountStatus; detalle: string; pagos: AccountPayment[];

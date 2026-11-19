@@ -48,6 +48,7 @@ export class ClientsService {
       .find()
       .populate('vendedorId', 'nombre email activo')
       .populate('listaPreciosId', 'codigo nombre activo')
+      .populate('listasPreciosIds', 'codigo nombre activo')
       .sort({ activo: -1, nombre: 1 })
       .lean()
       .exec();
@@ -92,6 +93,7 @@ export class ClientsService {
   ): Promise<ClientDocument> {
     await this.validateSeller(dto.vendedorId);
     await this.validatePriceList(dto.listaPreciosId);
+    await this.validatePriceLists(dto);
     await this.ensureNameAvailable(dto.nombre);
     const codigo = await this.nextCode();
     try {
@@ -115,6 +117,7 @@ export class ClientsService {
   ): Promise<ClientDocument> {
     await this.validateSeller(dto.vendedorId);
     await this.validatePriceList(dto.listaPreciosId);
+    await this.validatePriceLists(dto);
     const current = await this.clientModel
       .findById(id)
       .select('saldoCuentaCorrienteCentavos')
@@ -204,6 +207,7 @@ export class ClientsService {
       listaPreciosId: dto.listaPreciosId
         ? new Types.ObjectId(dto.listaPreciosId)
         : null,
+      listasPreciosIds: [...new Set([dto.listaPreciosId, ...(dto.listasPreciosIds ?? [])])].map((id) => new Types.ObjectId(id)),
       permiteCuentaCorriente: dto.permiteCuentaCorriente,
       limiteCreditoCentavos: dto.limiteCreditoCentavos,
       observaciones: dto.observaciones?.trim() ?? '',
@@ -239,6 +243,12 @@ export class ClientsService {
       throw new NotFoundException(
         'La lista de precios seleccionada no existe o está inactiva',
       );
+  }
+
+  private async validatePriceLists(dto: SaveClientDto): Promise<void> {
+    const ids = [...new Set([dto.listaPreciosId, ...(dto.listasPreciosIds ?? [])])];
+    const count = await this.priceListModel.countDocuments({ _id: { $in: ids }, activo: true });
+    if (count !== ids.length) throw new NotFoundException('Una lista de precios no existe o está inactiva');
   }
 
   private async saveCatalogs(group: string, location: string): Promise<void> {

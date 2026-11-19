@@ -490,6 +490,7 @@ export class SalesService {
     if (
       client.listaPreciosId &&
       client.listaPreciosId.toString() !== dto.listaPreciosId &&
+      !(client.listasPreciosIds ?? []).some((id) => id.toString() === dto.listaPreciosId) &&
       !normalizeUserRoles(actor.roles).includes(UserRole.JEFE)
     ) {
       throw new ConflictException(

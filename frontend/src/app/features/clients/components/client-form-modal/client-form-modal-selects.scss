@@ -44,3 +44,8 @@ input[list]:hover {
 .grid label:has(input[list]) > span {
   color: #5e4027;
 }
+.additional-lists { grid-column: 1 / -1; display: grid; gap: .4rem; padding: .75rem; border: 1px solid #d8cabc; border-radius: 10px; background: #fff; }
+.additional-lists > small { color: #6e635a; }
+.additional-list-options { display: flex; flex-wrap: wrap; gap: .5rem 1rem; max-height: 130px; overflow: auto; }
+.additional-list-options label { display: inline-flex; align-items: center; gap: .4rem; width: auto; cursor: pointer; }
+.additional-list-options input { width: auto; accent-color: #713508; }

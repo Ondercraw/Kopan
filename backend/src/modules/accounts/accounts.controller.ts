@@ -10,6 +10,7 @@ import { AccountsService } from './accounts.service';
 import { PayAccountDto } from './dto/pay-account.dto';
 import { AddOpeningDebtDto } from './dto/add-opening-debt.dto';
 import { CancelOpeningDebtDto } from './dto/cancel-opening-debt.dto';
+import { CancelClientPaymentDto, ReviseClientPaymentDto } from './dto/revise-client-payment.dto';
 
 @UseGuards(JwtAuthGuard, RolesGuard)
 @Roles(UserRole.JEFE)
@@ -33,6 +34,14 @@ export class AccountsController {
   @Patch('clients/sales/:id/pay')
   payClient(@Param('id', MongoIdPipe) id: string, @Body() dto: PayAccountDto, @CurrentUser() user: JwtPayload) {
     return this.service.payClientSale(id, dto.amountCents, dto.paymentMethod, { id: user.sub, name: user.nombre }, dto.accountingDate);
+  }
+  @Patch('clients/payments/:id')
+  reviseClientPayment(@Param('id', MongoIdPipe) id: string, @Body() dto: ReviseClientPaymentDto, @CurrentUser() user: JwtPayload) {
+    return this.service.reviseClientPayment(id, dto, { id: user.sub, name: user.nombre });
+  }
+  @Patch('clients/payments/:id/cancel')
+  cancelClientPayment(@Param('id', MongoIdPipe) id: string, @Body() dto: CancelClientPaymentDto, @CurrentUser() user: JwtPayload) {
+    return this.service.cancelClientPayment(id, dto.reason ?? '', { id: user.sub, name: user.nombre });
   }
   @Patch('suppliers/purchases/:id/pay')
   paySupplier(@Param('id', MongoIdPipe) id: string, @Body() dto: PayAccountDto, @CurrentUser() user: JwtPayload) {
