@@ -263,7 +263,7 @@ export class SalesEntryPage implements OnInit {
     });
   }
   choosePriceList(listId: string) {
-    if (!this.canChangePrice() && !this.selectedClient()?.listasPreciosIds?.some((list) => list._id === listId) && this.selectedClient()?.listaPreciosId?._id !== listId) return;
+    if (!this.allowedLineLists().some((list) => list._id === listId)) return;
     this.selectedListId = listId;
     this.priceList.set(null);
     const cached = this.listDetails()[listId];
@@ -277,7 +277,7 @@ export class SalesEntryPage implements OnInit {
     const client = this.selectedClient();
     if (!client) return [];
     const assigned = new Set([client.listaPreciosId?._id, ...(client.listasPreciosIds ?? []).map((list) => list._id)]);
-    return this.availableLists().filter((list) => this.canChangePrice() || assigned.has(list._id));
+    return this.availableLists().filter((list) => assigned.has(list._id));
   }
   usedListNames(): string {
     return [...new Set(this.lines().map((line) => line.listName))].join(', ');

@@ -490,13 +490,11 @@ export class SalesService {
       throw new BadRequestException('Las ventas de mostrador deben registrar un cobro en caja');
     }
     if (
-      client.listaPreciosId &&
-      client.listaPreciosId.toString() !== dto.listaPreciosId &&
-      !(client.listasPreciosIds ?? []).some((id) => id.toString() === dto.listaPreciosId) &&
-      !normalizeUserRoles(actor.roles).includes(UserRole.JEFE)
+      client.listaPreciosId?.toString() !== dto.listaPreciosId &&
+      !(client.listasPreciosIds ?? []).some((id) => id.toString() === dto.listaPreciosId)
     ) {
       throw new ConflictException(
-        'Solo un dueño puede cambiar la lista asignada durante la venta',
+        'Esta lista no está asignada al cliente',
       );
     }
     if (
@@ -540,7 +538,7 @@ export class SalesService {
     const listIds = [...new Set(dto.items.map((item) => item.listaPreciosId ?? dto.listaPreciosId))];
     const lists = await this.listModel.find({ _id: { $in: listIds }, activo: true }).exec();
     if (lists.length !== listIds.length) throw new NotFoundException('Una lista de precios no existe o está inactiva');
-    if (!normalizeUserRoles(actor.roles).includes(UserRole.JEFE) && listIds.some((id) =>
+    if (listIds.some((id) =>
       client.listaPreciosId?.toString() !== id && !(client.listasPreciosIds ?? []).some((assigned) => assigned.toString() === id)))
       throw new ConflictException('La venta contiene una lista no asignada al cliente');
     const prices = await this.priceItemModel

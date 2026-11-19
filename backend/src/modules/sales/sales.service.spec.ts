@@ -3,6 +3,27 @@ import { SalesService } from './sales.service';
 import { PaymentMethod } from './enums/payment-method.enum';
 import { SaleStatus } from './enums/sale-status.enum';
 import { StockMovementType } from '../stock/enums/stock-movement-type.enum';
+import { UserRole } from '../../common/enums/user-role.enum';
+
+describe('SalesService.create - listas del cliente', () => {
+  it('impide usar una lista no marcada en el cliente aunque venda un Dueño', async () => {
+    const clientId = new Types.ObjectId();
+    const assignedId = new Types.ObjectId();
+    const otherId = new Types.ObjectId();
+    const client = { _id: clientId, listaPreciosId: assignedId, listasPreciosIds: [assignedId] };
+    const service = new SalesService(
+      { transaction: (work: () => unknown) => work() } as never,
+      {} as never,
+      { findOne: () => ({ exec: async () => client }) } as never,
+      {} as never, {} as never,
+      { findOne: () => ({ exec: async () => ({ _id: otherId, nombre: 'Oferta', activo: true }) }) } as never,
+      {} as never, {} as never, {} as never, {} as never, {} as never, {} as never, {} as never,
+    );
+    await expect(service.create({ clienteId: clientId.toString(), listaPreciosId: otherId.toString(),
+      medioPago: PaymentMethod.CASH, items: [{ productoId: new Types.ObjectId().toString(), cantidad: 1 }] },
+    { id: 'owner', name: 'Dueño', roles: [UserRole.JEFE] })).rejects.toThrow('Esta lista no está asignada al cliente');
+  });
+});
 
 describe('SalesService.findForFinancialReport', () => {
   it('incluye el costo asignado a una venta histórica y muestra las unidades aún sin costo', async () => {
