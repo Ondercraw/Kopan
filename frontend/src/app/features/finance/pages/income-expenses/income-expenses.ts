@@ -133,33 +133,44 @@ export class IncomeExpensesPage implements OnInit {
   }
   readonly salesForGroups = signal<Pick<Sale, '_id' | 'items' | 'totalCentavos'>[]>([]);
   readonly purchasesForGroups = signal<Pick<Purchase, '_id' | 'items' | 'totalCentavos'>[]>([]);
+  readonly remittancesForGroups = signal<RemittanceRecord[]>([]);
   readonly movementGroups = computed(() => {
     const productGroup = new Map(this.products().map(p => [p._id, this.isSugar(p.tipo) ? 'azucares' : 'varios']));
     const sales = new Map(this.salesForGroups().map(s => [s._id, s]));
     const purchases = new Map(this.purchasesForGroups().map(p => [p._id, p]));
+    const remittances = new Map(this.remittancesForGroups().map(r => [r._id, r]));
     const groups = [
       { key: 'azucares', label: 'AZÚCARES', movements: [] as (FinancialMovement & { groupAmountCentavos: number })[], income: 0, pendingIncome: 0, paidExpenses: 0, pendingExpenses: 0 },
       { key: 'varios', label: 'PRODUCTOS VARIOS', movements: [] as (FinancialMovement & { groupAmountCentavos: number })[], income: 0, pendingIncome: 0, paidExpenses: 0, pendingExpenses: 0 },
     ];
     for (const movement of this.items()) {
       let sugar = 0;
+      let documentGroups: [boolean, boolean] = [false, false];
       if (movement.ventaId) {
         const sale = sales.get(movement.ventaId);
         if (sale) {
           const total = sale.items.reduce((sum, item) => sum + item.totalCentavos, 0);
-          const sugarTotal = sale.items.reduce((sum, item) => sum + (productGroup.get(String(item.productoId)) === 'azucares' ? item.totalCentavos : 0), 0);
+          const sugarTotal = sale.items.reduce((sum, item) => sum + (this.isSugarProduct(productGroup, String(item.productoId), item.productoNombre) ? item.totalCentavos : 0), 0);
           sugar = total ? Math.round(movement.montoCentavos * sugarTotal / Math.max(total, sale.totalCentavos)) : 0;
         }
       } else if (movement.compraId) {
         const purchase = purchases.get(movement.compraId);
         if (purchase) {
           const total = purchase.items.reduce((sum, item) => sum + item.subtotalCents, 0);
-          const sugarTotal = purchase.items.reduce((sum, item) => sum + (productGroup.get(item.productId) === 'azucares' ? item.subtotalCents : 0), 0);
+          const sugarTotal = purchase.items.reduce((sum, item) => sum + (this.isSugarProduct(productGroup, String(item.productId), item.productName) ? item.subtotalCents : 0), 0);
           sugar = total ? Math.round(movement.montoCentavos * sugarTotal / total) : 0;
         }
+      } else if (movement.remitoId) {
+        const remittance = remittances.get(movement.remitoId);
+        if (remittance) {
+          documentGroups = [
+            remittance.items.some(item => this.isSugarProduct(productGroup, String(item.productoId), item.productoNombre)),
+            remittance.items.some(item => !this.isSugarProduct(productGroup, String(item.productoId), item.productoNombre)),
+          ];
+        } else documentGroups = [false, true];
       } else if (movement.productoId && productGroup.get(String(movement.productoId)) === 'azucares') sugar = movement.montoCentavos;
       for (const [index, amount] of [sugar, movement.montoCentavos - sugar].entries()) {
-        if (!amount && !(movement.categoria === 'REMITO' && index === 1)) continue;
+        if (!amount && !(movement.categoria === 'REMITO' && documentGroups[index])) continue;
         const group = groups[index];
         group.movements.push({ ...movement, groupAmountCentavos: amount });
         if (movement.cancelado) continue;
@@ -190,6 +201,9 @@ export class IncomeExpensesPage implements OnInit {
     return this.items().filter(item => (item.ventaId && !sales.has(item.ventaId)) || (item.compraId && !purchases.has(item.compraId))).length;
   });
   private isSugar(value: string) { return /^AZUCAR(?:ES)?(?:\b|$)/.test(value.normalize('NFD').replace(/[\u0300-\u036f]/g, '').trim().toUpperCase()); }
+  private isSugarProduct(groups: Map<string, string>, id: string, name: string) {
+    return groups.get(id) === 'azucares' || (!groups.has(id) && this.isSugar(name));
+  }
   groupFiltered(key: string) {
     const allowed = new Set(this.filtered().map(item => item._id));
     return this.movementGroups().find(group => group.key === key)?.movements.filter(item => allowed.has(item._id)) ?? [];
@@ -436,6 +450,7 @@ export class IncomeExpensesPage implements OnInit {
       next: ({ finance, remittances }) => {
         this.salesForGroups.set(finance.linkedSales ?? []);
         this.purchasesForGroups.set(finance.linkedPurchases ?? []);
+        this.remittancesForGroups.set(remittances);
         const documents = remittances.map((remittance) => this.remittanceMovement(remittance));
         this.items.set([...finance.items, ...documents].sort((a, b) =>
           new Date(b.fechaMovimiento).getTime() - new Date(a.fechaMovimiento).getTime()));
