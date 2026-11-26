@@ -131,8 +131,8 @@ export class IncomeExpensesPage implements OnInit {
       error: (err) => { this.saving.set(false); this.error.set(err?.error?.message ?? 'No se pudo anular el remito'); },
     });
   }
-  readonly salesForGroups = signal<Sale[]>([]);
-  readonly purchasesForGroups = signal<Purchase[]>([]);
+  readonly salesForGroups = signal<Pick<Sale, '_id' | 'items' | 'totalCentavos'>[]>([]);
+  readonly purchasesForGroups = signal<Pick<Purchase, '_id' | 'items' | 'totalCentavos'>[]>([]);
   readonly movementGroups = computed(() => {
     const productGroup = new Map(this.products().map(p => [p._id, this.isSugar(p.tipo) ? 'azucares' : 'varios']));
     const sales = new Map(this.salesForGroups().map(s => [s._id, s]));
@@ -432,10 +432,10 @@ export class IncomeExpensesPage implements OnInit {
     this.sugarPage.set(1);
     this.otherPage.set(1);
     const range = argentinaRange(this.from, this.to);
-    forkJoin({ finance: this.api.findAll(range), remittances: this.remittancesApi.findAll(range).pipe(catchError(() => of([] as RemittanceRecord[]))), sales: this.salesApi.findAll().pipe(catchError(() => { this.classificationError.set('No se pudieron cargar las ventas para clasificar los movimientos por rubro.'); return of([] as Sale[]); })), purchases: this.purchasesApi.findAll().pipe(catchError(() => { this.classificationError.set('No se pudieron cargar las compras para clasificar los movimientos por rubro.'); return of([] as Purchase[]); })) }).subscribe({
-      next: ({ finance, remittances, sales, purchases }) => {
-        this.salesForGroups.set(sales);
-        this.purchasesForGroups.set(purchases);
+    forkJoin({ finance: this.api.findAll(range), remittances: this.remittancesApi.findAll(range).pipe(catchError(() => of([] as RemittanceRecord[]))) }).subscribe({
+      next: ({ finance, remittances }) => {
+        this.salesForGroups.set(finance.linkedSales ?? []);
+        this.purchasesForGroups.set(finance.linkedPurchases ?? []);
         const documents = remittances.map((remittance) => this.remittanceMovement(remittance));
         this.items.set([...finance.items, ...documents].sort((a, b) =>
           new Date(b.fechaMovimiento).getTime() - new Date(a.fechaMovimiento).getTime()));

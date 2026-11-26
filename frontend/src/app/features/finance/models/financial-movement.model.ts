@@ -60,6 +60,8 @@ export interface FinancialResponse {
   items: FinancialMovement[];
   period: FinancialSummary;
   overall: FinancialSummary;
+  linkedSales: Pick<Sale, '_id' | 'items' | 'totalCentavos'>[];
+  linkedPurchases: Pick<Purchase, '_id' | 'items' | 'totalCentavos'>[];
 }
 export interface CreateExpensePayload {
   concepto: string;
@@ -68,3 +70,5 @@ export interface CreateExpensePayload {
   proveedorId?: string;
   fecha?: string;
 }
+import type { Sale } from '../../sales/models/sale.model';
+import type { Purchase } from '../../purchases/models/purchase.model';

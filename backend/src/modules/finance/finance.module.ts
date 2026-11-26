@@ -11,11 +11,13 @@ import { FinanceService } from './finance.service';
 import { FinancialMovement, FinancialMovementSchema } from './schemas/financial-movement.schema';
 import { AccountPayment, AccountPaymentSchema } from '../accounts/schemas/account-payment.schema';
 import { Client, ClientSchema } from '../clients/schemas/client.schema';
+import { Purchase, PurchaseSchema } from '../purchases/schemas/purchase.schema';
 
 @Module({
   imports: [PurchasesModule, MongooseModule.forFeature([
     { name: FinancialMovement.name, schema: FinancialMovementSchema },
     { name: Sale.name, schema: SaleSchema },
+    { name: Purchase.name, schema: PurchaseSchema },
     { name: Supplier.name, schema: SupplierSchema },
     { name: BankCheck.name, schema: BankCheckSchema },
     { name: Product.name, schema: ProductSchema },

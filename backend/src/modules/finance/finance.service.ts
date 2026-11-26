@@ -6,6 +6,7 @@ import {
 import { InjectConnection, InjectModel } from '@nestjs/mongoose';
 import { Connection, Model, Types } from 'mongoose';
 import { Sale, SaleDocument } from '../sales/schemas/sale.schema';
+import { Purchase, PurchaseDocument } from '../purchases/schemas/purchase.schema';
 import { SaleStatus } from '../sales/enums/sale-status.enum';
 import {
   Supplier,
@@ -73,6 +74,7 @@ export class FinanceService {
     private readonly accountPaymentModel: Model<AccountPaymentDocument>,
     @InjectModel(Client.name) private readonly clientModel: Model<ClientDocument>,
     @InjectConnection() private readonly connection?: Connection,
+    @InjectModel(Purchase.name) private readonly purchaseModel?: Model<PurchaseDocument>,
   ) {}
 
   async recordSale(sale: SaleDocument): Promise<void> {
@@ -722,7 +724,17 @@ export class FinanceService {
       this.summarizeQuery(query),
       this.summarizeQuery({}),
     ]);
-    return { items, period, overall };
+    // Buscar por los IDs de los movimientos visibles: incluye operaciones anuladas
+    // y evita que el límite de los listados generales pierda su rubro histórico.
+    const saleIds = [...new Set(items.map(item => item.ventaId?.toString()).filter((id): id is string => !!id))];
+    const purchaseIds = [...new Set(items.map(item => item.compraId?.toString()).filter((id): id is string => !!id))];
+    const [linkedSales, linkedPurchases] = await Promise.all([
+      saleIds.length ? this.saleModel.find({ _id: { $in: saleIds } }).select('_id items totalCentavos').lean().exec() : [],
+      purchaseIds.length && this.purchaseModel
+        ? this.purchaseModel.find({ _id: { $in: purchaseIds } }).select('_id items totalCentavos').lean().exec()
+        : [],
+    ]);
+    return { items, period, overall, linkedSales, linkedPurchases };
   }
 
   async totalExpenses(filters: { from?: string; to?: string } = {}) {

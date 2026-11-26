@@ -90,6 +90,36 @@ describe('FinanceService', () => {
     expect(result.overall.gastosPendientesCentavos).toBe(0);
   });
 
+  it('incluye ventas anuladas y compras referenciadas para clasificar su rubro', async () => {
+    const saleId = new Types.ObjectId();
+    const purchaseId = new Types.ObjectId();
+    const movements = [
+      { ventaId: saleId, compraId: null },
+      { ventaId: null, compraId: purchaseId },
+    ];
+    const movementQuery = {
+      sort: jest.fn().mockReturnThis(), limit: jest.fn().mockReturnThis(),
+      lean: jest.fn().mockReturnThis(), exec: jest.fn().mockResolvedValue(movements),
+    };
+    const saleFind = jest.fn().mockReturnValue({
+      select: () => ({ lean: () => ({ exec: () => Promise.resolve([{ _id: saleId, estado: SaleStatus.CANCELLED, items: [] }]) }) }),
+    });
+    const purchaseFind = jest.fn().mockReturnValue({
+      select: () => ({ lean: () => ({ exec: () => Promise.resolve([{ _id: purchaseId, items: [] }]) }) }),
+    });
+    const service = new FinanceService(
+      { find: () => movementQuery, aggregate: () => ({ exec: () => Promise.resolve([]) }) } as never,
+      { find: saleFind } as never, {} as never, {} as never, {} as never,
+      {} as never, {} as never, undefined, undefined, undefined, { find: purchaseFind } as never,
+    );
+
+    const result = await service.findAll();
+    expect(saleFind).toHaveBeenCalledWith({ _id: { $in: [saleId.toString()] } });
+    expect(purchaseFind).toHaveBeenCalledWith({ _id: { $in: [purchaseId.toString()] } });
+    expect(result.linkedSales).toHaveLength(1);
+    expect(result.linkedPurchases).toHaveLength(1);
+  });
+
   it('registra sólo el ingreso de venta sin duplicar el gasto de compra', async () => {
     const movementModel = {
       updateOne: jest.fn().mockResolvedValue({ acknowledged: true }),
